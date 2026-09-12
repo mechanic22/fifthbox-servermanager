@@ -1,0 +1,5 @@
+/* Monospace the bulk KEY=VALUE textarea. Tailwind can't reach into a child component, so this uses
+   ::deep to target MaterialInput's inner input from this component's own scoped wrapper. */
+.mono-field ::deep .md-text-field__input {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

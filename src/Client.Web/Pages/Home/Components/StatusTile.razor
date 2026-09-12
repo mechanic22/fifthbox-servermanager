@@ -1,0 +1,50 @@
+@* One thing worth knowing, as a link to the page that does something about it. Tiles fill in
+   independently — a tile whose endpoint failed says so instead of taking the page down with it. *@
+
+<a href="@Href" class="block rounded-lg border p-4 transition-colors hover:border-(--md-sys-color-primary)"
+   style="border-color: var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container-low)">
+    <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="text-xs font-medium uppercase tracking-wide opacity-60">@Label</span>
+        @if (Chip is not null)
+        {
+            <MaterialChip Text="@Chip" Color="@ChipColor" Size="MaterialChipSize.Small" />
+        }
+    </div>
+
+    @if (Failed)
+    {
+        <div class="text-sm" style="color: var(--md-sys-color-error)">Couldn't load</div>
+    }
+    else if (Loading)
+    {
+        <div class="h-7 w-24 rounded animate-pulse" style="background: var(--md-sys-color-surface-container-highest)"></div>
+    }
+    else
+    {
+        <div class="text-2xl font-medium leading-tight">@Value</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Detail) && !Loading && !Failed)
+    {
+        <div class="text-sm opacity-70 mt-1">@Detail</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Warning))
+    {
+        <div class="text-sm mt-2" style="color: var(--md-sys-color-error)">@Warning</div>
+    }
+</a>
+
+@code {
+    [Parameter, EditorRequired] public required string Label { get; set; }
+    [Parameter, EditorRequired] public required string Href { get; set; }
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public string? Detail { get; set; }
+
+    /// Something the reader should act on — shown even while the rest is still loading.
+    [Parameter] public string? Warning { get; set; }
+
+    [Parameter] public string? Chip { get; set; }
+    [Parameter] public MaterialChipColor ChipColor { get; set; } = MaterialChipColor.Default;
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool Failed { get; set; }
+}

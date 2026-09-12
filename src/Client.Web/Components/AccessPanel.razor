@@ -1,0 +1,166 @@
+@* Who can reach one workload or group, and the way to change it. Admin-only — the panel is only ever
+   rendered behind an admin check, and every endpoint behind it is AdminOnly anyway. *@
+@using FifthBox.ServerManager.Shared.Access
+@using FifthBox.ServerManager.Shared.Teams
+@using FifthBox.ServerManager.Shared.Users
+@inject IAccessClient AccessApi
+@inject IAdminClient AdminApi
+@inject ITeamsClient TeamsApi
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm opacity-70">
+        Administrators already reach this. Anyone else needs a grant here, or on a group above it.
+    </p>
+    <MaterialButton Text="Give access" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                    OnClick="OpenAdd" Disabled="_busy" />
+</div>
+
+<MaterialTable Loading="_loading">
+    <thead>
+        <tr><th>Who</th><th>Can do</th><th>From</th><th></th></tr>
+    </thead>
+    <tbody>
+        @if (_grants is { Count: > 0 })
+        {
+            @foreach (var g in _grants)
+            {
+                <tr>
+                    <td data-label="Who">
+                        @(g.SubjectName.Length > 0 ? g.SubjectName : g.SubjectId)
+                        <span class="text-xs opacity-60"> — @(g.SubjectType == AccessSubject.Team ? "team" : "person")</span>
+                    </td>
+                    <td data-label="Can do">@g.Level</td>
+                    <td data-label="From" class="text-sm">
+                        @if (g.Inherited)
+                        {
+                            <span class="opacity-60">the @g.TargetName group</span>
+                        }
+                        else
+                        {
+                            <span class="opacity-60">here</span>
+                        }
+                    </td>
+                    <td class="text-right whitespace-nowrap">
+                        @if (g.Inherited)
+                        {
+                            <span class="text-xs opacity-60">change it on that group</span>
+                        }
+                        else
+                        {
+                            <MaterialButton Text="Change" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                            OnClick="@(() => OpenEdit(g))" Disabled="_busy" />
+                            <MaterialButton Text="Remove" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                            OnClick="@(() => AskRemove(g))" Disabled="_busy" />
+                        }
+                    </td>
+                </tr>
+            }
+        }
+        <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_grants is null or { Count: 0 })"
+                    Empty="Only administrators can reach this." OnRetry="LoadAsync" Busy="_busy" />
+    </tbody>
+</MaterialTable>
+
+<GrantEditorDialog @ref="_editor" @bind-IsOpen="_dialogOpen"
+                   Users="_users" Teams="_teams"
+                   LockedScope="Scope" LockedTargetId="@TargetId" LockedTargetName="@TargetName"
+                   OnSaved="LoadAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Remove access?"
+                       Message="@RemoveMessage()" ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveConfirmedAsync" />
+
+@code {
+    [Parameter, EditorRequired] public AccessScope Scope { get; set; }
+    [Parameter, EditorRequired] public required string TargetId { get; set; }
+    [Parameter] public string? TargetName { get; set; }
+
+    private IReadOnlyList<AccessGrantResponse>? _grants;
+    private IReadOnlyList<UserSummaryResponse>? _users;
+    private IReadOnlyList<TeamResponse>? _teams;
+
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private GrantEditorDialog? _editor;
+    private bool _dialogOpen;
+    private bool _confirmOpen;
+    private AccessGrantResponse? _pendingRemove;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        // Independent of each other: the table needs the grants, the editor's pickers need the rest.
+        var grants = AccessApi.ListGrantsForTargetAsync(Scope, TargetId);
+        var users = AdminApi.ListUsersAsync();
+        var teams = TeamsApi.ListAsync();
+
+        try
+        {
+            await Task.WhenAll(grants, users, teams);
+            _grants = grants.Result;
+            _users = users.Result;
+            _teams = teams.Result;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _editor?.Load(null);
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(AccessGrantResponse grant)
+    {
+        _editor?.Load(grant);
+        _dialogOpen = true;
+    }
+
+    private void AskRemove(AccessGrantResponse grant)
+    {
+        _pendingRemove = grant;
+        _confirmOpen = true;
+    }
+
+    private string RemoveMessage() => _pendingRemove is null
+        ? string.Empty
+        : $"{_pendingRemove.SubjectName} loses {_pendingRemove.Level} on {TargetName}.";
+
+    private async Task RemoveConfirmedAsync()
+    {
+        if (_pendingRemove is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await AccessApi.RemoveGrantAsync(_pendingRemove.Id);
+            Snackbar.Show("Access removed.");
+            _confirmOpen = false;
+            _pendingRemove = null;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+            await LoadAsync();
+        }
+    }
+}

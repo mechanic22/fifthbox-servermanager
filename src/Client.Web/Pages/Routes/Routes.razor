@@ -1,0 +1,331 @@
+@page "/routes"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@inject IRoutesClient RoutesApi
+@inject ITlsClient TlsApi
+@inject IMaterialSnackbarService Snackbar
+@inject NavigationManager Nav
+@using FifthBox.ServerManager.Client.Web.Components
+
+<PageTitle>Routes — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-5xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-medium">Routes</h1>
+            @if (_proxy?.Status is { } status)
+            {
+                <MaterialChip Text="@ProxyText(status)" Color="ProxyColor(status.State)" />
+            }
+        </div>
+        <div class="flex items-center gap-2">
+            <MaterialButton Text="Add external route" Style="MaterialButtonStyle.Outlined" OnClick="OpenAdd"
+                            Disabled="_busy" />
+            <MaterialButton Text="View nginx config" Style="MaterialButtonStyle.Text" OnClick="ViewConfigAsync"
+                            Disabled="_busy" />
+            <MaterialButton Text="@(_busy ? "Working…" : "Deploy nginx")" Style="MaterialButtonStyle.Filled"
+                            OnClick="ApplyAsync" Disabled="_busy" />
+        </div>
+    </div>
+
+    <ProxyDriftBanner State="_proxy" OnApplied="ReloadStateAsync" />
+
+    @if (_config is not null)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 mb-6">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-medium opacity-70">Generated nginx config</h2>
+                <MaterialButton Text="Hide" Style="MaterialButtonStyle.Text" OnClick="@(() => _config = null)" />
+            </div>
+            <CopyBlock Text="@_config" />
+        </MaterialCard>
+    }
+
+    <MaterialTable Loading="_loading">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>TLS</th>
+                <th>Path</th>
+                <th>Target</th>
+                <th>Port</th>
+                <th>Options</th>
+                <th>Live</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_routes is { Count: > 0 })
+            {
+                @foreach (var r in _routes)
+                {
+                    <tr class="@(r.Enabled ? "" : "opacity-50")">
+                        <td data-label="Hostname" class="@(r.Enabled ? "" : "line-through")">@r.Hostname</td>
+                        <td data-label="TLS">
+                            <TlsChip Status="Tls(r.Hostname)?.Status" NotAfter="Tls(r.Hostname)?.NotAfter" />
+                        </td>
+                        <td data-label="Path" class="font-mono text-xs">@r.Path</td>
+                        <td data-label="Target">
+                            @if (r.Target == RouteTarget.External)
+                            {
+                                <span class="font-mono text-xs">@SchemeText(r)://@r.UpstreamHost</span>
+                            }
+                            else if (r.WorkloadName is null)
+                            {
+                                <span class="text-xs" style="color: var(--md-sys-color-error)">(missing)</span>
+                            }
+                            else
+                            {
+                                <a href="workloads/@r.WorkloadId" class="underline">@r.WorkloadName</a>
+                            }
+                        </td>
+                        <td data-label="Port">@r.TargetPort</td>
+                        <td data-label="Options" class="whitespace-nowrap">
+                            @if (r.WebSockets)
+                            {
+                                <MaterialChip Text="WS" Size="MaterialChipSize.Small" />
+                            }
+                            @if (r.BasicAuthEnabled)
+                            {
+                                <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                            }
+                        </td>
+                        <td data-label="Live">
+                            <MaterialSwitch Value="r.Enabled" ValueChanged="@((bool v) => SetEnabledAsync(r, v))" TValue="bool"
+                                            Disabled="_busy" />
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            @if (r.Target == RouteTarget.External)
+                            {
+                                <MaterialButton Text="Edit" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                                OnClick="@(() => OpenEdit(r))" Disabled="_busy" />
+                                <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                                OnClick="@(() => AskDelete(r))" Disabled="_busy" />
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            <TableState Columns="8" Loading="_loading" Error="@_error" IsEmpty="@(_routes is null or { Count: 0 })"
+                        Empty="No routes yet — add one from a workload's Routes tab." OnRetry="LoadAsync" Busy="_busy" />
+        </tbody>
+    </MaterialTable>
+</div>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete route?"
+                       Message="@($"{_pendingDelete?.Hostname}{_pendingDelete?.Path} will stop being served once nginx is redeployed.")"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+<MaterialDialog @bind-IsOpen="_dialogOpen" Title="@(_editId is null ? "Add external route" : "Edit external route")">
+    <ChildContent>
+        <RouteForm Model="_form" IsEdit="@(_editId is not null)" Busy="_busy" />
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _dialogOpen = false)"
+                        Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    private IReadOnlyList<RouteResponse>? _routes;
+    private Dictionary<string, TlsHostResponse> _tls = [];
+    private ProxyStateResponse? _proxy;
+
+    private TlsHostResponse? Tls(string hostname) => _tls.GetValueOrDefault(hostname);
+    private string? _config;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private bool _dialogOpen;
+    private string? _editId;
+    private RouteFormModel _form = new();
+    private bool _confirmOpen;
+    private RouteResponse? _pendingDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await ReloadStateAsync();
+    }
+
+    // Every write below changes the desired config, so the banner has to be re-asked each time —
+    // it's the whole point of the thing.
+    private async Task ReloadStateAsync()
+    {
+        try
+        {
+            _proxy = await RoutesApi.GetProxyStateAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _routes = await RoutesApi.ListAsync();
+            _tls = (await TlsApi.GetAsync()).Hosts.ToDictionary(h => h.Hostname, StringComparer.Ordinal);
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _editId = null;
+        _form = new RouteFormModel { Target = RouteTarget.External };
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(RouteResponse route)
+    {
+        _editId = route.Id;
+        _form = RouteFormModel.From(route);
+        _dialogOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (_editId is null)
+            {
+                await RoutesApi.CreateAsync(_form.ToCreateRequest());
+            }
+            else
+            {
+                await RoutesApi.UpdateAsync(_editId, _form.ToUpdateRequest());
+            }
+
+            _dialogOpen = false;
+            _config = null;
+            await LoadAsync();
+            await ReloadStateAsync();
+            Snackbar.Show("Saved — deploy nginx to apply.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDelete(RouteResponse route)
+    {
+        _pendingDelete = route;
+        _confirmOpen = true;
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        var route = _pendingDelete;
+        _confirmOpen = false;
+        _pendingDelete = null;
+        _busy = true;
+        try
+        {
+            await RoutesApi.DeleteAsync(route.Id);
+            _config = null;
+            await LoadAsync();
+            await ReloadStateAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string SchemeText(RouteResponse r) => r.UpstreamScheme == UpstreamScheme.Https ? "https" : "http";
+
+    private async Task SetEnabledAsync(RouteResponse route, bool enabled)
+    {
+        _busy = true;
+        try
+        {
+            await RoutesApi.SetEnabledAsync(route.Id, enabled);
+            _config = null; // the preview is now stale
+            await LoadAsync();
+            await ReloadStateAsync();
+            Snackbar.Show(enabled ? $"{route.Hostname} enabled — deploy nginx to apply." : $"{route.Hostname} disabled — deploy nginx to apply.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        _busy = true;
+        try
+        {
+            await RoutesApi.ApplyAsync();
+            await ReloadStateAsync();
+            Snackbar.Show("nginx deployed with the current routes.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ViewConfigAsync()
+    {
+        _busy = true;
+        try
+        {
+            _config = await RoutesApi.GetNginxConfigAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string ProxyText(WorkloadRuntimeStatus s) =>
+        s.State == WorkloadState.NotDeployed ? "nginx: not deployed" : $"nginx: {s.State} {s.RunningReplicas}/{s.DesiredReplicas}";
+
+    private static MaterialChipColor ProxyColor(WorkloadState state) => state switch
+    {
+        WorkloadState.Running => MaterialChipColor.Primary,
+        WorkloadState.Partial => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+}

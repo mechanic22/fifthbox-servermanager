@@ -1,0 +1,115 @@
+@page "/settings"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@using FifthBox.ServerManager.Shared.Platform
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<PageTitle>Settings — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-medium mb-6">Settings</h1>
+
+    <MaterialCard Variant="MaterialCardVariant.Elevated" class="p-6">
+        <h2 class="text-lg font-medium mb-1">Application Settings</h2>
+        <p class="text-sm opacity-60 mb-4">The root domain hosted apps get subdomains under, and the email letsencrypt
+            registers with.</p>
+
+            @if (_form is not null)
+            {
+                <MaterialInput @bind-Value="_form.RootDomain" Label="Domain (e.g. example.com)" Disabled="_busy">
+                    <LeadingIcon>
+                        *.
+                    </LeadingIcon>
+                </MaterialInput>
+                <MaterialInput @bind-Value="_form.AcmeEmail" Label="Email address (for letsencrypt)" Disabled="_busy"
+                               class="mt-4" />
+                <MaterialInput @bind-Value="_form.ManagerPrefix" Label="Manager subdomain" Disabled="_busy"
+                               class="mt-4" />
+                <div class="mt-4">
+                    <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="_busy" />
+                </div>
+            }
+            else if (_error is not null)
+            {
+                <LoadFailure Message="@_error" OnRetry="LoadAsync" Inset="false" />
+            }
+            else
+            {
+                <MaterialProgressIndicator />
+            }
+        </MaterialCard>
+
+        <div class="mt-6">
+            <RegistriesCard />
+        </div>
+
+        <div class="mt-6">
+            <BackupsCard />
+        </div>
+
+        <div class="mt-6">
+            <EncryptionCard />
+        </div>
+    </div>
+
+@code {
+    private FormModel? _form;
+    private bool _busy;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            var s = await SystemApi.GetSettingsAsync();
+            _form = new FormModel
+            {
+                RootDomain = s.RootDomain ?? "",
+                AcmeEmail = s.AcmeEmail ?? "",
+                ManagerPrefix = s.ManagerPrefix ?? "",
+            };
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await SystemApi.UpdateSettingsAsync(new UpdatePlatformSettingsRequest
+            {
+                RootDomain = _form.RootDomain,
+                AcmeEmail = _form.AcmeEmail,
+                ManagerPrefix = _form.ManagerPrefix,
+            });
+            Snackbar.Show("Settings saved.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        public string RootDomain { get; set; } = string.Empty;
+        public string AcmeEmail { get; set; } = string.Empty;
+        public string ManagerPrefix { get; set; } = string.Empty;
+    }
+}

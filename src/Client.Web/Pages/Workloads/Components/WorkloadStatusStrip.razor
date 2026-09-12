@@ -1,0 +1,155 @@
+@* Runtime state, first thing on the page — "is it up" is the question you came here with. *@
+
+<div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 flex-wrap">
+        @if (Status is null)
+        {
+            @* No reading yet rather than a bad one — after a Host restart every workload sits here for
+               a moment, and "Unknown" reads like a fault. *@
+            <MaterialChip Text="Checking…" />
+        }
+        else
+        {
+            <MaterialChip Text="@StateText(Workload, Status)" Color="@StateColor(Workload, Status)" />
+        }
+
+        @if (Workload.Kind == WorkloadKind.Native && Status is { Pid: { } pid })
+        {
+            <span class="text-sm opacity-70">PID @pid</span>
+            @if (Status.StartedAt is { } since)
+            {
+                <span class="text-sm opacity-70">· up @UptimeText(since)</span>
+            }
+            @if (Status.Adopted)
+            {
+                <MaterialChip Text="adopted" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+            }
+        }
+
+        @if (Status?.InstalledVersion is { Length: > 0 } version)
+        {
+            <span class="text-sm opacity-70">· @version</span>
+        }
+        @* Null means there was nothing to probe — a UDP-only server, say — so it says nothing at all. *@
+        @if (Status?.Reachable is false)
+        {
+            <MaterialChip Text="not answering" Size="MaterialChipSize.Small" Color="MaterialChipColor.Error" />
+        }
+        @if (Status?.MemoryBytes is { } memory)
+        {
+            <span class="text-sm opacity-70">· @Mb(memory)</span>
+        }
+        @if (Status?.CpuPercent is { } cpu)
+        {
+            <span class="text-sm opacity-70">· @cpu.ToString("0.#")% cpu</span>
+        }
+        @if (Status is { RestartCount: > 0 })
+        {
+            <span class="text-sm opacity-70">· @Status.RestartCount restart(s)</span>
+        }
+        @if (Status?.ExitCode is { } exitCode)
+        {
+            <span class="text-sm opacity-70">· last exit @exitCode</span>
+        }
+
+        @if (Workload.CurrentRevision is { } revision)
+        {
+            <span class="text-xs opacity-60">config rev @revision</span>
+        }
+    </div>
+
+    @if (Status?.UpdateState is "updating" or "rollback_completed" or "rollback_started" or "paused")
+    {
+        <div class="flex items-center gap-2 flex-wrap">
+            <MaterialChip Text="@RolloutText(Status.UpdateState)" Color="@RolloutColor(Status.UpdateState)"
+                          Size="MaterialChipSize.Small" />
+            <span class="text-xs opacity-60">@Status.UpdateMessage</span>
+        </div>
+    }
+
+    @if (IsMissing(Workload, Status))
+    {
+        <span class="text-sm" style="color: var(--md-sys-color-error)">
+            Nothing is deployed, but this was never stopped — the service has been removed outside
+            ServerManager. Deploy to put it back.
+        </span>
+    }
+
+    @if (Status?.RunningImage is { Length: > 0 } image)
+    {
+        <span class="text-xs opacity-60 font-mono" title="@image">Running @ImageText(image)</span>
+    }
+
+    @if (Status?.LastError is { Length: > 0 } error)
+    {
+        <span class="text-sm" style="color: var(--md-sys-color-error)">@error</span>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Status?.Detail))
+    {
+        <span class="text-xs opacity-60">@Status!.Detail</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
+    [Parameter] public WorkloadRuntimeStatus? Status { get; set; }
+
+    /// Nothing deployed, nothing running, and nobody asked for that — which is a different situation
+    /// from a workload that has never been deployed or one somebody stopped.
+    private static bool IsMissing(WorkloadResponse w, WorkloadRuntimeStatus? s) =>
+        s is { State: WorkloadState.NotDeployed }
+        && w.CurrentRevision is not null
+        && w.DesiredState == WorkloadDesiredState.Running;
+
+    private static string StateText(WorkloadResponse w, WorkloadRuntimeStatus s) => s.State switch
+    {
+        WorkloadState.NotDeployed when IsMissing(w, s) => "Missing",
+        WorkloadState.NotDeployed when w.CurrentRevision is not null => "Undeployed",
+        WorkloadState.NotDeployed => "Not deployed",
+        WorkloadState.Updating => "Updating files",
+        _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
+    };
+
+    private static MaterialChipColor StateColor(WorkloadResponse w, WorkloadRuntimeStatus s) => s switch
+    {
+        _ when IsMissing(w, s) => MaterialChipColor.Error,
+        { State: WorkloadState.Running } => MaterialChipColor.Primary,
+        { State: WorkloadState.Partial } => MaterialChipColor.Tertiary,
+        { State: WorkloadState.Updating } => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+
+    private static string RolloutText(string? updateState) => updateState switch
+    {
+        "updating" => "Deploying",
+        "rollback_completed" => "Rolled back",
+        "rollback_started" => "Rolling back",
+        _ => "Paused",
+    };
+
+    private static MaterialChipColor RolloutColor(string? updateState) =>
+        updateState == "updating" ? MaterialChipColor.Tertiary : MaterialChipColor.Error;
+
+    /// Tag plus a short digest. The digest is what answers "did my redeploy of :latest actually pick up
+    /// the new build" — the tag alone never changes, so it can't.
+    private static string ImageText(string image)
+    {
+        var parts = image.Split('@', 2);
+        return parts.Length == 2 && parts[1].Length > 19
+            ? $"{parts[0]} ({parts[1][7..19]})"
+            : image;
+    }
+
+    private static string UptimeText(DateTimeOffset since)
+    {
+        var span = DateTimeOffset.UtcNow - since;
+        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
+        return span.TotalDays >= 1 ? $"{(int)span.TotalDays}d {span.Hours}h"
+            : span.TotalHours >= 1 ? $"{(int)span.TotalHours}h {span.Minutes}m"
+            : span.TotalMinutes >= 1 ? $"{(int)span.TotalMinutes}m"
+            : $"{(int)span.TotalSeconds}s";
+    }
+
+    private static string Mb(long bytes) => $"{bytes / 1024d / 1024:0.#} MB";
+}

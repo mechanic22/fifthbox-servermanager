@@ -1,0 +1,116 @@
+@* Create or edit one team: its name, what it's for, and who's in it. Membership is a checkbox list
+   rather than a select — there are a handful of accounts and multi-select is not what MaterialSelect is. *@
+@using FifthBox.ServerManager.Shared.Teams
+@using FifthBox.ServerManager.Shared.Users
+@inject ITeamsClient TeamsApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialDialog IsOpen="IsOpen" IsOpenChanged="IsOpenChanged" Title="@(_editId is null ? "New team" : "Edit team")">
+    <ChildContent>
+        <div class="flex flex-col gap-4 sm:min-w-[24rem]">
+            <MaterialInput @bind-Value="_name" Label="Name" Disabled="_busy" />
+            <MaterialInput @bind-Value="_description" Label="What it's for (optional)" Disabled="_busy" />
+
+            <div>
+                <div class="text-sm font-medium mb-2">Members</div>
+                @if (Users is { Count: > 0 })
+                {
+                    <div class="flex flex-col gap-1 max-h-56 overflow-y-auto">
+                        @foreach (var u in Users)
+                        {
+                            <div class="flex items-center gap-2">
+                                <MaterialCheckbox Value="@_members.Contains(u.Id)"
+                                                  ValueChanged="@((bool on) => Toggle(u.Id, on))"
+                                                  Label="@u.UserName"
+                                                  Disabled="_busy" />
+                                @if (u.Roles.Contains(Roles.Admin))
+                                {
+                                    <span class="text-xs opacity-60">— admin, full access</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-sm opacity-60">No users to add yet.</p>
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="CloseAsync" Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+
+    /// Every account, so membership can be picked. Loaded by the page, not here.
+    [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
+
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private string? _editId;
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private HashSet<string> _members = new(StringComparer.Ordinal);
+    private List<string> _original = [];
+    private bool _busy;
+
+    /// Called by the page before opening, so the dialog never has to guess which team it is showing.
+    public void Load(TeamResponse? team)
+    {
+        _editId = team?.Id;
+        _name = team?.Name ?? string.Empty;
+        _description = team?.Description ?? string.Empty;
+        _original = [.. team?.Members.Select(m => m.Id) ?? []];
+        _members = new HashSet<string>(_original, StringComparer.Ordinal);
+    }
+
+    private void Toggle(string userId, bool on)
+    {
+        if (on)
+        {
+            _members.Add(userId);
+        }
+        else
+        {
+            _members.Remove(userId);
+        }
+    }
+
+    private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            var request = new SaveTeamRequest { Name = _name, Description = _description };
+            var team = _editId is null
+                ? await TeamsApi.CreateAsync(request)
+                : await TeamsApi.UpdateAsync(_editId, request);
+
+            // Membership is its own endpoint; only call it when the roster actually moved.
+            if (!_members.SetEquals(_original))
+            {
+                await TeamsApi.SetMembersAsync(team.Id, new SetTeamMembersRequest { UserIds = [.. _members] });
+            }
+
+            Snackbar.Show($"Saved {team.Name}.");
+            await IsOpenChanged.InvokeAsync(false);
+            await OnSaved.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

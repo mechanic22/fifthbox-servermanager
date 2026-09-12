@@ -1,0 +1,36 @@
+@* A load that failed, said out loud. Pages used to swallow these into a snackbar and then render
+   their empty state, which reads as "there's nothing here" when the truth is "we don't know". *@
+
+<div class="flex flex-col items-start gap-1 @Padding">
+    <span class="text-sm font-medium" style="color: var(--md-sys-color-error)">@Title</span>
+    @if (!string.IsNullOrWhiteSpace(Message))
+    {
+        <span class="text-sm opacity-70">@Message</span>
+    }
+    @if (OnRetry.HasDelegate || ChildContent is not null)
+    {
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            @if (OnRetry.HasDelegate)
+            {
+                <MaterialButton Text="Try again" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
+                                OnClick="OnRetry" Disabled="Busy" />
+            }
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Couldn't load this";
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+    [Parameter] public bool Busy { get; set; }
+
+    /// Extra actions beside Try again — a way back, usually.
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// Off inside a table cell, which brings its own padding.
+    [Parameter] public bool Inset { get; set; } = true;
+
+    private string Padding => Inset ? "p-4" : string.Empty;
+}

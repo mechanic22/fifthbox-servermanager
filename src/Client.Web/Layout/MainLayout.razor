@@ -1,0 +1,138 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IMaterialThemeService Theme
+@inject IAuthClient Auth
+@inject CookieAuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject RealtimeService Realtime
+
+@* Shell for signed-in users; the login page renders bare. The sidebar becomes a drawer below md —
+   a fixed 224px rail leaves a phone about 150px of content. The theme toggle is the library's
+   IMaterialThemeService — it owns the data-theme contract, so it owns the switch. *@
+
+<AuthorizeView>
+    <Authorized Context="auth">
+        <div class="flex h-screen overflow-hidden">
+            <aside class="hidden md:flex w-56 shrink-0 border-r border-outline-variant flex-col">
+                <div class="px-4 h-14 flex items-center font-medium">FifthBox.ServerManager</div>
+                <NavMenu />
+                <div class="px-3 py-3 border-t border-outline-variant flex flex-col gap-1">
+                    <span class="text-xs opacity-60 truncate">@auth.User.Identity?.Name</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <MaterialButton Text="Sign out" Style="MaterialButtonStyle.Text" OnClick="SignOutAsync" />
+                        <MaterialIconButton Icon="@ThemeIcon()" Style="MaterialIconButtonStyle.Standard"
+                                            OnClick="ToggleThemeAsync" title="Toggle light/dark theme" />
+                    </div>
+                </div>
+            </aside>
+
+            <div class="flex-1 min-w-0 flex flex-col">
+                <header class="md:hidden h-14 shrink-0 px-2 flex items-center gap-2 border-b border-outline-variant">
+                    <MaterialIconButton Icon="@MenuIcon()" Style="MaterialIconButtonStyle.Standard"
+                                        OnClick="@(() => _drawerOpen = true)" title="Open navigation" />
+                    <span class="font-medium flex-1 min-w-0 truncate">FifthBox.ServerManager</span>
+                    <MaterialIconButton Icon="@ThemeIcon()" Style="MaterialIconButtonStyle.Standard"
+                                        OnClick="ToggleThemeAsync" title="Toggle light/dark theme" />
+                </header>
+
+                @if (_disconnected)
+                {
+                    <div class="shrink-0 px-4 py-2 text-sm flex items-center gap-2"
+                         style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
+                        <MaterialProgressIndicator Indeterminate="true" Size="MaterialProgressSize.Small" />
+                        <span>Reconnecting — live status may be out of date.</span>
+                    </div>
+                }
+
+                <main class="flex-1 min-w-0 overflow-y-auto">
+                    @Body
+                </main>
+            </div>
+        </div>
+
+        <MaterialOffcanvas @bind-IsOpen="_drawerOpen" Position="MaterialOffcanvasPosition.Left">
+            <div class="h-full flex flex-col">
+                <div class="px-4 h-14 flex items-center font-medium shrink-0">FifthBox.ServerManager</div>
+                <NavMenu OnNavigate="@(() => _drawerOpen = false)" />
+                <div class="px-3 py-3 border-t border-outline-variant shrink-0">
+                    <span class="text-xs opacity-60 truncate block mb-1">@auth.User.Identity?.Name</span>
+                    <MaterialButton Text="Sign out" Style="MaterialButtonStyle.Text" OnClick="SignOutAsync" />
+                </div>
+            </div>
+        </MaterialOffcanvas>
+    </Authorized>
+    <NotAuthorized>
+        <main class="min-h-screen">
+            @Body
+        </main>
+    </NotAuthorized>
+</AuthorizeView>
+
+@* Service-based snackbars are hosted exactly once, here, for the whole app. *@
+<MaterialSnackbarHost />
+
+@code {
+    private bool _drawerOpen;
+    private bool _disconnected;
+
+    protected override void OnInitialized()
+    {
+        Theme.StateChanged += OnThemeChanged;
+        Nav.LocationChanged += OnLocationChanged;
+        Realtime.ConnectionStateChanged += OnConnectionStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Sync IsDark with what the pre-render script already applied to <html>.
+            await Theme.InitializeAsync();
+        }
+    }
+
+    private Task ToggleThemeAsync() => Theme.ToggleAsync();
+
+    // Covers the routes taken from inside a page rather than the nav — a drawer left open over the
+    // page you just navigated to reads as a stuck overlay.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_drawerOpen)
+        {
+            _drawerOpen = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SignOutAsync()
+    {
+        await Auth.LogoutAsync();
+        AuthState.NotifyStateChanged();
+        Nav.NavigateTo("login");
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnConnectionStateChanged() => InvokeAsync((Action)(() =>
+    {
+        _disconnected = Realtime.Disconnected;
+        StateHasChanged();
+    }));
+
+    private RenderFragment ThemeIcon() => __builder =>
+    {
+        <MaterialIcon Path="@(Theme.IsDark ? MaterialIcons.Sun : MaterialIcons.Moon)" Size="IconSize.SM" />
+    };
+
+    private RenderFragment MenuIcon() => __builder =>
+    {
+        <MaterialIcon Path="@MaterialIcons.Menu" Size="IconSize.SM" />
+    };
+
+    public void Dispose()
+    {
+        Theme.StateChanged -= OnThemeChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+        Realtime.ConnectionStateChanged -= OnConnectionStateChanged;
+    }
+}

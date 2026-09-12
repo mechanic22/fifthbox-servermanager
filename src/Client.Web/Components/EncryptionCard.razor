@@ -1,0 +1,116 @@
+@* Encryption key health + rotation. The key itself is never displayed or returned — only its state. *@
+@using FifthBox.ServerManager.Shared.Platform
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+    <div class="flex items-center justify-between mb-1">
+        <div>
+            <h2 class="text-lg font-medium">Encryption key</h2>
+            <p class="text-sm opacity-60">Protects registry passwords at rest. Set by
+                <span class="font-mono text-xs">Platform:Encryption:Key</span>.</p>
+        </div>
+        <MaterialButton Text="Rotate key" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
+                        OnClick="@(() => _dialogOpen = true)" Disabled="@(_busy || _info is null)" />
+    </div>
+
+    @if (_error is not null)
+    {
+        <LoadFailure Message="@_error" OnRetry="LoadAsync" Inset="false" />
+    }
+    else if (_info is null)
+    {
+        <MaterialProgressIndicator />
+    }
+    else if (_info.EncryptionKeyEphemeral)
+    {
+        <p class="text-sm text-(--md-sys-color-error)">
+            <strong>No key is configured</strong> — this Host generated a throwaway one at startup. Anything
+            encrypted now becomes unreadable when the process restarts. Set
+            <span class="font-mono text-xs">Platform:Encryption:Key</span> and restart.
+        </p>
+    }
+    else if (_info.Secrets == SecretsState.Unreadable)
+    {
+        <p class="text-sm text-(--md-sys-color-error)">
+            <strong>Stored secrets won't decrypt with the configured key.</strong> This is the wrong key, or the
+            one they were written under is gone. Restore the original key, or delete and re-enter the affected
+            credentials.
+        </p>
+    }
+    else if (_info.Secrets == SecretsState.Readable)
+    {
+        <p class="text-sm">
+            <MaterialChip Text="Key valid" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
+        </p>
+    }
+    else
+    {
+        <p class="text-sm opacity-60">Nothing encrypted is stored yet, so the key hasn't been proven either way.</p>
+    }
+</MaterialCard>
+
+<MaterialDialog @bind-IsOpen="_dialogOpen" Title="Rotate encryption key">
+    <ChildContent>
+        <div class="flex flex-col gap-4 sm:min-w-[24rem]">
+            <p class="text-sm opacity-60">
+                Every stored secret is re-encrypted under the new key. <strong>Take a backup first.</strong>
+            </p>
+            <p class="text-sm text-(--md-sys-color-error)">
+                This process keeps using the old key until it restarts, so image pulls from private registries
+                will fail in the gap. Set <span class="font-mono text-xs">Platform:Encryption:Key</span> to the new
+                value and restart the Host straight after rotating.
+            </p>
+            <MaterialInput @bind-Value="_newKey" Label="New key (base64, 32 bytes)" Disabled="_busy" />
+            <p class="text-xs opacity-60 font-mono">openssl rand -base64 32</p>
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _dialogOpen = false)" Disabled="_busy" />
+        <MaterialButton Text="Rotate" Style="MaterialButtonStyle.Filled" OnClick="RotateAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    private HostDeploymentInfo? _info;
+    private string? _error;
+    private string _newKey = string.Empty;
+    private bool _dialogOpen;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            _info = await SystemApi.GetDeploymentAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RotateAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await SystemApi.RotateEncryptionKeyAsync(new RotateEncryptionKeyRequest { NewKey = _newKey });
+            _dialogOpen = false;
+            _newKey = string.Empty;
+            Snackbar.Show($"Re-encrypted {result.SecretsRewritten} secret(s). Update the configured key now.");
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FifthBox.ServerManager.Client.Core</RootNamespace>
+  </PropertyGroup>
+
+  <!-- UI-agnostic client logic shared by every head (Client.Web WASM, Client.Mobile MAUI). Plain
+       net10.0 with no browser- or MAUI-specific dependencies: device capability sits behind
+       interfaces (ITokenStore, ...) that each head implements. DTOs come from Shared. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+
+</Project>

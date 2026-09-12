@@ -1,0 +1,496 @@
+@page "/cluster"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@implements IDisposable
+@using FifthBox.ServerManager.Client.Web.Services
+@inject IClusterClient ClusterApi
+@inject INodesClient NodesApi
+@inject IAgentsClient AgentsApi
+@inject RealtimeService Realtime
+@inject IMaterialSnackbarService Snackbar
+
+<PageTitle>Cluster — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-5xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-medium">Cluster</h1>
+        <MaterialButton Text="Refresh" Style="MaterialButtonStyle.Outlined" OnClick="LoadAsync" Disabled="_loading" />
+    </div>
+
+    @if (_status is null && _error is not null)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <LoadFailure Title="Couldn't reach the cluster" Message="@_error" OnRetry="LoadAsync" Busy="_loading" />
+        </MaterialCard>
+    }
+    else if (_status is null)
+    {
+        <MaterialProgressIndicator />
+    }
+    else
+    {
+        <MaterialCard Variant="MaterialCardVariant.Filled" class="p-6 mb-3">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-medium">Swarm</h2>
+                <MaterialChip Text="@_status.Membership.ToString()" Color="MembershipColor(_status.Membership)" />
+            </div>
+            <dl class="grid grid-cols-2 gap-y-2 text-sm">
+                <dt class="opacity-60">This host</dt>
+                <dd>@(_status.IsManager ? "Manager" : _status.IsInSwarm ? "Worker" : "Not in a swarm")</dd>
+                <dt class="opacity-60">Managed network</dt>
+                <dd>
+                    <code>@_status.ManagedNetworkName</code>
+                    <MaterialChip Text="@(_status.ManagedNetworkExists ? "present" : "missing")"
+                                  Color="@(_status.ManagedNetworkExists ? MaterialChipColor.Primary : MaterialChipColor.Tertiary)" />
+                </dd>
+                @if (_status.Error is not null)
+                {
+                    <dt class="opacity-60">Error</dt>
+                    <dd style="color: var(--md-sys-color-error)">@_status.Error</dd>
+                }
+            </dl>
+
+            <AuthorizeView Policy="@AuthPolicies.AdminOnly">
+                @if (!_status.IsInSwarm || !_status.ManagedNetworkExists)
+                {
+                    <div class="mt-5 pt-5 border-t" style="border-color: var(--md-sys-color-outline-variant)">
+                        <p class="text-sm opacity-70 mb-3">
+                            Inits or adopts the swarm, ensures <code>@_status.ManagedNetworkName</code>. Safe to re-run.
+                        </p>
+                        <MaterialButton Text="@(_busy ? "Working…" : "Bootstrap cluster")"
+                                        Style="MaterialButtonStyle.Filled" OnClick="BootstrapAsync" Disabled="_busy" />
+                    </div>
+                }
+            </AuthorizeView>
+        </MaterialCard>
+
+        <h2 class="text-lg font-medium mb-3">Machines</h2>
+        <MaterialTable Loading="_loading" class="mb-6">
+            <thead>
+                <tr>
+                    <th>Hostname</th>
+                    <th>Backend</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Platform</th>
+                    <th>Engine / last seen</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_nodes is { Count: > 0 })
+                {
+                    @foreach (var n in _nodes)
+                    {
+                        <tr>
+                            <td data-label="Hostname">
+                                @n.Hostname
+                                @if (n.IsLeader)
+                                {
+                                    <span class="text-xs opacity-60 ml-1">(leader)</span>
+                                }
+                            </td>
+                            <td data-label="Backend" class="text-sm">@n.Backend</td>
+                            <td data-label="Role">@(n.Backend == NodeBackendKind.Agent ? "—" : n.Role.ToString())</td>
+                            <td data-label="Status">
+                                <MaterialChip Text="@n.Status.ToString()" Color="StatusColor(n.Status)" />
+                                @if (n.Backend == NodeBackendKind.Swarm && n.Availability != NodeAvailability.Active)
+                                {
+                                    <MaterialChip Text="@n.Availability.ToString().ToLowerInvariant()"
+                                                  Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" />
+                                }
+                            </td>
+                            <td data-label="Platform">@PlatformText(n)</td>
+                            <td data-label="Engine" class="text-xs opacity-70">
+                                @EngineOrSeenText(n)
+                                @if (DiskText(n) is { Length: > 0 } disk)
+                                {
+                                    <div class="opacity-70">@disk</div>
+                                }
+                            </td>
+                            <td class="text-right">
+                                <AuthorizeView Policy="@AuthPolicies.AdminOnly">
+                                    @if (n.Backend == NodeBackendKind.Agent)
+                                    {
+                                        <MaterialButton Text="Remove" Style="MaterialButtonStyle.Text"
+                                                        OnClick="@(() => AskRemoveAgent(n))" Disabled="_busy" />
+                                    }
+                                    else
+                                    {
+                                        <MaterialIconButton Icon="@KebabIcon()" Style="MaterialIconButtonStyle.Standard"
+                                                            Size="MaterialSize.Small" Disabled="_busy"
+                                                            OnClick="@(() => _openMenu = _openMenu == n.Id ? null : n.Id)"
+                                                            title="@($"Actions for {n.Hostname}")" />
+                                        <MaterialDrop IsOpen="@(_openMenu == n.Id)"
+                                                      IsOpenChanged="@((bool open) => _openMenu = open ? n.Id : null)"
+                                                      Alignment="MaterialDropAlignment.End" Position="MaterialDropPosition.Bottom">
+                                            @if (n.Availability != NodeAvailability.Active)
+                                            {
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => SetAvailabilityAsync(n, NodeAvailability.Active))">Activate</button>
+                                            }
+                                            @if (n.Availability != NodeAvailability.Pause)
+                                            {
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => SetAvailabilityAsync(n, NodeAvailability.Pause))">Pause (no new work)</button>
+                                            }
+                                            @if (n.Availability != NodeAvailability.Drain)
+                                            {
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => AskDrain(n))">Drain (move work off)</button>
+                                            }
+                                            <div class="md-menu-divider"></div>
+                                            @if (n.Role == NodeRole.Worker)
+                                            {
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => SetRoleAsync(n, NodeRole.Manager))">Promote to manager</button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => SetRoleAsync(n, NodeRole.Worker))">Demote to worker</button>
+                                            }
+                                            @if (n.Status == NodeStatus.Down)
+                                            {
+                                                <div class="md-menu-divider"></div>
+                                                <button type="button" class="md-menu-item"
+                                                        @onclick="@(() => AskRemoveNode(n))">Remove from swarm</button>
+                                            }
+                                        </MaterialDrop>
+                                    }
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                }
+                <TableState Columns="7" Loading="_loading" Error="@_error" IsEmpty="@(_nodes is null or { Count: 0 })"
+                            Empty="No machines yet." OnRetry="LoadAsync" Busy="_busy" />
+            </tbody>
+        </MaterialTable>
+
+        <AuthorizeView Policy="@AuthPolicies.AdminOnly">
+            <h2 class="text-lg font-medium my-3">Add Node</h2>
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6 mb-3">
+                <div class="flex gap-2 flex-wrap items-center">
+                    <MaterialButton Text="Swarm join command" Style="MaterialButtonStyle.Outlined"
+                                    OnClick="LoadJoinAsync" Disabled="_busy || !_status.IsManager" />
+                    <MaterialButton Text="Agent enrollment key" Style="MaterialButtonStyle.Filled"
+                                    OnClick="GenerateKeyAsync" Disabled="_busy" />
+                    @if (!_status.IsManager)
+                    {
+                        <span class="text-xs opacity-70">Join tokens need a manager host.</span>
+                    }
+                </div>
+                @if (_join is { Available: true })
+                {
+                    <div class="mt-3"><CopyBlock Text="@_join.WorkerJoinCommand" /></div>
+                }
+            </MaterialCard>
+        </AuthorizeView>
+    }
+</div>
+
+<MaterialConfirmDialog IsOpen="@(_pendingDrain is not null)"
+                       IsOpenChanged="@((bool open) => { if (!open) _pendingDrain = null; })"
+                       Title="Drain this node?"
+                       Message="@DrainMessage()"
+                       ConfirmText="Drain" Busy="_busy" OnConfirm="DrainConfirmedAsync" />
+
+<MaterialConfirmDialog IsOpen="@(_pendingRemoveNode is not null)"
+                       IsOpenChanged="@((bool open) => { if (!open) _pendingRemoveNode = null; })"
+                       Title="Remove this node?"
+                       Message="@($"{_pendingRemoveNode?.Hostname} is dropped from the swarm. To rejoin it needs the join command again.")"
+                       ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveNodeConfirmedAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Remove agent?"
+                       Message="@($"{_pendingRemove?.Hostname} loses its credential and has to be enrolled again. Anything it is running keeps running.")"
+                       ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveConfirmedAsync" />
+
+<MaterialDialog @bind-IsOpen="_keyDialogOpen" Title="Enrollment key">
+    <ChildContent>
+        <div class="flex flex-col gap-3 sm:min-w-88">
+            <p class="text-sm">Shown once. Goes in the agent's <code>Agent:EnrollmentKey</code>.</p>
+            <CopyBlock Text="@(_key ?? string.Empty)" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Done" Style="MaterialButtonStyle.Filled" OnClick="@(() => _keyDialogOpen = false)" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    private ClusterStatusResponse? _status;
+    private ClusterJoinResponse? _join;
+    private IReadOnlyList<NodeResponse>? _nodes;
+    private string? _key;
+    private bool _keyDialogOpen;
+    private bool _confirmOpen;
+    private NodeResponse? _pendingRemove;
+    private NodeResponse? _pendingDrain;
+    private NodeResponse? _pendingRemoveNode;
+    private string? _openMenu;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.NodesChanged += OnNodesChanged;
+        Realtime.Reconnected += OnReconnected;
+        await LoadAsync();                           // initial snapshot over HTTP
+        await Realtime.EnsureNodesConnectedAsync();  // then live updates over SignalR
+    }
+
+    private void OnReconnected() => _ = InvokeAsync(LoadAsync);
+
+    private void OnNodesChanged(IReadOnlyList<NodeResponse> nodes)
+    {
+        _nodes = nodes;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // A failed load stays on the page instead of flashing past in a snackbar — this is the one screen
+    // whose whole job is telling you whether the machines are up.
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _status = await ClusterApi.GetStatusAsync();
+            _nodes = await NodesApi.ListAsync();
+            // An agent node's id is the agent's id, so this joins straight onto the rows above.
+            _agentMetrics = (await AgentsApi.ListAsync())
+                .Where(a => a.Metrics is not null)
+                .ToDictionary(a => a.Id, a => a.Metrics!);
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task BootstrapAsync()
+    {
+        _busy = true;
+        try
+        {
+            _status = await ClusterApi.BootstrapAsync();
+            _join = null;
+            Snackbar.Show("Cluster bootstrapped.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task LoadJoinAsync()
+    {
+        _busy = true;
+        try
+        {
+            _join = await ClusterApi.GetJoinInfoAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task GenerateKeyAsync()
+    {
+        _busy = true;
+        try
+        {
+            _key = (await AgentsApi.GenerateEnrollmentKeyAsync()).Key;
+            _keyDialogOpen = true;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDrain(NodeResponse node)
+    {
+        _openMenu = null;
+        _pendingDrain = node;
+    }
+
+    /// nginx is pinned to the node ServerManager runs on, so draining that one takes every route down
+    /// until it's active again. Worth saying out loud rather than blocking — it's a legitimate thing to
+    /// do before a reboot.
+    private string DrainMessage()
+    {
+        var node = _pendingDrain;
+        var message = $"Work running on {node?.Hostname} is rescheduled elsewhere and nothing new is placed there until it's activated again.";
+        return node is not null && node.Id == _status?.NodeId
+            ? message + " This is the node the reverse proxy is pinned to, so routes stop answering while it is drained."
+            : message;
+    }
+
+    private async Task DrainConfirmedAsync()
+    {
+        var node = _pendingDrain;
+        _pendingDrain = null;
+        if (node is not null)
+        {
+            await SetAvailabilityAsync(node, NodeAvailability.Drain);
+        }
+    }
+
+    private void AskRemoveNode(NodeResponse node)
+    {
+        _openMenu = null;
+        _pendingRemoveNode = node;
+    }
+
+    private async Task RemoveNodeConfirmedAsync()
+    {
+        var node = _pendingRemoveNode;
+        _pendingRemoveNode = null;
+        await RunAsync(async () =>
+        {
+            await NodesApi.RemoveAsync(node!.Id);
+            Snackbar.Show($"{node.Hostname} removed.");
+        });
+    }
+
+    private Task SetAvailabilityAsync(NodeResponse node, NodeAvailability availability)
+    {
+        _openMenu = null;
+        return RunAsync(async () =>
+        {
+            await NodesApi.SetAvailabilityAsync(node.Id, availability);
+            Snackbar.Show($"{node.Hostname} is now {availability.ToString().ToLowerInvariant()}.");
+        });
+    }
+
+    private Task SetRoleAsync(NodeResponse node, NodeRole role)
+    {
+        _openMenu = null;
+        return RunAsync(async () =>
+        {
+            await NodesApi.SetRoleAsync(node.Id, role);
+            Snackbar.Show($"{node.Hostname} is now a {role.ToString().ToLowerInvariant()}.");
+        });
+    }
+
+    /// Every node operation is the same shape: run it, reload, and surface a refusal from the server
+    /// rather than leaving the row looking like it worked.
+    private async Task RunAsync(Func<Task> operation)
+    {
+        _busy = true;
+        try
+        {
+            await operation();
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private RenderFragment KebabIcon() => __builder =>
+    {
+        <MaterialIcon Path="@MaterialIcons.MoreVert" Size="IconSize.SM" />
+    };
+
+    private void AskRemoveAgent(NodeResponse node)
+    {
+        _pendingRemove = node;
+        _confirmOpen = true;
+    }
+
+    // An agent node's id is the agent's id — AgentNodeSource projects it straight through.
+    private async Task RemoveConfirmedAsync()
+    {
+        if (_pendingRemove is null)
+        {
+            return;
+        }
+
+        var node = _pendingRemove;
+        _confirmOpen = false;
+        _pendingRemove = null;
+        _busy = true;
+        try
+        {
+            await AgentsApi.DeleteAsync(node.Id);
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        Realtime.NodesChanged -= OnNodesChanged;
+        Realtime.Reconnected -= OnReconnected;
+    }
+
+    private static string PlatformText(NodeResponse n) =>
+        n.Architecture is null ? n.Platform.ToString() : $"{n.Platform} / {n.Architecture}";
+
+    private Dictionary<string, AgentMetrics> _agentMetrics = [];
+
+    private string? DiskText(NodeResponse n)
+    {
+        if (n.Backend != NodeBackendKind.Agent || !_agentMetrics.TryGetValue(n.Id, out var m) || m.DiskTotalBytes == 0)
+        {
+            return null;
+        }
+
+        return $"{Gb(m.DiskFreeBytes)} free of {Gb(m.DiskTotalBytes)}";
+    }
+
+    private static string Gb(long bytes) => $"{bytes / 1024d / 1024 / 1024:0.#} GB";
+
+    private static string EngineOrSeenText(NodeResponse n) =>
+        n.Backend == NodeBackendKind.Agent
+            ? n.LastSeenAt?.ToLocalTime().ToString("g") ?? "never"
+            : n.EngineVersion ?? "—";
+
+    private static MaterialChipColor StatusColor(NodeStatus status) => status switch
+    {
+        NodeStatus.Ready => MaterialChipColor.Primary,
+        NodeStatus.Down => MaterialChipColor.Error,
+        NodeStatus.Disconnected => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+
+    private static MaterialChipColor MembershipColor(SwarmMembership membership) => membership switch
+    {
+        SwarmMembership.Active => MaterialChipColor.Primary,
+        SwarmMembership.Error or SwarmMembership.Locked => MaterialChipColor.Error,
+        SwarmMembership.Pending => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+}

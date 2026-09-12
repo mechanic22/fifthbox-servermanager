@@ -1,0 +1,32 @@
+{
+  "name": "fifth-box-server-manager",
+  "version": "0.1.7",
+  "private": true,
+  "description": "FifthBox.ServerManager \u2014 a self-hosted PaaS for managing a Docker Swarm, nginx, and letsencrypt, with heterogeneous nodes (swarm members + custom agents).",
+  "scripts": {
+    "dev": "npm-run-all --parallel css:watch dev:host",
+    "build": "npm run css:build && dotnet build FifthBox.ServerManager.sln",
+    "test": "dotnet test FifthBox.ServerManager.sln --filter \"TestCategory!=Integration\"",
+    "dev:agent": "dotnet run --project src/Agent",
+    "dev:host": "dotnet watch --project src/Host --launch-profile https run --property:UseLocalFifthBox=true",
+    "demo:image": "docker build -t fbsm/demo-app:latest demo-app",
+    "demo:image:push": "docker buildx build --platform linux/amd64,linux/arm64 --push -t docker.5thbox.com/fbsm/demo-app:latest demo-app",
+    "image:push": "npm run publish && node scripts/image.mjs push",
+    "image:local": "npm run publish && node scripts/image.mjs local",
+    "publish": "node scripts/publish.mjs",
+    "pack:agent": "node scripts/agent.mjs win-x64",
+    "tunnel": "node scripts/tunnel.mjs",
+    "css:build": "tailwindcss -i ./src/Client.Web/styles/app.css -o ./src/Client.Web/wwwroot/css/app.css --minify",
+    "css:watch": "tailwindcss -i ./src/Client.Web/styles/app.css -o ./src/Client.Web/wwwroot/css/app.css --watch",
+    "test:integration": "dotnet test FifthBox.ServerManager.sln --filter \"TestCategory=Integration\"",
+    "build:mobile": "dotnet build src/Client.Mobile/Client.Mobile.csproj -p:UseLocalFifthBox=true",
+    "dev:mobile": "dotnet build src/Client.Mobile/Client.Mobile.csproj -t:Run -f net10.0-maccatalyst -p:MobileTfms=net10.0-maccatalyst -p:UseLocalFifthBox=true",
+    "dev:mobile:ios": "node scripts/run-ios.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.0",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^6.0.1",
+    "adm-zip": "^0.5.16"
+  }
+}

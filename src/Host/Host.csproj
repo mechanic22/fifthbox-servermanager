@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>FifthBox.ServerManager.Host</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.*" />
+    <!-- Raw bcrypt for route basic-auth htpasswd entries (distinct from Identity's password hasher). -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.1" />
+  </ItemGroup>
+
+  <!-- AES for registry credentials at rest (see ISecretProtector). Package by default, local project in
+       dev (default local until 0.1.0 is published) — same UseLocal* pattern as Identity/Material. -->
+  <ItemGroup Condition="'$(UseLocalEncryption)' != 'true'">
+    <PackageReference Include="FifthBox.Encryption.Aes" Version="$(FifthBoxEncryptionVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseLocalEncryption)' == 'true'">
+    <ProjectReference Include="$(FifthBoxEncryptionRepo)/src/FifthBox.Encryption.Aes/FifthBox.Encryption.Aes.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\App\App.csproj" />
+    <ProjectReference Include="..\Storage\Storage.csproj" />
+    <ProjectReference Include="..\Eventing\Eventing.csproj" />
+    <ProjectReference Include="..\Integrations\Swarm\Swarm.csproj" />
+    <ProjectReference Include="..\Integrations\ReverseProxy\ReverseProxy.csproj" />
+    <ProjectReference Include="..\Integrations\Agents\Agents.csproj" />
+    <ProjectReference Include="..\Integrations\Certificates\Certificates.csproj" />
+    <ProjectReference Include="..\Client.Web\Client.Web.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+
+  <!-- FifthBox.Identity(.AspNetCore) + the BCrypt hasher companion (supplies IPasswordHasher, replacing
+       the app's hand-written adapter). Package by default, local project in dev. -->
+  <ItemGroup Condition="'$(UseLocalIdentity)' != 'true'">
+    <PackageReference Include="FifthBox.Identity" Version="$(FifthBoxIdentityVersion)" />
+    <PackageReference Include="FifthBox.Identity.AspNetCore" Version="$(FifthBoxIdentityVersion)" />
+    <PackageReference Include="FifthBox.Identity.BCrypt" Version="$(FifthBoxIdentityVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseLocalIdentity)' == 'true'">
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity/Identity.csproj" />
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity.AspNetCore/Identity.AspNetCore.csproj" />
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity.BCrypt/Identity.BCrypt.csproj" />
+  </ItemGroup>
+
+</Project>

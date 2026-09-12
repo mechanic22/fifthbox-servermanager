@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- Neutralise the singular TargetFramework the root Directory.Build.props sets (net10.0);
+		     MAUI drives multi-targeting through the plural TargetFrameworks. Windows is dropped —
+		     this demo builds on macOS. -->
+		<TargetFramework></TargetFramework>
+		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+		<!-- Scoped override so you can build a single head without the other platform workloads
+		     installed (e.g. `-p:MobileTfms=net10.0-maccatalyst`). It's a custom property, so it only
+		     narrows THIS project — it never leaks onto the referenced net10.0 libraries the way an
+		     over-the-top TargetFrameworks override would. -->
+		<TargetFrameworks Condition="'$(MobileTfms)' != ''">$(MobileTfms)</TargetFrameworks>
+
+		<OutputType>Exe</OutputType>
+		<RootNamespace>FifthBox.ServerManager.Client.Mobile</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+
+		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+		<ApplicationTitle>FifthBox.ServerManager</ApplicationTitle>
+		<ApplicationId>com.fifthbox.servermanager</ApplicationId>
+		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+		<MauiImage Include="Resources\Images\*" />
+		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
+		<MauiFont Include="Resources\Fonts\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+	</ItemGroup>
+
+	<!-- Shared client logic + contracts. No Material Blazor reference — this is native XAML, so the
+	     mobile UI is built from scratch (see Theme/ for the seeded MD3 tokens). -->
+	<ItemGroup>
+		<ProjectReference Include="..\Client.Core\Client.Core.csproj" />
+		<ProjectReference Include="..\Shared\Shared.csproj" />
+	</ItemGroup>
+
+</Project>

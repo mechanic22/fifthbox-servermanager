@@ -1,0 +1,184 @@
+@* Docker registry credentials: list + add/edit dialog + delete. Passwords are write-only. *@
+@using FifthBox.ServerManager.Shared.Registries
+@inject IRegistriesClient RegistriesApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-medium">Docker Registries</h2>
+            <p class="text-sm opacity-60">Credentials for pulling private images.</p>
+        </div>
+        <MaterialButton Text="Add registry" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small" OnClick="OpenAdd" Disabled="_busy" />
+    </div>
+
+    <MaterialTable Loading="_loading">
+        <thead>
+            <tr><th>Domain</th><th>User</th><th>Prefix</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (_registries is { Count: > 0 })
+            {
+                @foreach (var r in _registries)
+                {
+                    <tr>
+                        <td data-label="Domain" class="font-mono text-xs">@r.Domain</td>
+                        <td data-label="User">@r.Username</td>
+                        <td data-label="Prefix" class="font-mono text-xs">@r.Prefix</td>
+                        <td class="text-right whitespace-nowrap">
+                            <MaterialButton Text="Edit" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" OnClick="@(() => OpenEdit(r))" Disabled="_busy" />
+                            <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" OnClick="@(() => AskDelete(r))" Disabled="_busy" />
+                        </td>
+                    </tr>
+                }
+            }
+            <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_registries is null or { Count: 0 })"
+                        Empty="No registries configured." OnRetry="LoadAsync" Busy="_busy" />
+        </tbody>
+    </MaterialTable>
+</MaterialCard>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete registry?"
+                       Message="@($"Pulls from {_pendingDelete?.Domain} will stop authenticating.")"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+<MaterialDialog @bind-IsOpen="_dialogOpen" Title="@(_editId is null ? "Add registry" : "Edit registry")">
+    <ChildContent>
+        <div class="flex flex-col gap-4 sm:min-w-[22rem]">
+            <MaterialInput @bind-Value="_form.Domain" Label="Domain (e.g. docker.example.com)" Disabled="_busy" />
+            <MaterialInput @bind-Value="_form.Username" Label="Username" Disabled="_busy" />
+            <MaterialInput @bind-Value="_form.Password" Type="password"
+                           Label="@(_editId is null ? "Password" : "New password (blank = keep)")" Disabled="_busy" />
+            <MaterialInput @bind-Value="_form.Prefix" Label="Image prefix (optional)" Disabled="_busy" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _dialogOpen = false)" Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    private IReadOnlyList<RegistryResponse>? _registries;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private bool _dialogOpen;
+    private string? _editId;
+    private FormModel _form = new();
+    private bool _confirmOpen;
+    private RegistryResponse? _pendingDelete;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _registries = await RegistriesApi.ListAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _editId = null;
+        _form = new FormModel();
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(RegistryResponse registry)
+    {
+        _editId = registry.Id;
+        _form = new FormModel { Domain = registry.Domain, Username = registry.Username, Prefix = registry.Prefix ?? "" };
+        _dialogOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (_editId is null)
+            {
+                await RegistriesApi.CreateAsync(new CreateRegistryRequest
+                {
+                    Domain = _form.Domain, Username = _form.Username,
+                    Password = string.IsNullOrEmpty(_form.Password) ? null : _form.Password,
+                    Prefix = string.IsNullOrWhiteSpace(_form.Prefix) ? null : _form.Prefix,
+                });
+            }
+            else
+            {
+                await RegistriesApi.UpdateAsync(_editId, new UpdateRegistryRequest
+                {
+                    Domain = _form.Domain, Username = _form.Username,
+                    Password = string.IsNullOrEmpty(_form.Password) ? null : _form.Password,
+                    Prefix = string.IsNullOrWhiteSpace(_form.Prefix) ? null : _form.Prefix,
+                });
+            }
+
+            _dialogOpen = false;
+            Snackbar.Show("Registry saved.");
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDelete(RegistryResponse registry)
+    {
+        _pendingDelete = registry;
+        _confirmOpen = true;
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        var registry = _pendingDelete;
+        _confirmOpen = false;
+        _pendingDelete = null;
+        _busy = true;
+        try
+        {
+            await RegistriesApi.DeleteAsync(registry.Id);
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        public string Domain { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Prefix { get; set; } = string.Empty;
+    }
+}

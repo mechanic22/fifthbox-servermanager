@@ -1,0 +1,66 @@
+@* The setup order, which until now lived only in the README. Each step is a hard prerequisite for the
+   one after it, so they're numbered and the first outstanding one is the only one that gets a button. *@
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-5 mb-6">
+    @if (AllDone)
+    {
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <MaterialChip Text="Setup complete" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
+                <span class="text-sm opacity-70">Cluster, domain, edge and applications are all in place.</span>
+            </div>
+            <MaterialButton Text="@(_expanded ? "Hide" : "Review steps")" Style="MaterialButtonStyle.Text"
+                            Size="MaterialSize.Small" OnClick="@(() => _expanded = !_expanded)" />
+        </div>
+    }
+    else
+    {
+        <h2 class="text-lg font-medium mb-1">Finish setting up</h2>
+        <p class="text-sm opacity-70 mb-4">
+            @Done of @Steps.Count done. Each step needs the one before it.
+        </p>
+    }
+
+    @if (!AllDone || _expanded)
+    {
+        <div class="flex flex-col mt-2">
+            @for (var i = 0; i < Steps.Count; i++)
+            {
+                var step = Steps[i];
+                var isNext = !step.Done && Steps.Take(i).All(s => s.Done);
+
+                <div class="flex items-start gap-3 py-2.5 border-t" style="border-color: var(--md-sys-color-outline-variant)">
+                    <span class="mt-0.5 shrink-0 w-5 text-center text-sm font-mono @(step.Done ? "" : "opacity-40")"
+                          style="@(step.Done ? "color: var(--md-sys-color-primary)" : "")">
+                        @(step.Done ? "✓" : (i + 1).ToString())
+                    </span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm @(step.Done ? "opacity-60" : "font-medium")">@step.Title</div>
+                        @if (!step.Done)
+                        {
+                            <div class="text-sm opacity-70">@step.Detail</div>
+                        }
+                    </div>
+                    @if (isNext)
+                    {
+                        <MaterialButton Text="@step.Action" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                                        OnClick="@(() => Nav.NavigateTo(step.Href))" />
+                    }
+                </div>
+            }
+        </div>
+    }
+</MaterialCard>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    [Parameter, EditorRequired] public required IReadOnlyList<SetupStep> Steps { get; set; }
+
+    private bool _expanded;
+
+    private int Done => Steps.Count(s => s.Done);
+    private bool AllDone => Steps.All(s => s.Done);
+
+    public sealed record SetupStep(string Title, string Detail, string Action, string Href, bool Done);
+}

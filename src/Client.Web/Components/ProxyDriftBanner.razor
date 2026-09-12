@@ -1,0 +1,53 @@
+@* Saved routes and certificates don't reach traffic until the edge is redeployed. Without this the
+   only signal was a snackbar, so a disabled route looked off while it was still being served. Same
+   visual language as a workload's pending-changes card, for the same reason. *@
+@inject IRoutesClient RoutesApi
+@inject IMaterialSnackbarService Snackbar
+
+@if (State is { PendingChanges: true })
+{
+    <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3 flex-wrap"
+                  style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
+        <span class="text-sm flex-1 min-w-56">
+            @Message
+            @if (State.LastAppliedAt is { } applied)
+            {
+                <span class="opacity-70">Last deployed @applied.LocalDateTime.ToString("g").</span>
+            }
+        </span>
+        <MaterialButton Text="@(_busy ? "Deploying…" : "Deploy nginx")" Style="MaterialButtonStyle.Filled"
+                        Size="MaterialSize.Small" OnClick="ApplyAsync" Disabled="_busy" />
+    </MaterialCard>
+}
+
+@code {
+    /// Owned by the page, so one load serves both this and whatever else reads the edge's status.
+    [Parameter] public ProxyStateResponse? State { get; set; }
+
+    /// Raised after a successful deploy so the page can refresh what it holds.
+    [Parameter] public EventCallback OnApplied { get; set; }
+
+    [Parameter] public string Message { get; set; } =
+        "Routes have changed since nginx was last deployed. Nothing you've saved is being served yet.";
+
+    private bool _busy;
+
+    private async Task ApplyAsync()
+    {
+        _busy = true;
+        try
+        {
+            await RoutesApi.ApplyAsync();
+            Snackbar.Show("nginx deployed with the current routes.");
+            await OnApplied.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

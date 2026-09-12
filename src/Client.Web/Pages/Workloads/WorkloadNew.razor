@@ -1,0 +1,125 @@
+@page "/workloads/new"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@using FifthBox.ServerManager.Client.Web.Pages.Workloads.Components
+@inject IWorkloadsClient WorkloadsApi
+@inject IWorkloadGroupsClient GroupsApi
+@inject IAgentsClient AgentsApi
+@inject INodesClient NodesApi
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>New application — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-5xl mx-auto p-6">
+    <MaterialBreadcrumbs Items="_crumbs" class="mb-4" />
+
+    <h1 class="text-2xl font-medium mb-6">Define an application</h1>
+
+    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+        <EditForm EditContext="_editContext" OnValidSubmit="CreateAsync">
+            <DataAnnotationsValidator />
+            <div class="flex flex-col gap-8">
+                <section class="flex flex-col gap-4">
+                    <MaterialInput @bind-Value="_form.Name" For="@(() => _form.Name)" Label="Name" Disabled="_busy" />
+                </section>
+
+                <WorkloadConfigForm Model="_form" Groups="_groups" Agents="_agents" Busy="_busy"
+                                    AllowTargetChange="true" AllowWebAddress="true" RootDomain="@_rootDomain"
+                                    VolumePrefix="@_volumePrefix" />
+
+                <div class="flex gap-2 flex-wrap items-center">
+                    <MaterialButton Text="Create and deploy" Type="submit" Style="MaterialButtonStyle.Filled"
+                                    Disabled="_busy" />
+                    <MaterialButton Text="Create only" Style="MaterialButtonStyle.Outlined" OnClick="CreateOnlyAsync"
+                                    Disabled="_busy" />
+                    <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text"
+                                    OnClick="@(() => Nav.NavigateTo("workloads"))" Disabled="_busy" />
+                </div>
+                </div>
+            </EditForm>
+        </MaterialCard>
+    </div>
+
+@code {
+    private static readonly List<MaterialBreadcrumbItem> _crumbs =
+    [
+        new() { Label = "Applications", Href = "/workloads" },
+        new() { Label = "New application" },
+    ];
+
+    // Set when arriving from a group's "Add workload" action, to pre-scope the new workload.
+    [SupplyParameterFromQuery(Name = "group")] public string? GroupParam { get; set; }
+
+    private IReadOnlyList<WorkloadGroupResponse>? _groups;
+    private IReadOnlyList<AgentResponse>? _agents;
+    private IReadOnlyList<NodeResponse>? _nodes;
+    private bool _busy;
+    private readonly WorkloadFormModel _form = new();
+
+    // Held explicitly so "Create only", which isn't a form submit, can still run validation.
+    private EditContext? _editContext;
+    private string? _rootDomain;
+    private string _volumePrefix = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editContext = new EditContext(_form);
+
+        try
+        {
+            _groups = await GroupsApi.ListAsync();
+            _agents = await AgentsApi.ListAsync();
+            _nodes = await NodesApi.ListAsync();
+            var settings = await SystemApi.GetSettingsAsync();
+            _rootDomain = settings.RootDomain;
+            _volumePrefix = settings.WorkloadNamePrefix;
+
+            if (!string.IsNullOrEmpty(GroupParam) && _groups.Any(g => g.Id == GroupParam))
+            {
+                _form.GroupId = GroupParam;
+            }
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+    }
+
+    private Task CreateAsync() => SubmitAsync(deploy: true);
+
+    // Bypasses the form's submit, so validation is re-run explicitly rather than skipped.
+    private Task CreateOnlyAsync() =>
+        _editContext?.Validate() == false ? Task.CompletedTask : SubmitAsync(deploy: false);
+
+    private async Task SubmitAsync(bool deploy)
+    {
+        _busy = true;
+        try
+        {
+            var created = await WorkloadsApi.CreateAsync(_form.ToCreateRequest());
+
+            if (deploy)
+            {
+                // Creating used to leave you on a page reading "Not deployed" with no hint that a
+                // second step existed.
+                await WorkloadsApi.DeployAsync(created.Id);
+                Snackbar.Show($"Created and deployed {created.Name}.");
+            }
+            else
+            {
+                Snackbar.Show($"Created {created.Name} — deploy it when you're ready.");
+            }
+
+            Nav.NavigateTo($"workloads/{created.Id}");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

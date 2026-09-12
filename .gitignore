@@ -1,0 +1,60 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+backups/
+*.tmp
+
+# Node
+node_modules/
+
+# Tailwind generated stylesheet (build artifact — never hand-edited or committed)
+src/Client.Web/wwwroot/css/app.css
+
+# SQLite database files (Storage owns these; created at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# Publish output (packaged into the container image)
+publish/
+
+# NuGet package output
+nupkg/
+*.nupkg
+*.snupkg
+
+# IDE
+.vs/
+.idea/
+*.suo
+
+# Local environment
+*.env
+.env.local
+
+# Agent credential (secret, written at runtime)
+agent-credentials.json
+**/agent-credentials.json
+
+# Data protection keys (runtime state; they protect auth cookies)
+src/Host/keys/
+
+# Agent process table (runtime state)
+agent-state.json
+**/agent-state.json
+
+# Agent-managed workload directories (game server installs)
+src/Agent/workloads/
+**/fbsm-agent/workloads/
+
+# Plan working state (never committed)
+.planning/
+
+# Agent local config (holds the enrollment key) and its publish/zip output
+src/Agent/appsettings.Development.json
+publish-agent/
+publish-client/
+*.zip

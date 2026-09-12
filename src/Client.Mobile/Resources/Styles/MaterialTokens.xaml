@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    Seeded Material Design 3 tokens + styles for the native XAML app.
+
+    Native XAML can't consume FifthBox.MaterialComponents.Blazor (that library renders HTML/CSS), so
+    the mobile visual language starts here. These color values are the MD3 light palette copied from
+    the library's one source of truth:
+        fifthbox-materialcomponents/src/MaterialComponents/Scss/_variables.scss
+    Keep them in sync with that file. The dark-scheme values live there too (primary #d0bcff,
+    surface #10090d, error #ffb4ab, ...); full light/dark theming via AppThemeBinding is deliberately
+    left for a future FifthBox.MaterialComponents.Maui library rather than hand-rolled per app.
+
+    TODO: promote these tokens + control styles to FifthBox.MaterialComponents.Maui.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- MD3 color tokens (light) -->
+    <Color x:Key="MdPrimary">#6750A4</Color>
+    <Color x:Key="MdOnPrimary">#FFFFFF</Color>
+    <Color x:Key="MdSurface">#FFFBFE</Color>
+    <Color x:Key="MdOnSurface">#1C1B1F</Color>
+    <Color x:Key="MdOnSurfaceVariant">#49454F</Color>
+    <Color x:Key="MdSurfaceContainer">#F3EDF7</Color>
+    <Color x:Key="MdOutlineVariant">#CAC4D0</Color>
+    <Color x:Key="MdError">#BA1A1A</Color>
+
+    <!-- Typography -->
+    <Style x:Key="MdHeadline" TargetType="Label">
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="{StaticResource MdOnSurface}" />
+    </Style>
+
+    <Style x:Key="MdTitle" TargetType="Label">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="{StaticResource MdOnSurface}" />
+    </Style>
+
+    <Style x:Key="MdCaption" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource MdOnSurfaceVariant}" />
+    </Style>
+
+    <!-- Controls -->
+    <Style x:Key="MdFilledButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource MdPrimary}" />
+        <Setter Property="TextColor" Value="{StaticResource MdOnPrimary}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="HeightRequest" Value="48" />
+    </Style>
+
+    <Style x:Key="MdTextButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource MdPrimary}" />
+    </Style>
+
+    <!-- Implicit (applies to every Entry): a legible filled text field. Merged after the template's
+         Styles.xaml, so this wins. -->
+    <Style TargetType="Entry">
+        <Setter Property="TextColor" Value="{StaticResource MdOnSurface}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource MdOnSurfaceVariant}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource MdSurfaceContainer}" />
+    </Style>
+
+    <Style x:Key="MdCard" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource MdSurfaceContainer}" />
+        <Setter Property="Stroke" Value="{StaticResource MdOutlineVariant}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="StrokeShape">
+            <RoundRectangle CornerRadius="12" />
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="FifthBox.ServerManager.Client.Mobile.Pages.ContactsListPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:pages="clr-namespace:FifthBox.ServerManager.Client.Mobile.Pages"
+    Title="Contacts"
+    BackgroundColor="{StaticResource MdSurface}">
+
+    <Grid RowDefinitions="Auto,*">
+        <Button
+            Grid.Row="0"
+            Text="Sign out"
+            Clicked="OnSignOutClicked"
+            HorizontalOptions="End"
+            Margin="12,8"
+            Style="{StaticResource MdTextButton}" />
+
+        <RefreshView Grid.Row="1" x:Name="Refresh" Refreshing="OnRefreshing">
+            <CollectionView x:Name="ContactsView" SelectionMode="Single" SelectionChanged="OnContactSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="pages:ContactRow">
+                        <Border Style="{StaticResource MdCard}" Margin="12,6">
+                            <VerticalStackLayout Spacing="2" Padding="16">
+                                <Label Text="{Binding Name}" Style="{StaticResource MdTitle}" />
+                                <Label Text="{Binding Subtitle}" Style="{StaticResource MdCaption}" />
+                                <Label Text="{Binding LocationText}" IsVisible="{Binding HasLocation}" Style="{StaticResource MdCaption}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.EmptyView>
+                    <Label Text="No contacts yet. Add some in the web app, then capture their location here." Padding="24" Style="{StaticResource MdCaption}" />
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+
+</ContentPage>

@@ -1,0 +1,171 @@
+@* Every grant in the system: who reaches what, and how much. The one place a grant whose target was
+   deleted is still visible. *@
+@using FifthBox.ServerManager.Shared.Access
+@using FifthBox.ServerManager.Shared.Teams
+@using FifthBox.ServerManager.Shared.Users
+@inject IAccessClient AccessApi
+@inject ITeamsClient TeamsApi
+@inject IWorkloadsClient WorkloadsApi
+@inject IWorkloadGroupsClient GroupsApi
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm opacity-70">
+        Administrators reach everything and hold no grants. Everyone else sees only what is listed here.
+    </p>
+    <MaterialButton Text="Give access" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                    OnClick="OpenAdd" Disabled="_busy" />
+</div>
+
+<MaterialTable Loading="_loading">
+    <thead>
+        <tr><th>Who</th><th>What</th><th>Can do</th><th></th></tr>
+    </thead>
+    <tbody>
+        @if (_grants is { Count: > 0 })
+        {
+            @foreach (var g in _grants)
+            {
+                <tr>
+                    <td data-label="Who">
+                        @(g.SubjectName.Length > 0 ? g.SubjectName : g.SubjectId)
+                        <span class="text-xs opacity-60"> — @(g.SubjectType == AccessSubject.Team ? "team" : "person")</span>
+                    </td>
+                    <td data-label="What">
+                        @if (g.TargetName.Length > 0)
+                        {
+                            @g.TargetName
+                            <span class="text-xs opacity-60"> — @(g.Scope == AccessScope.Group ? "group" : "workload")</span>
+                        }
+                        else
+                        {
+                            <span class="opacity-60">deleted @(g.Scope == AccessScope.Group ? "group" : "workload")</span>
+                        }
+                    </td>
+                    <td data-label="Can do">@g.Level</td>
+                    <td class="text-right whitespace-nowrap">
+                        @if (g.TargetName.Length > 0)
+                        {
+                            <MaterialButton Text="Change" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                            OnClick="@(() => OpenEdit(g))" Disabled="_busy" />
+                        }
+                        <MaterialButton Text="Remove" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="@(() => AskRemove(g))" Disabled="_busy" />
+                    </td>
+                </tr>
+            }
+        }
+        <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_grants is null or { Count: 0 })"
+                    Empty="Nothing is shared with anyone yet." OnRetry="LoadAsync" Busy="_busy" />
+    </tbody>
+</MaterialTable>
+
+<GrantEditorDialog @ref="_editor" @bind-IsOpen="_dialogOpen"
+                   Users="Users" Teams="_teams" Workloads="_workloads" Groups="_groups"
+                   OnSaved="SavedAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Remove access?"
+                       Message="@RemoveMessage()" ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveConfirmedAsync" />
+
+@code {
+    /// Every account, for the subject picker. Owned by the page so all three tabs read one list.
+    [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
+
+    private IReadOnlyList<AccessGrantResponse>? _grants;
+    private IReadOnlyList<TeamResponse>? _teams;
+    private IReadOnlyList<WorkloadResponse>? _workloads;
+    private IReadOnlyList<WorkloadGroupResponse>? _groups;
+
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private GrantEditorDialog? _editor;
+    private bool _dialogOpen;
+    private bool _confirmOpen;
+    private AccessGrantResponse? _pendingRemove;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    public async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        // Four independent lists — the table needs the grants, the editor's pickers need the rest.
+        // In series that is four round trips of latency for no reason.
+        var grants = AccessApi.ListGrantsAsync();
+        var teams = TeamsApi.ListAsync();
+        var workloads = WorkloadsApi.ListAsync();
+        var groups = GroupsApi.ListAsync();
+
+        try
+        {
+            await Task.WhenAll(grants, teams, workloads, groups);
+            _grants = grants.Result;
+            _teams = teams.Result;
+            _workloads = workloads.Result;
+            _groups = groups.Result;
+        }
+        catch (ApiException ex)
+        {
+            // WhenAll rethrows the first failure and observes the rest; one message is what the row shows.
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _editor?.Load(null);
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(AccessGrantResponse grant)
+    {
+        _editor?.Load(grant);
+        _dialogOpen = true;
+    }
+
+    private Task SavedAsync() => LoadAsync();
+
+    private void AskRemove(AccessGrantResponse grant)
+    {
+        _pendingRemove = grant;
+        _confirmOpen = true;
+    }
+
+    private string RemoveMessage() => _pendingRemove is null
+        ? string.Empty
+        : _pendingRemove.TargetName.Length > 0
+            ? $"{_pendingRemove.SubjectName} loses {_pendingRemove.Level} on {_pendingRemove.TargetName}."
+            : "This grant points at something that no longer exists, so removing it changes nothing.";
+
+    private async Task RemoveConfirmedAsync()
+    {
+        if (_pendingRemove is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await AccessApi.RemoveGrantAsync(_pendingRemove.Id);
+            Snackbar.Show("Access removed.");
+            _confirmOpen = false;
+            _pendingRemove = null;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+            await LoadAsync();
+        }
+    }
+}

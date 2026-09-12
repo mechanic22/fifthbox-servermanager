@@ -1,0 +1,107 @@
+@* Timestamps get their own column so a wrapped line continues under the text, not under the clock. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="relative">
+    <div @ref="_scroller" tabindex="0"
+         class="text-xs font-mono leading-relaxed overflow-y-auto overscroll-contain p-3 rounded h-96"
+         style="background: var(--md-sys-color-surface-container-high)">
+        @foreach (var line in Lines)
+        {
+            <div class="flex gap-3 -mx-1 px-1 rounded-sm hover:bg-[var(--md-sys-color-surface-container-highest)]">
+                <span class="shrink-0 tabular-nums opacity-50 select-none">@Stamp(line)</span>
+                <span class="min-w-0 flex-1 whitespace-pre-wrap wrap-break-word"
+                      style="@(line.Stream == LogStream.Stderr ? "color: var(--md-sys-color-error)" : null)">@line.Text</span>
+            </div>
+        }
+    </div>
+
+    @if (!_atBottom)
+    {
+        <div class="absolute bottom-4 right-4">
+            <MaterialButton Text="Jump to latest" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                            TrailingIconPath="@MaterialIcons.ArrowDropDown" OnClick="ScrollToEndAsync" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required IReadOnlyList<WorkloadLogLine> Lines { get; set; }
+
+    private ElementReference _scroller;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<WorkloadLogViewer>? _self;
+    private IReadOnlyList<WorkloadLogLine>? _shown;
+    private bool _atBottom = true;
+    private bool _pinPending = true;
+
+    protected override void OnParametersSet()
+    {
+        // The parent rebuilds the list on every batch, so a new instance means new output. Following
+        // is decided here rather than in OnAfterRender, before the render has moved anything.
+        if (!ReferenceEquals(_shown, Lines))
+        {
+            _shown = Lines;
+            _pinPending = _atBottom;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/log-view.js");
+                _self = DotNetObjectReference.Create(this);
+                await _module.InvokeVoidAsync("attach", _scroller, _self);
+            }
+            catch (JSException)
+            {
+                // Without the module there is no follow and no jump button, but the lines still read.
+                // Losing the page to an exception would cost more than losing the tailing does.
+            }
+        }
+
+        if (_pinPending && _module is not null)
+        {
+            _pinPending = false;
+            await _module.InvokeVoidAsync("scrollToBottom", _scroller);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnAtBottomChanged(bool atBottom)
+    {
+        _atBottom = atBottom;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScrollToEndAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("scrollToBottom", _scroller);
+        }
+    }
+
+    private static string Stamp(WorkloadLogLine line) =>
+        line.Timestamp is { } t ? t.ToLocalTime().ToString("HH:mm:ss") : "--:--:--";
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("detach", _scroller);
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _self?.Dispose();
+    }
+}

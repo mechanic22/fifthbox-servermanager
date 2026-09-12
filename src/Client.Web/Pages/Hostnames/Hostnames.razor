@@ -1,0 +1,237 @@
+@page "/hostnames"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@inject ITlsClient TlsApi
+@inject IRoutesClient RoutesApi
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<PageTitle>Hostnames — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-4xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-2">
+        <h1 class="text-2xl font-medium">Hostnames</h1>
+        <MaterialButton Text="@(_busy ? "Working…" : "Deploy nginx")" Style="MaterialButtonStyle.Filled"
+                        OnClick="ApplyAsync" Disabled="_busy" />
+    </div>
+    <ProxyDriftBanner State="_proxy" OnApplied="ReloadStateAsync"
+                      Message="A certificate has changed since nginx was last deployed. Traffic is still being served with the old one." />
+
+    @if (_edgeHttpPort != 80)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 text-sm"
+                      style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container)">
+            The edge is published on port <strong>@_edgeHttpPort</strong>, not 80. Let's Encrypt always fetches the
+            challenge on port 80 and can't be told otherwise, so issuance only works if something external
+            forwards port 80 here.
+        </MaterialCard>
+    }
+
+    @if (_overview?.StagingCa == true)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-6 text-sm"
+                      style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
+            Using the Let's Encrypt <strong>staging</strong> CA — certificates issued here are real but browsers
+            don't trust them. Set <span class="font-mono text-xs">Acme:Directory</span> to "production" when the
+            flow works end to end.
+        </MaterialCard>
+    }
+
+    <MaterialTable Loading="_loading">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Routes</th>
+                <th>Status</th>
+                <th>Expires</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_overview is { Hosts.Count: > 0 })
+            {
+                @foreach (var host in _overview.Hosts)
+                {
+                    <tr>
+                        <td data-label="Hostname">@host.Hostname</td>
+                        <td data-label="Routes" class="text-sm opacity-70">@host.RouteCount</td>
+                        <td data-label="Status">
+                            <MaterialChip Text="@StatusText(host)" Color="StatusColor(host.Status)" Size="MaterialChipSize.Small" />
+                            @if (!string.IsNullOrWhiteSpace(host.LastError))
+                            {
+                                <div class="text-xs mt-1" style="color: var(--md-sys-color-error)">@host.LastError</div>
+                            }
+                            @if (host.IssuanceBlockedReason is { } blocked)
+                            {
+                                <div class="text-xs mt-1 opacity-60">@blocked</div>
+                            }
+                        </td>
+                        <td data-label="Expires" class="text-sm">@ExpiryText(host)</td>
+                        <td class="text-right whitespace-nowrap">
+                            @if (host.Status is null)
+                            {
+                                <MaterialButton Text="Enable HTTPS" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                                OnClick="@(() => EnableAsync(host))"
+                                                Disabled="_busy || host.RouteCount == 0 || host.IssuanceBlockedReason is not null" />
+                            }
+                            else
+                            {
+                                @if (host.Status != CertificateStatus.Valid)
+                                {
+                                    <MaterialButton Text="Retry" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                                    OnClick="@(() => RetryAsync(host))" Disabled="_busy" />
+                                }
+                                <MaterialButton Text="Disable" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                                OnClick="@(() => _pendingDisable = host)" Disabled="_busy" />
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            <TableState Columns="5" Loading="_loading" Error="@_error" IsEmpty="@(_overview is null or { Hosts.Count: 0 })"
+                        Empty="No hostnames yet — add a route first, then come back to give it a certificate."
+                        OnRetry="LoadAsync" Busy="_busy" />
+        </tbody>
+    </MaterialTable>
+</div>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmDisable" Title="Disable HTTPS?"
+                       Message="@DisableMessage()" ConfirmText="Disable" Busy="_busy" OnConfirm="DisableAsync" />
+
+@code {
+    private TlsOverviewResponse? _overview;
+    private int _edgeHttpPort = 80;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private TlsHostResponse? _pendingDisable;
+    private ProxyStateResponse? _proxy;
+
+    private bool _confirmDisable
+    {
+        get => _pendingDisable is not null;
+        set { if (!value) _pendingDisable = null; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await ReloadStateAsync();
+    }
+
+    private async Task ReloadStateAsync()
+    {
+        try
+        {
+            _proxy = await RoutesApi.GetProxyStateAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _overview = await TlsApi.GetAsync();
+            _edgeHttpPort = (await SystemApi.GetSettingsAsync()).EdgeHttpPort;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task EnableAsync(TlsHostResponse host) => RunAsync(async () =>
+    {
+        var result = await TlsApi.EnableAsync(host.Hostname);
+        await LoadAsync();
+        await ReloadStateAsync();
+        Snackbar.Show(result.Status == CertificateStatus.Valid
+            ? $"{host.Hostname} has a certificate — deploy nginx to start serving it."
+            : $"Could not issue for {host.Hostname}: {result.LastError}");
+    });
+
+    private Task RetryAsync(TlsHostResponse host) => RunAsync(async () =>
+    {
+        var result = await TlsApi.RetryAsync(host.Hostname);
+        await LoadAsync();
+        await ReloadStateAsync();
+        Snackbar.Show(result.Status == CertificateStatus.Valid
+            ? $"{host.Hostname} has a certificate — deploy nginx to start serving it."
+            : $"Still failing: {result.LastError}");
+    });
+
+    private Task DisableAsync() => RunAsync(async () =>
+    {
+        var host = _pendingDisable!;
+        _pendingDisable = null;
+        await TlsApi.DisableAsync(host.Hostname);
+        await LoadAsync();
+        await ReloadStateAsync();
+        Snackbar.Show($"{host.Hostname} is back to HTTP — deploy nginx to apply.");
+    });
+
+    private Task ApplyAsync() => RunAsync(async () =>
+    {
+        await RoutesApi.ApplyAsync();
+        await ReloadStateAsync();
+        Snackbar.Show("nginx redeployed.");
+    });
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string DisableMessage() => _pendingDisable is not { } host
+        ? string.Empty
+        : $"{host.Hostname} drops back to plain HTTP and its certificate and private key are deleted. " +
+          $"{host.RouteCount} route(s) on this hostname are affected.";
+
+    private static string StatusText(TlsHostResponse host) => host.Status switch
+    {
+        null => "HTTP only",
+        CertificateStatus.Valid => "HTTPS",
+        CertificateStatus.Pending => "Requesting…",
+        _ => "Failed",
+    };
+
+    private static MaterialChipColor StatusColor(CertificateStatus? status) => status switch
+    {
+        CertificateStatus.Valid => MaterialChipColor.Primary,
+        CertificateStatus.Pending => MaterialChipColor.Tertiary,
+        CertificateStatus.Failed => MaterialChipColor.Error,
+        _ => MaterialChipColor.Default,
+    };
+
+    private static string ExpiryText(TlsHostResponse host)
+    {
+        if (host.NotAfter is not { } expiry)
+        {
+            return "—";
+        }
+
+        var days = (int)Math.Floor((expiry - DateTimeOffset.UtcNow).TotalDays);
+        return days < 0 ? $"expired {-days}d ago" : $"in {days}d";
+    }
+}

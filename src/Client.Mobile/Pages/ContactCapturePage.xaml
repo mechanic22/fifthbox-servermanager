@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="FifthBox.ServerManager.Client.Mobile.Pages.ContactCapturePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="Capture location"
+    BackgroundColor="{StaticResource MdSurface}">
+
+    <VerticalStackLayout Padding="24" Spacing="16">
+        <Label x:Name="NameLabel" Style="{StaticResource MdHeadline}" />
+
+        <Border Style="{StaticResource MdCard}">
+            <VerticalStackLayout Spacing="4" Padding="16">
+                <Label Text="Captured location" Style="{StaticResource MdCaption}" />
+                <Label x:Name="LocationLabel" Style="{StaticResource MdTitle}" Text="None yet" />
+            </VerticalStackLayout>
+        </Border>
+
+        <Button Text="Capture current location" Clicked="OnCaptureClicked" Style="{StaticResource MdFilledButton}" />
+        <Button x:Name="SaveButton" Text="Save to contact" Clicked="OnSaveClicked" IsEnabled="False" Style="{StaticResource MdTextButton}" />
+        <ActivityIndicator x:Name="Busy" IsRunning="False" IsVisible="False" HorizontalOptions="Center" />
+    </VerticalStackLayout>
+
+</ContentPage>

@@ -1,0 +1,109 @@
+@* Recursive tree node: a group header with expand/collapse, its workloads, then its child groups. *@
+
+<div class="flex items-center gap-2 py-1.5 border-b" style="border-color: var(--md-sys-color-outline-variant); @IndentStyle">
+    <span class="cursor-pointer inline-flex items-center justify-center w-6 shrink-0" @onclick="Toggle">
+        @if (HasContent)
+        {
+            <MaterialIcon Path="@MaterialIcons.ChevronRight" Size="IconSize.SM"
+                          class="@(Expanded ? "rotate-90 transition-transform" : "transition-transform")" />
+        }
+    </span>
+    <span class="text-sm font-medium flex-1 min-w-0 truncate">
+        @Node.Group.Name
+        <span class="opacity-50 text-xs font-normal">(@Node.Workloads.Count)</span>
+    </span>
+    <span class="inline-flex items-center shrink-0 w-8 justify-center">
+        @if (IsAdmin)
+        {
+            <MaterialIconButton Icon="@KebabIcon()" Style="MaterialIconButtonStyle.Standard" Size="MaterialSize.Small"
+                                OnClick="@(() => _menuOpen = !_menuOpen)" Disabled="Busy" title="Group options" />
+            <MaterialDrop @bind-IsOpen="_menuOpen" Alignment="MaterialDropAlignment.End" Position="MaterialDropPosition.Bottom">
+                <button type="button" class="md-menu-item" @onclick="MenuAddWorkload">Add workload</button>
+                <button type="button" class="md-menu-item" @onclick="MenuAddSubgroup">Add subgroup</button>
+                <button type="button" class="md-menu-item" @onclick="MenuRename">Rename</button>
+                <button type="button" class="md-menu-item" @onclick="MenuManageAccess">Manage access</button>
+                <div class="md-menu-divider"></div>
+                <button type="button" class="md-menu-item" @onclick="MenuDelete">Delete</button>
+            </MaterialDrop>
+        }
+    </span>
+</div>
+
+@if (Expanded)
+{
+    @foreach (var w in Node.Workloads)
+    {
+        <WorkloadRow Workload="w" Status="Statuses.GetValueOrDefault(w.Id)" Depth="Depth + 1" Busy="Busy" IsAdmin="IsAdmin"
+                     OnDeploy="@(() => OnDeploy.InvokeAsync(w))"
+                     OnStop="@(() => OnStop.InvokeAsync(w))"
+                     OnDelete="@(() => OnDeleteWorkload.InvokeAsync(w))" />
+    }
+    @foreach (var child in Node.Children)
+    {
+        <WorkloadTreeNode Node="child" Depth="Depth + 1" Collapsed="Collapsed" Statuses="Statuses" Busy="Busy" IsAdmin="IsAdmin"
+                          OnToggle="OnToggle" OnAddWorkload="OnAddWorkload" OnAddSubgroup="OnAddSubgroup" OnRename="OnRename" OnManageAccess="OnManageAccess" OnDeleteGroup="OnDeleteGroup"
+                          OnDeploy="OnDeploy" OnStop="OnStop" OnDeleteWorkload="OnDeleteWorkload" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public required GroupTreeNode Node { get; set; }
+    [Parameter] public int Depth { get; set; }
+    [Parameter] public required IReadOnlySet<string> Collapsed { get; set; }
+    [Parameter] public required IReadOnlyDictionary<string, WorkloadRuntimeStatus> Statuses { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+
+    [Parameter] public EventCallback<string> OnToggle { get; set; }
+    [Parameter] public EventCallback<string> OnAddWorkload { get; set; }
+    [Parameter] public EventCallback<string> OnAddSubgroup { get; set; }
+    [Parameter] public EventCallback<WorkloadGroupResponse> OnRename { get; set; }
+    [Parameter] public EventCallback<WorkloadGroupResponse> OnManageAccess { get; set; }
+    [Parameter] public EventCallback<WorkloadGroupResponse> OnDeleteGroup { get; set; }
+    [Parameter] public EventCallback<WorkloadResponse> OnDeploy { get; set; }
+    [Parameter] public EventCallback<WorkloadResponse> OnStop { get; set; }
+    [Parameter] public EventCallback<WorkloadResponse> OnDeleteWorkload { get; set; }
+
+    private bool _menuOpen;
+
+    private bool HasContent => Node.Workloads.Count > 0 || Node.Children.Count > 0;
+    private bool Expanded => !Collapsed.Contains(Node.Group.Id);
+    private string IndentStyle => $"padding-left: {0.5 + (Depth * 1.5)}rem";
+
+    private Task Toggle() => HasContent ? OnToggle.InvokeAsync(Node.Group.Id) : Task.CompletedTask;
+
+    private async Task MenuAddWorkload()
+    {
+        _menuOpen = false;
+        await OnAddWorkload.InvokeAsync(Node.Group.Id);
+    }
+
+    private async Task MenuAddSubgroup()
+    {
+        _menuOpen = false;
+        await OnAddSubgroup.InvokeAsync(Node.Group.Id);
+    }
+
+    private async Task MenuRename()
+    {
+        _menuOpen = false;
+        await OnRename.InvokeAsync(Node.Group);
+    }
+
+    private async Task MenuDelete()
+    {
+        _menuOpen = false;
+        await OnDeleteGroup.InvokeAsync(Node.Group);
+    }
+
+    private async Task MenuManageAccess()
+    {
+        _menuOpen = false;
+        await OnManageAccess.InvokeAsync(Node.Group);
+    }
+
+    private RenderFragment KebabIcon() => __builder =>
+    {
+        <MaterialIcon Path="@MaterialIcons.MoreVert" Size="IconSize.SM" />
+    };
+}

@@ -1,0 +1,79 @@
+@* Editor for persistent-data mounts. The type rides in the source field's trailing slot and read/write
+   in the target's, so a mount is one line rather than four controls spread over two. *@
+
+<div class="flex flex-col gap-3">
+    @for (var i = 0; i < Mounts.Count; i++)
+    {
+        var index = i;
+        <div class="flex gap-2 items-center flex-wrap">
+            <div class="w-72">
+                <MaterialInput @bind-Value="Mounts[index].Source" Variant="MaterialInputVariant.Outlined"
+                               Size="MaterialSize.Small" Label="@SourceLabel(Mounts[index].Type)" Disabled="Disabled">
+                    <TrailingIcon>
+                        <MaterialSelect TValue="VolumeMountType" Value="Mounts[index].Type" Options="Types"
+                                        Style="MaterialSelectStyle.Inline" OptionTextSelector="TypeText"
+                                        Label="mount type" Disabled="Disabled"
+                                        ValueChanged="@((VolumeMountType t) => Mounts[index].Type = t)" />
+                    </TrailingIcon>
+                </MaterialInput>
+            </div>
+
+            <span class="opacity-60">→</span>
+
+            <div class="w-72">
+                <MaterialInput @bind-Value="Mounts[index].Target" Variant="MaterialInputVariant.Outlined"
+                               Size="MaterialSize.Small" Label="container path" Disabled="Disabled">
+                    <TrailingIcon>
+                        <button type="button" class="text-sm font-mono disabled:opacity-40" disabled="@Disabled"
+                                title="@(Mounts[index].ReadOnly ? "Read-only — click for read/write" : "Read/write — click for read-only")"
+                                @onclick="@(() => Mounts[index].ReadOnly = !Mounts[index].ReadOnly)">
+                            @(Mounts[index].ReadOnly ? "ro" : "rw")
+                        </button>
+                    </TrailingIcon>
+                </MaterialInput>
+            </div>
+
+            <MaterialIconButton OnClick="@(() => Remove(index))" Disabled="Disabled">
+                <Icon>
+                    <MaterialIcon FillColor="#FF0000" Path="@MaterialIcons.Close" Size="IconSize.XS" />
+                </Icon>
+            </MaterialIconButton>
+
+            @if (HostName(Mounts[index]) is { } hostName)
+            {
+                <div class="w-full text-xs opacity-60 -mt-1">
+                    on the host: <span class="font-mono">@hostName</span>
+                </div>
+            }
+        </div>
+    }
+    <div>
+        <MaterialButton Text="Add mount" Style="MaterialButtonStyle.Text" OnClick="Add" Disabled="Disabled" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<VolumeRow> Mounts { get; set; } = [];
+    [Parameter] public bool Disabled { get; set; }
+
+    /// What a named volume's source gets prefixed with on the host. Empty hides the hint — a caller that
+    /// can't read the platform's naming shouldn't guess at it.
+    [Parameter] public string NamePrefix { get; set; } = string.Empty;
+
+    private static readonly VolumeMountType[] Types = [VolumeMountType.Volume, VolumeMountType.Bind];
+
+    /// Bind mounts reach docker untouched — the namespacing is what stops two workloads sharing a named
+    /// volume by accident, and a host path is the deliberate way to share.
+    private string? HostName(VolumeRow row) =>
+        NamePrefix.Length > 0 && row.Type == VolumeMountType.Volume && !string.IsNullOrWhiteSpace(row.Source)
+            ? $"{NamePrefix}{row.Source}"
+            : null;
+
+    private static string TypeText(VolumeMountType type) => type == VolumeMountType.Bind ? "host path" : "volume";
+
+    private static string SourceLabel(VolumeMountType type) => type == VolumeMountType.Bind ? "host path" : "volume name";
+
+    private void Add() => Mounts.Add(new VolumeRow());
+
+    private void Remove(int index) => Mounts.RemoveAt(index);
+}

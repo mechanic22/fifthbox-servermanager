@@ -1,0 +1,123 @@
+@* One workload leaf in the tree: name link, what it runs, status chip, and lifecycle actions. *@
+
+<div class="flex items-center gap-3 py-1.5 pr-2 border-b" style="border-color: var(--md-sys-color-outline-variant); @IndentStyle">
+    <span class="opacity-40 text-xs shrink-0">@(Workload.Target == WorkloadTarget.Agent ? "native" : "container")</span>
+    <a href="workloads/@Workload.Id" class="hover:underline text-sm flex-1 min-w-0 truncate" style="color: var(--md-sys-color-primary)">@Workload.Name</a>
+    <span class="font-mono text-xs opacity-60 flex-1 min-w-0 truncate hidden sm:block">@RunsText(Workload)</span>
+    <span class="w-28 shrink-0">
+        @if (Status is not null)
+        {
+            <span title="@Status.LastError">
+                <MaterialChip Text="@StatusText(Workload, Status)" Color="StatusColor(Workload, Status)" Size="MaterialChipSize.Small" />
+            </span>
+        }
+        else
+        {
+            <span class="opacity-40 text-sm">—</span>
+        }
+    </span>
+    <span class="inline-flex items-center shrink-0 w-8 justify-center">
+        @* With nothing but Open left the menu is pure ceremony — the name is already a link there. *@
+        @if (HasMenu)
+        {
+            <MaterialIconButton Icon="@KebabIcon()" Style="MaterialIconButtonStyle.Standard" Size="MaterialSize.Small"
+                                OnClick="@(() => _menuOpen = !_menuOpen)" Disabled="Busy" title="Workload actions" />
+            <MaterialDrop @bind-IsOpen="_menuOpen" Alignment="MaterialDropAlignment.End" Position="MaterialDropPosition.Bottom">
+                <a href="workloads/@Workload.Id" class="md-menu-item">Open</a>
+                @if (CanDeploy)
+                {
+                    <button type="button" class="md-menu-item" @onclick="MenuDeploy">Deploy</button>
+                }
+                @if (CanOperate)
+                {
+                    <button type="button" class="md-menu-item" @onclick="MenuStop">Stop</button>
+                }
+                @if (IsAdmin)
+                {
+                    <div class="md-menu-divider"></div>
+                    <button type="button" class="md-menu-item" @onclick="MenuDelete">Delete</button>
+                }
+            </MaterialDrop>
+        }
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
+    [Parameter] public WorkloadRuntimeStatus? Status { get; set; }
+    [Parameter] public int Depth { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public EventCallback OnDeploy { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private bool _menuOpen;
+
+    private bool CanDeploy => WorkloadPermissions.CanDeploy(Workload);
+    private bool CanOperate => WorkloadPermissions.CanOperate(Workload);
+    private bool HasMenu => CanDeploy || CanOperate || IsAdmin;
+
+    // 1.5rem per level, plus a base offset so leaves sit inside their group header.
+    private string IndentStyle => $"padding-left: {1.5 + (Depth * 1.5)}rem";
+
+    private async Task MenuDeploy()
+    {
+        _menuOpen = false;
+        await OnDeploy.InvokeAsync();
+    }
+
+    private async Task MenuStop()
+    {
+        _menuOpen = false;
+        await OnStop.InvokeAsync();
+    }
+
+    private async Task MenuDelete()
+    {
+        _menuOpen = false;
+        await OnDelete.InvokeAsync();
+    }
+
+    private RenderFragment KebabIcon() => __builder =>
+    {
+        <MaterialIcon Path="@MaterialIcons.MoreVert" Size="IconSize.SM" />
+    };
+
+    private static string RunsText(WorkloadResponse w) =>
+        w.Kind == WorkloadKind.Container ? (w.Image ?? "") : $"{w.Command} {string.Join(' ', w.Args)}".Trim();
+
+    private static bool IsMissing(WorkloadResponse w, WorkloadRuntimeStatus s) =>
+        s.State == WorkloadState.NotDeployed
+        && w.CurrentRevision is not null
+        && w.DesiredState == WorkloadDesiredState.Running;
+
+    private static string StatusText(WorkloadResponse w, WorkloadRuntimeStatus s) => s switch
+    {
+        { State: WorkloadState.NotDeployed } when IsMissing(w, s) => "Missing",
+        { State: WorkloadState.NotDeployed } when w.CurrentRevision is not null => "Undeployed",
+        { State: WorkloadState.NotDeployed } => "Not deployed",
+        { State: WorkloadState.Updating } => "Updating files",
+        // A replica count says the workload is down; the reason says whether that is worth acting on.
+        { LastError: { Length: > 0 } error } => Brief(error),
+        _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
+    };
+
+    /// Docker errors run to a paragraph. The first clause carries the meaning; the title attribute keeps
+    /// the rest.
+    private static string Brief(string error)
+    {
+        var clause = error.Split(':', 2)[0].Split('(', 2)[0].Trim();
+        return clause.Length is > 0 and <= 28 ? clause : error[..Math.Min(28, error.Length)].Trim();
+    }
+
+    private static MaterialChipColor StatusColor(WorkloadResponse w, WorkloadRuntimeStatus s) => s switch
+    {
+        _ when IsMissing(w, s) => MaterialChipColor.Error,
+        { State: WorkloadState.Running } => MaterialChipColor.Primary,
+        { LastError: { Length: > 0 } } => MaterialChipColor.Error,
+        { State: WorkloadState.Partial } => MaterialChipColor.Tertiary,
+        { State: WorkloadState.Updating } => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+}

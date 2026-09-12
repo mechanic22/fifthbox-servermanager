@@ -1,0 +1,399 @@
+@page "/workloads"
+@attribute [Authorize]
+@using FifthBox.ServerManager.Client.Web.Pages.Workloads.Components
+@using FifthBox.ServerManager.Shared.Access
+@using FifthBox.ServerManager.Client.Web.Services
+@implements IDisposable
+@inject IWorkloadsClient WorkloadsApi
+@inject IWorkloadGroupsClient GroupsApi
+@inject RealtimeService Realtime
+@inject IMaterialSnackbarService Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Applications — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-5xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-medium">Applications</h1>
+        <div class="flex gap-2">
+            <MaterialButton Text="Refresh" Style="MaterialButtonStyle.Outlined" OnClick="LoadAsync"
+                            Disabled="_busy || _loading" />
+            @if (_isAdmin)
+            {
+                <MaterialButton Text="New group" Style="MaterialButtonStyle.Outlined" OnClick="@(() => OpenCreateGroup())"
+                                Disabled="_busy" />
+                <MaterialButton Text="New workload" Style="MaterialButtonStyle.Filled"
+                                OnClick="@(() => Nav.NavigateTo("workloads/new"))" Disabled="_busy" />
+            }
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <LoadFailure Message="@_error" OnRetry="LoadAsync" Busy="_loading" />
+        </MaterialCard>
+    }
+    else if (_loading)
+    {
+        <MaterialSkeleton Type="MaterialSkeletonType.TableRow" AriaLabel="Loading applications" />
+    }
+    @* Unfiltered counts on purpose: Root() is filtered, so a filter that matched nothing used to
+       render "No groups or workloads yet" over a cluster full of them. *@
+    else if (_groups is { Count: 0 } && TotalCount == 0)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-8 text-center">
+            @if (_isAdmin)
+            {
+                <p class="opacity-70 mb-4">No groups or workloads yet.</p>
+                <div class="flex gap-2 justify-center">
+                    <MaterialButton Text="New group" Style="MaterialButtonStyle.Outlined"
+                                    OnClick="@(() => OpenCreateGroup())" />
+                    <MaterialButton Text="New workload" Style="MaterialButtonStyle.Filled"
+                                    OnClick="@(() => Nav.NavigateTo("workloads/new"))" />
+                </div>
+            }
+            else
+            {
+                <p class="opacity-70">Nothing has been shared with you yet.</p>
+            }
+        </MaterialCard>
+    }
+    else
+    {
+        @if (TotalCount > 8)
+        {
+            <div class="mb-3 max-w-xs">
+                <MaterialInput @bind-Value="_filter" @bind-Value:event="oninput" Label="Filter by name"
+                               Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" />
+            </div>
+        }
+
+        @* Only ever a *filter* message. Groups render below with or without workloads in them, so
+           gating the whole tree on the workload count hid every group behind "nothing matches". *@
+        @if (Filtering && Matching().Count == 0)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-8 text-center">
+                <p class="opacity-70">Nothing matches "@_filter".</p>
+            </MaterialCard>
+        }
+        else
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="px-2 py-1">
+                @foreach (var r in Roots())
+                {
+                    <WorkloadTreeNode Node="r" Depth="0" Collapsed="_collapsed" Statuses="_statuses" Busy="_busy" IsAdmin="_isAdmin"
+                                      OnToggle="ToggleGroup" OnAddWorkload="AddWorkloadToGroup" OnAddSubgroup="OpenCreateGroup"
+                                      OnRename="OpenRenameGroup" OnManageAccess="OpenGroupAccess" OnDeleteGroup="AskDeleteGroup" OnDeploy="DeployAsync" OnStop="StopAsync"
+                                      OnDeleteWorkload="AskDeleteWorkload" />
+                }
+
+                @{
+                    var root = Root();
+                }
+                @if (root.Count > 0)
+                {
+                    <div class="flex items-center gap-2 py-1.5 border-b pl-2"
+                         style="border-color: var(--md-sys-color-outline-variant)">
+                        <span class="text-sm font-medium opacity-70">root</span>
+                        <span class="opacity-50 text-xs">(@root.Count)</span>
+                    </div>
+                    @foreach (var w in root)
+                    {
+                        <WorkloadRow Workload="w" Status="_statuses.GetValueOrDefault(w.Id)" Depth="0" Busy="_busy" IsAdmin="_isAdmin"
+                                     OnDeploy="@(() => DeployAsync(w))" OnStop="@(() => StopAsync(w))"
+                                     OnDelete="@(() => AskDeleteWorkload(w))" />
+                    }
+                }
+            </MaterialCard>
+        }
+    }
+</div>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="@_confirmTitle" Message="@_confirmMessage"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+<MaterialDialog @bind-IsOpen="_accessDialogOpen" Title="@($"Access to {_accessGroup?.Name}")">
+    <ChildContent>
+        @if (_accessGroup is not null)
+        {
+            <div class="sm:min-w-[32rem]">
+                <AccessPanel Scope="AccessScope.Group" TargetId="@_accessGroup.Id" TargetName="@_accessGroup.Name" />
+            </div>
+        }
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Done" Style="MaterialButtonStyle.Text" OnClick="@(() => _accessDialogOpen = false)" />
+    </Actions>
+</MaterialDialog>
+
+<MaterialDialog @bind-IsOpen="_groupDialogOpen" Title="@GroupDialogTitle">
+    <ChildContent>
+        <div class="flex flex-col gap-3 sm:min-w-[20rem]">
+            @if (_groupDialogEditId is null && ParentName() is { } parent)
+            {
+                <p class="text-sm opacity-70">Inside <span class="font-medium">@parent</span></p>
+            }
+            <MaterialInput @bind-Value="_groupDialogName" Label="Group name" Disabled="_busy" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _groupDialogOpen = false)"
+                        Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveGroupDialogAsync"
+                        Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool _isAdmin;
+
+    private IReadOnlyList<WorkloadResponse>? _workloads;
+    private IReadOnlyList<WorkloadGroupResponse>? _groups;
+    private readonly Dictionary<string, WorkloadRuntimeStatus> _statuses = new();
+    private readonly HashSet<string> _collapsed = new();
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+    private string _filter = string.Empty;
+
+    private bool _groupDialogOpen;
+    private bool _accessDialogOpen;
+    private WorkloadGroupResponse? _accessGroup;
+    private bool _confirmOpen;
+    private string _confirmTitle = string.Empty;
+    private string _confirmMessage = string.Empty;
+    private WorkloadGroupResponse? _pendingGroup;
+    private WorkloadResponse? _pendingWorkload;
+    private string? _groupDialogEditId;
+    private string _groupDialogName = string.Empty;
+    private string _groupDialogParentId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is not null)
+        {
+            _isAdmin = (await AuthStateTask).User.IsInRole(Roles.Admin);
+        }
+
+        Realtime.WorkloadStatusChanged += OnStatusChanged;
+        Realtime.Reconnected += OnReconnected;
+        await LoadAsync();
+        await Realtime.EnsureWorkloadsConnectedAsync();
+    }
+
+    // Broadcast covers every workload, so the id says which row moved. Mutating inside InvokeAsync keeps
+    // the write on the render loop rather than the hub's callback.
+    private void OnStatusChanged(string workloadId, WorkloadRuntimeStatus status)
+        => _ = InvokeAsync(() =>
+        {
+            _statuses[workloadId] = status;
+            StateHasChanged();
+        });
+
+    private void OnReconnected() => _ = InvokeAsync(LoadAsync);
+
+    public void Dispose()
+    {
+        Realtime.WorkloadStatusChanged -= OnStatusChanged;
+        Realtime.Reconnected -= OnReconnected;
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _groups = await GroupsApi.ListAsync();
+            _workloads = await WorkloadsApi.ListAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        await RefreshStatusesAsync();
+    }
+
+    private int TotalCount => _workloads?.Count ?? 0;
+
+    private bool Filtering => !string.IsNullOrWhiteSpace(_filter);
+
+    private List<WorkloadResponse> Matching() => (_workloads ?? [])
+        .Where(w => string.IsNullOrWhiteSpace(_filter)
+                    || w.Name.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    // The tree is built from what matches, so a filtered view keeps its grouping rather than
+    // collapsing into a flat list.
+    private List<GroupTreeNode> Roots() => GroupTreeNode.Build(_groups ?? [], Matching());
+
+    private List<WorkloadResponse> Root()
+    {
+        var groupIds = (_groups ?? []).Select(g => g.Id).ToHashSet();
+        return Matching().Where(w => w.GroupId is null || !groupIds.Contains(w.GroupId)).ToList();
+    }
+
+    private void AddWorkloadToGroup(string groupId) => Nav.NavigateTo($"workloads/new?group={groupId}");
+
+    private void ToggleGroup(string id)
+    {
+        if (!_collapsed.Remove(id))
+        {
+            _collapsed.Add(id);
+        }
+    }
+
+    private async Task RefreshStatusesAsync()
+    {
+        if (_workloads is null)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var (id, status) in await WorkloadsApi.GetStatusesAsync())
+            {
+                _statuses[id] = status;
+            }
+        }
+        catch (ApiException)
+        {
+            // Backend unreachable — leave the statuses as they were rather than blanking the list.
+        }
+
+        StateHasChanged();
+    }
+
+    private string GroupDialogTitle => _groupDialogEditId is not null
+        ? "Rename group"
+        : string.IsNullOrEmpty(_groupDialogParentId) ? "New group" : "New subgroup";
+
+    private string? ParentName() => string.IsNullOrEmpty(_groupDialogParentId)
+        ? null
+        : (_groups ?? []).FirstOrDefault(g => g.Id == _groupDialogParentId)?.Name;
+
+    private void OpenCreateGroup(string? parentId = null)
+    {
+        _groupDialogEditId = null;
+        _groupDialogName = string.Empty;
+        _groupDialogParentId = parentId ?? string.Empty;
+        _groupDialogOpen = true;
+    }
+
+    private void OpenRenameGroup(WorkloadGroupResponse group)
+    {
+        _groupDialogEditId = group.Id;
+        _groupDialogName = group.Name;
+        _groupDialogOpen = true;
+    }
+
+    private Task SaveGroupDialogAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_groupDialogName))
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunAsync(async () =>
+        {
+            if (_groupDialogEditId is null)
+            {
+                await GroupsApi.CreateAsync(new CreateWorkloadGroupRequest
+                {
+                    Name = _groupDialogName,
+                    ParentId = string.IsNullOrEmpty(_groupDialogParentId) ? null : _groupDialogParentId,
+                });
+            }
+            else
+            {
+                await GroupsApi.RenameAsync(_groupDialogEditId, new UpdateWorkloadGroupRequest { Name = _groupDialogName });
+            }
+
+            _groupDialogOpen = false;
+            await LoadAsync();
+        });
+    }
+
+    private void OpenGroupAccess(WorkloadGroupResponse group)
+    {
+        _accessGroup = group;
+        _accessDialogOpen = true;
+    }
+
+    private void AskDeleteGroup(WorkloadGroupResponse group)
+    {
+        _pendingGroup = group;
+        _pendingWorkload = null;
+        _confirmTitle = "Delete group?";
+        _confirmMessage = $"'{group.Name}' is removed. Its workloads aren't deleted — they move up to the parent group.";
+        _confirmOpen = true;
+    }
+
+    private void AskDeleteWorkload(WorkloadResponse w)
+    {
+        _pendingWorkload = w;
+        _pendingGroup = null;
+        _confirmTitle = "Delete workload?";
+        _confirmMessage = $"'{w.Name}' and its deploy history are removed. Anything currently running is stopped.";
+        _confirmOpen = true;
+    }
+
+    private Task DeleteConfirmedAsync() => RunAsync(async () =>
+    {
+        var group = _pendingGroup;
+        var workload = _pendingWorkload;
+        _confirmOpen = false;
+        _pendingGroup = null;
+        _pendingWorkload = null;
+
+        if (group is not null)
+        {
+            await GroupsApi.DeleteAsync(group.Id);
+        }
+        else if (workload is not null)
+        {
+            await WorkloadsApi.DeleteAsync(workload.Id);
+        }
+
+        await LoadAsync();
+    });
+
+    private Task DeployAsync(WorkloadResponse w) => RunAsync(async () =>
+    {
+        _statuses[w.Id] = await WorkloadsApi.DeployAsync(w.Id);
+        Snackbar.Show($"Deployed {w.Name}.");
+    });
+
+    private Task StopAsync(WorkloadResponse w) => RunAsync(async () =>
+    {
+        await WorkloadsApi.StopAsync(w.Id);
+        _statuses[w.Id] = await WorkloadsApi.GetStatusAsync(w.Id);
+        Snackbar.Show($"Stopped {w.Name}.");
+    });
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

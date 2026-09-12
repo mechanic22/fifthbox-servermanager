@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <RootNamespace>FifthBox.ServerManager.Client.Web</RootNamespace>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.*" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\Client.Core\Client.Core.csproj" />
+  </ItemGroup>
+
+  <!-- FifthBox.Identity.Blazor: the cookie AuthenticationStateProvider base + claim-name contract.
+       Package by default, local project in dev. -->
+  <ItemGroup Condition="'$(UseLocalIdentity)' != 'true'">
+    <PackageReference Include="FifthBox.Identity.Blazor" Version="$(FifthBoxIdentityVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseLocalIdentity)' == 'true'">
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity.Blazor/Identity.Blazor.csproj" />
+  </ItemGroup>
+
+  <!-- FifthBox.MaterialComponents.Blazor: package by default, local project in dev (default local
+       for now — see Directory.Build.props: consumes the not-yet-published IMaterialThemeService). -->
+  <ItemGroup Condition="'$(UseLocalMaterial)' != 'true'">
+    <PackageReference Include="FifthBox.MaterialComponents.Blazor" Version="$(FifthBoxMaterialVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseLocalMaterial)' == 'true'">
+    <ProjectReference Include="$(FifthBoxMaterialRepo)/src/MaterialComponents/MaterialComponents.csproj" />
+  </ItemGroup>
+
+</Project>

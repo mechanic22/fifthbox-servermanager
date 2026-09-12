@@ -1,0 +1,11 @@
+@page "/nodes"
+@page "/agents"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@inject NavigationManager Nav
+
+@* Both used to render Cluster directly, which left the sidebar highlighting nothing — you were on a
+   page the nav couldn't place. The README still sends people to "the Agents page". *@
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("cluster", replace: true);
+}

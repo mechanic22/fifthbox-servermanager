@@ -1,0 +1,98 @@
+@* Creating an account. The EditForm wraps the whole dialog rather than sitting inside it, so the
+   Create button in the action bar is still a real submit and the annotations still run. *@
+@using System.ComponentModel.DataAnnotations
+@inject IAdminClient AdminApi
+@inject IMaterialSnackbarService Snackbar
+
+<EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <DataAnnotationsValidator />
+
+    <MaterialDialog IsOpen="IsOpen" IsOpenChanged="IsOpenChanged" Title="New user">
+        <ChildContent>
+            <div class="flex flex-col gap-4 sm:min-w-[22rem]">
+                <MaterialInput @bind-Value="_model.Email"
+                               For="@(() => _model.Email)"
+                               Label="Email"
+                               Type="email"
+                               Disabled="_busy" />
+
+                <MaterialInput @bind-Value="_model.Password"
+                               For="@(() => _model.Password)"
+                               Label="Password"
+                               Type="password"
+                               Disabled="_busy" />
+
+                <MaterialCheckbox @bind-Value="_model.IsAdmin"
+                                  Label="Administrator"
+                                  Disabled="_busy" />
+
+                <p class="text-sm opacity-60">
+                    An administrator reaches everything and holds no grants. Anyone else starts with no
+                    access at all until they are given some.
+                </p>
+            </div>
+        </ChildContent>
+        <Actions>
+            <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="CloseAsync" Disabled="_busy" />
+            <MaterialButton Text="Create" Type="submit" Style="MaterialButtonStyle.Filled" Disabled="_busy" />
+        </Actions>
+    </MaterialDialog>
+</EditForm>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    private bool _busy;
+    private FormModel _model = new();
+
+    /// Called by the parent before opening, so a cancelled attempt doesn't come back half-typed.
+    public void Reset() => _model = new FormModel();
+
+    private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
+
+    private async Task HandleSubmitAsync()
+    {
+        _busy = true;
+        try
+        {
+            // Email doubles as the login identifier, matching the self-service flow. Assigning the
+            // admin role here is how you mint another admin — the role travels to the new user's
+            // claims exactly like the bootstrap admin's does.
+            await AdminApi.CreateUserAsync(new CreateUserRequest
+            {
+                UserName = _model.Email,
+                Email = _model.Email,
+                Password = _model.Password,
+                Roles = _model.IsAdmin ? [Roles.Admin] : []
+            });
+
+            Snackbar.Show($"Created {_model.Email}.");
+            _model = new FormModel();
+            await IsOpenChanged.InvokeAsync(false);
+            await OnCreated.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool IsAdmin { get; set; }
+    }
+}

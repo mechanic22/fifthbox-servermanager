@@ -1,0 +1,178 @@
+@* Accounts, their role and how much they reach. The guards behind these actions live on the server;
+   the ones repeated here only stop you offering a button that is certain to fail. *@
+@using FifthBox.ServerManager.Shared.Users
+@inject IAdminClient Admin
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm opacity-70">
+        An administrator reaches everything. Everyone else sees only what they, or a team they are in,
+        have been given.
+    </p>
+    <MaterialButton Text="New user" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                    OnClick="OpenAdd" Disabled="_busy" />
+</div>
+
+<MaterialTable Loading="_loading">
+    <thead>
+        <tr><th>User</th><th>Role</th><th>Access</th><th></th></tr>
+    </thead>
+    <tbody>
+        @if (_users is { Count: > 0 })
+        {
+            @foreach (var u in _users)
+            {
+                var isSelf = u.Id == CurrentUserId;
+                <tr>
+                    <td data-label="User">
+                        @u.UserName
+                        @if (isSelf)
+                        {
+                            <span class="text-xs opacity-60"> — you</span>
+                        }
+                    </td>
+                    <td data-label="Role">
+                        <MaterialSwitch Value="@u.Roles.Contains(Roles.Admin)"
+                                        ValueChanged="@((bool on) => SetAdminAsync(u, on))"
+                                        Label="Administrator"
+                                        Disabled="@(_busy || isSelf)" />
+                    </td>
+                    <td data-label="Access">
+                        @if (u.Roles.Contains(Roles.Admin))
+                        {
+                            <span class="text-sm opacity-60">everything</span>
+                        }
+                        else
+                        {
+                            <span class="text-sm">@Grants(u.GrantCount)</span>
+                        }
+                    </td>
+                    <td class="text-right whitespace-nowrap">
+                        <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="@(() => AskDelete(u))" Disabled="@(_busy || isSelf)" />
+                    </td>
+                </tr>
+            }
+        }
+        <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_users is null or { Count: 0 })"
+                    Empty="No users yet." OnRetry="LoadAsync" Busy="_busy" />
+    </tbody>
+</MaterialTable>
+
+<CreateUserDialog @ref="_create" @bind-IsOpen="_createOpen" OnCreated="CreatedAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete user?"
+                       Message="@($"{_pendingDelete?.UserName} loses their account and every grant they hold. This can't be undone.")"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+@code {
+    [Parameter] public string? CurrentUserId { get; set; }
+
+    /// Raised whenever the roster changes, so a sibling tab showing grants can refresh.
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private IReadOnlyList<UserSummaryResponse>? _users;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+    private CreateUserDialog? _create;
+    private bool _createOpen;
+    private bool _confirmOpen;
+    private UserSummaryResponse? _pendingDelete;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    public async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _users = await Admin.ListUsersAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _create?.Reset();
+        _createOpen = true;
+    }
+
+    private async Task CreatedAsync()
+    {
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    private static string Grants(int count) => count switch
+    {
+        0 => "nothing shared",
+        1 => "1 grant",
+        _ => $"{count} grants",
+    };
+
+    private async Task SetAdminAsync(UserSummaryResponse user, bool isAdmin)
+    {
+        _busy = true;
+        try
+        {
+            List<string> roles = isAdmin ? [Roles.Admin] : [];
+            await Admin.SetRolesAsync(user.Id, roles);
+            Snackbar.Show(isAdmin
+                ? $"{user.UserName} is now an administrator. Any grants they held were removed."
+                : $"{user.UserName} is no longer an administrator.");
+            await OnChanged.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+            // Reload either way: on success the grant count moved, on failure the switch needs putting back.
+            await LoadAsync();
+        }
+    }
+
+    private void AskDelete(UserSummaryResponse user)
+    {
+        _pendingDelete = user;
+        _confirmOpen = true;
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Admin.DeleteUserAsync(_pendingDelete.Id);
+            Snackbar.Show($"Deleted {_pendingDelete.UserName}.");
+            _confirmOpen = false;
+            _pendingDelete = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+            await LoadAsync();
+        }
+    }
+}

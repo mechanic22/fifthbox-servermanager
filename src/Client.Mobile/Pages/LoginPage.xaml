@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="FifthBox.ServerManager.Client.Mobile.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="Sign in"
+    BackgroundColor="{StaticResource MdSurface}">
+
+    <VerticalStackLayout Padding="24" Spacing="16" VerticalOptions="Center">
+        <Label Text="FifthBox.ServerManager" Style="{StaticResource MdHeadline}" HorizontalOptions="Center" />
+        <Label Text="Native capture, shared data." Style="{StaticResource MdCaption}" HorizontalOptions="Center" />
+
+        <Entry x:Name="EmailEntry" Placeholder="Email" Keyboard="Email" Text="admin@demo.local" />
+        <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" Text="password123" />
+
+        <Label x:Name="ErrorLabel" TextColor="{StaticResource MdError}" IsVisible="False" />
+
+        <Button x:Name="SignInButton" Text="Sign in" Clicked="OnSignInClicked" Style="{StaticResource MdFilledButton}" />
+        <ActivityIndicator x:Name="Busy" IsRunning="False" IsVisible="False" HorizontalOptions="Center" />
+    </VerticalStackLayout>
+
+</ContentPage>

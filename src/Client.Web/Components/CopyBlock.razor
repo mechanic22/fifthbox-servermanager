@@ -1,0 +1,54 @@
+@* Text whose whole purpose is to end up on a clipboard — enrollment keys, join commands, generated
+   config. Hand-selecting base64 out of a <pre> is a tax, and the enrollment key is shown exactly once.
+   TODO: promote to FifthBox.MaterialComponents.Blazor — generic, domain-free, Material-shaped. *@
+@implements IDisposable
+@inject IJSRuntime JS
+
+<div class="relative group">
+    <pre class="text-xs overflow-x-auto p-3 pr-12 rounded m-0"
+         style="background: var(--md-sys-color-surface-container-high)"><code>@Text</code></pre>
+
+    <div class="absolute top-1.5 right-1.5">
+        <MaterialButton Text="@(_copied ? "Copied" : "Copy")" Style="MaterialButtonStyle.Text"
+                        Size="MaterialSize.Small" OnClick="CopyAsync" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required string Text { get; set; }
+
+    private bool _copied;
+    private CancellationTokenSource? _reset;
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Text);
+        }
+        catch (JSException)
+        {
+            // No clipboard permission, or an insecure origin. The text is still selectable, so say
+            // nothing rather than throwing an error at someone who can just select it.
+            return;
+        }
+
+        _copied = true;
+        _reset?.Cancel();
+        _reset?.Dispose();
+        _reset = new CancellationTokenSource();
+
+        var token = _reset.Token;
+        _ = Task.Delay(TimeSpan.FromSeconds(2), token).ContinueWith(_ =>
+        {
+            _copied = false;
+            InvokeAsync(StateHasChanged);
+        }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+    }
+
+    public void Dispose()
+    {
+        _reset?.Cancel();
+        _reset?.Dispose();
+    }
+}

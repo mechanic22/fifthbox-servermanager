@@ -1,0 +1,56 @@
+<div class="flex flex-col gap-2">
+    @for (var i = 0; i < Ports.Count; i++)
+    {
+        var index = i;
+        <div class="flex gap-2 items-center flex-wrap">
+            <div class="w-28">
+                <MaterialInput @bind-Value="Ports[index].Published" Variant="MaterialInputVariant.Outlined"
+                               Size="MaterialSize.Small" Type="number" Label="@(SinglePort ? "port" : "host port")"
+                               Disabled="Disabled" />
+            </div>
+            @if (!SinglePort)
+            {
+                <span class="opacity-60">→</span>
+                <div class="w-48">
+                    <MaterialInput @bind-Value="Ports[index].Target" Variant="MaterialInputVariant.Outlined"
+                                   Size="MaterialSize.Small" Label="container port" Disabled="Disabled">
+                        <TrailingIcon>
+                            <MaterialSelect Value="Ports[index].Protocol" Options="Protocols" Style="MaterialSelectStyle.Inline"
+                                            OptionTextSelector="ProtocolText" Label="proto" Disabled="Disabled"
+                                            ValueChanged="@((PortProtocol t) => Ports[index].Protocol = t)" />
+                        </TrailingIcon>
+                    </MaterialInput>
+                </div>
+            }
+            <MaterialIconButton OnClick="@(() => Remove(index))" Disabled="Disabled">
+                <Icon>
+                    <MaterialIcon FillColor="#FF0000" Path="@MaterialIcons.Close" Size="IconSize.XS" />
+                </Icon>
+            </MaterialIconButton>
+        </div>
+    }
+    <div>
+        <MaterialButton Text="Add port" Style="MaterialButtonStyle.Text" OnClick="Add" Disabled="Disabled" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<PortRow> Ports { get; set; } = [];
+    [Parameter] public bool Disabled { get; set; }
+
+    /// Native workloads bind one port directly — there is no container port to map onto.
+    [Parameter] public bool SinglePort { get; set; }
+
+    private static readonly PortProtocol[] Protocols = [PortProtocol.Both, PortProtocol.Tcp, PortProtocol.Udp];
+
+    private static string ProtocolText(PortProtocol protocol) => protocol switch
+    {
+        PortProtocol.Both => "TCP & UDP",
+        PortProtocol.Udp => "UDP",
+        _ => "TCP",
+    };
+
+    private void Add() => Ports.Add(new PortRow());
+
+    private void Remove(int index) => Ports.RemoveAt(index);
+}

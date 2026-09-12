@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FifthBox.ServerManager.Shared</RootNamespace>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="FifthBox.ServerManager.Client.Mobile.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:pages="clr-namespace:FifthBox.ServerManager.Client.Mobile.Pages"
+    FlyoutBehavior="Disabled"
+    Title="FifthBox.ServerManager">
+
+    <!-- Sign-in is the only root content; contacts and capture are pushed routes (registered in
+         AppShell.xaml.cs) so there's no tab bar and the auth gate is the app's entry point. -->
+    <ShellContent
+        Route="login"
+        ContentTemplate="{DataTemplate pages:LoginPage}" />
+
+</Shell>

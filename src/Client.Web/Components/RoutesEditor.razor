@@ -1,0 +1,222 @@
+@* Route CRUD for one workload. The global Routes page is read-only — a route needs its workload's
+   context to be worth creating, so creation only happens here. Owns list + add/edit dialog + delete. *@
+@inject IRoutesClient RoutesApi
+@inject IWorkloadsClient WorkloadsApi
+@inject ITlsClient TlsApi
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex items-center justify-between mb-3">
+    <span class="text-sm opacity-70">@(_routes?.Count ?? 0) route(s)</span>
+    @if (!ReadOnly)
+    {
+        <MaterialButton Text="Add route" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small" OnClick="OpenAdd" Disabled="_busy" />
+    }
+</div>
+
+<MaterialTable Loading="_loading">
+    <thead>
+        <tr>
+            <th>Hostname</th>
+            <th>TLS</th>
+            <th>Path</th>
+            <th>Port</th>
+            <th>Options</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (_routes is { Count: > 0 })
+        {
+            @foreach (var r in _routes)
+            {
+                <tr>
+                    <td data-label="Hostname">@r.Hostname</td>
+                    <td data-label="TLS">
+                        @if (!ReadOnly)
+                        {
+                            <TlsChip Status="Tls(r.Hostname)?.Status" NotAfter="Tls(r.Hostname)?.NotAfter" />
+                        }
+                    </td>
+                    <td data-label="Path" class="font-mono text-xs">@r.Path</td>
+                    <td data-label="Port">@r.TargetPort</td>
+                    <td data-label="Options" class="whitespace-nowrap">
+                        @if (r.WebSockets)
+                        {
+                            <MaterialChip Text="WS" Size="MaterialChipSize.Small" />
+                        }
+                        @if (r.BasicAuthEnabled)
+                        {
+                            <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                        }
+                    </td>
+                    <td class="text-right whitespace-nowrap">
+                        @if (!ReadOnly)
+                        {
+                            <MaterialButton Text="Edit" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" OnClick="@(() => OpenEdit(r))" Disabled="_busy" />
+                            <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" OnClick="@(() => AskDelete(r))" Disabled="_busy" />
+                        }
+                    </td>
+                </tr>
+            }
+        }
+        <TableState Columns="6" Loading="_loading" Error="@_error" IsEmpty="@(_routes is null or { Count: 0 })"
+                    Empty="No routes yet." OnRetry="LoadAsync" Busy="_busy" />
+    </tbody>
+</MaterialTable>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete route?"
+                       Message="@($"{_pendingDelete?.Hostname}{_pendingDelete?.Path} will stop being served once nginx is redeployed.")"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+<MaterialDialog @bind-IsOpen="_dialogOpen" Title="@(_editId is null ? "Add route" : "Edit route")">
+    <ChildContent>
+        <RouteForm Model="_form" IsEdit="@(_editId is not null)" Busy="_busy" />
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _dialogOpen = false)" Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    /// The workload these routes belong to. Every route created here attaches to it.
+    [Parameter, EditorRequired] public required string WorkloadId { get; set; }
+
+    /// Raised after a create/update/delete so the host can refresh proxy status etc.
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// Routes are admin-only to change. Read-only also means the admin-only route and TLS APIs are
+    /// never called — the list comes from the workload's own View-level endpoint instead.
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// The address this workload would have been given automatically, so adding one by hand isn't
+    /// retyping the convention.
+    [Parameter] public string? SuggestedHostname { get; set; }
+    [Parameter] public int? SuggestedPort { get; set; }
+
+    private IReadOnlyList<RouteResponse>? _routes;
+    private Dictionary<string, TlsHostResponse> _tls = [];
+    private bool _loading;
+    private string? _error;
+
+    private TlsHostResponse? Tls(string hostname) => _tls.GetValueOrDefault(hostname);
+    private bool _busy;
+
+    private bool _dialogOpen;
+    private string? _editId;
+    private RouteFormModel _form = new();
+    private bool _confirmOpen;
+    private RouteResponse? _pendingDelete;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _routes = [.. await WorkloadsApi.GetRoutesAsync(WorkloadId)];
+            if (!ReadOnly)
+            {
+                _tls = (await TlsApi.GetAsync()).Hosts.ToDictionary(h => h.Hostname, StringComparer.Ordinal);
+            }
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _editId = null;
+        _form = new RouteFormModel { WorkloadId = WorkloadId };
+        if (SuggestedHostname is { } hostname && !(_routes ?? []).Any(r => r.Hostname == hostname))
+        {
+            _form.Hostname = hostname;
+        }
+
+        if (SuggestedPort is { } port)
+        {
+            _form.TargetPort = port;
+        }
+
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(RouteResponse route)
+    {
+        _editId = route.Id;
+        _form = RouteFormModel.From(route);
+        _dialogOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _form.WorkloadId = WorkloadId;
+        _busy = true;
+        try
+        {
+            if (_editId is null)
+            {
+                await RoutesApi.CreateAsync(_form.ToCreateRequest());
+                Snackbar.Show($"Route created for {_form.Hostname} — deploy nginx to apply.");
+            }
+            else
+            {
+                await RoutesApi.UpdateAsync(_editId, _form.ToUpdateRequest());
+                Snackbar.Show("Route updated — deploy nginx to apply.");
+            }
+
+            _dialogOpen = false;
+            await LoadAsync();
+            await OnChanged.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDelete(RouteResponse route)
+    {
+        _pendingDelete = route;
+        _confirmOpen = true;
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        var route = _pendingDelete;
+        _confirmOpen = false;
+        _pendingDelete = null;
+        _busy = true;
+        try
+        {
+            await RoutesApi.DeleteAsync(route.Id);
+            await LoadAsync();
+            await OnChanged.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

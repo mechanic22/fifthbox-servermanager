@@ -1,0 +1,161 @@
+@* Teams: the roster a grant can be given to instead of naming people one at a time. *@
+@using FifthBox.ServerManager.Shared.Teams
+@using FifthBox.ServerManager.Shared.Users
+@inject ITeamsClient TeamsApi
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm opacity-70">
+        Give a team access once and every member gets it. Members keep anything granted to them personally.
+    </p>
+    <MaterialButton Text="New team" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                    OnClick="OpenAdd" Disabled="_busy" />
+</div>
+
+<MaterialTable Loading="_loading">
+    <thead>
+        <tr><th>Team</th><th>Members</th><th>Access</th><th></th></tr>
+    </thead>
+    <tbody>
+        @if (_teams is { Count: > 0 })
+        {
+            @foreach (var t in _teams)
+            {
+                <tr>
+                    <td data-label="Team">
+                        <div>@t.Name</div>
+                        @if (!string.IsNullOrWhiteSpace(t.Description))
+                        {
+                            <div class="text-xs opacity-60">@t.Description</div>
+                        }
+                    </td>
+                    <td data-label="Members" class="text-sm">
+                        @if (t.Members.Count == 0)
+                        {
+                            <span class="opacity-60">nobody yet</span>
+                        }
+                        else
+                        {
+                            @string.Join(", ", t.Members.Select(m => m.UserName))
+                        }
+                    </td>
+                    <td data-label="Access" class="text-sm">@Grants(t.GrantCount)</td>
+                    <td class="text-right whitespace-nowrap">
+                        <MaterialButton Text="Edit" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="@(() => OpenEdit(t))" Disabled="_busy" />
+                        <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="@(() => AskDelete(t))" Disabled="_busy" />
+                    </td>
+                </tr>
+            }
+        }
+        <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_teams is null or { Count: 0 })"
+                    Empty="No teams yet." OnRetry="LoadAsync" Busy="_busy" />
+    </tbody>
+</MaterialTable>
+
+<TeamEditorDialog @ref="_editor" @bind-IsOpen="_dialogOpen" Users="Users" OnSaved="SavedAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete team?"
+                       Message="@DeleteMessage()" ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+@code {
+    /// Every account, for the member picker. Owned by the page so both tabs read one list.
+    [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
+
+    private IReadOnlyList<TeamResponse>? _teams;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private TeamEditorDialog? _editor;
+    private bool _dialogOpen;
+    private bool _confirmOpen;
+    private TeamResponse? _pendingDelete;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    public async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _teams = await TeamsApi.ListAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string Grants(int count) => count switch
+    {
+        0 => "nothing shared",
+        1 => "1 grant",
+        _ => $"{count} grants",
+    };
+
+    private void OpenAdd()
+    {
+        _editor?.Load(null);
+        _dialogOpen = true;
+    }
+
+    private void OpenEdit(TeamResponse team)
+    {
+        _editor?.Load(team);
+        _dialogOpen = true;
+    }
+
+    private Task SavedAsync() => LoadAsync();
+
+    private void AskDelete(TeamResponse team)
+    {
+        _pendingDelete = team;
+        _confirmOpen = true;
+    }
+
+    private string DeleteMessage()
+    {
+        if (_pendingDelete is null)
+        {
+            return string.Empty;
+        }
+
+        var members = _pendingDelete.Members.Count == 1 ? "1 member" : $"{_pendingDelete.Members.Count} members";
+        return _pendingDelete.GrantCount == 0
+            ? $"{_pendingDelete.Name} holds no access, so its {members} lose nothing."
+            : $"{_pendingDelete.Name}'s {Grants(_pendingDelete.GrantCount)} are removed with it, and its {members} lose that access. Anything granted to them personally stays.";
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await TeamsApi.DeleteAsync(_pendingDelete.Id);
+            Snackbar.Show($"Deleted {_pendingDelete.Name}.");
+            _confirmOpen = false;
+            _pendingDelete = null;
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+            await LoadAsync();
+        }
+    }
+}

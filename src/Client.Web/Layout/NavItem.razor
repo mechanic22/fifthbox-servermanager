@@ -1,0 +1,10 @@
+@* Active state is a surface, not an opacity step — 0.7 to 1.0 is close to invisible in dark mode. *@
+<NavLink href="@Href" Match="@Match" class="nav-item" ActiveClass="nav-item--active">
+    @ChildContent
+</NavLink>
+
+@code {
+    [Parameter] public string Href { get; set; } = string.Empty;
+    [Parameter] public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

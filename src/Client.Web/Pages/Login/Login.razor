@@ -1,0 +1,127 @@
+@page "/login"
+@using System.ComponentModel.DataAnnotations
+@inject IAuthClient Auth
+@inject CookieAuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject IMaterialSnackbarService Snackbar
+
+<PageTitle>@(_mode == Mode.Login ? "Sign in" : "Create account") — FifthBox.ServerManager</PageTitle>
+
+<div class="min-h-[70vh] flex items-center justify-center p-4">
+    <MaterialCard Variant="MaterialCardVariant.Elevated" class="w-full max-w-md p-8">
+        <h1 class="text-2xl font-medium mb-1">@(_mode == Mode.Login ? "Sign in" : "Create account")</h1>
+        <p class="text-sm opacity-70 mb-6">
+            FifthBox.ServerManager
+            <span class="opacity-70">at @Nav.ToAbsoluteUri("/").Authority</span>
+        </p>
+
+        <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+            <DataAnnotationsValidator />
+
+            <div class="flex flex-col gap-4">
+                <MaterialInput @bind-Value="_model.Email"
+                               For="@(() => _model.Email)"
+                               Label="Email"
+                               Type="email"
+                               Disabled="_busy" />
+
+                <MaterialInput @bind-Value="_model.Password"
+                               For="@(() => _model.Password)"
+                               Label="Password"
+                               Type="password"
+                               Disabled="_busy" />
+
+                @if (_mode == Mode.Register && _registration.InviteRequired)
+                {
+                    <MaterialInput @bind-Value="_model.InviteCode"
+                                   Label="Invite code"
+                                   Disabled="_busy" />
+                }
+
+                <MaterialButton Text="@(_mode == Mode.Login ? "Sign in" : "Create account")"
+                                Type="submit"
+                                Style="MaterialButtonStyle.Filled"
+                                FullWidth="true"
+                                Disabled="_busy" />
+            </div>
+        </EditForm>
+
+        @* Registration is a server-side policy. Offering it when the policy forbids it just produces
+           a 403 as the first thing a new user ever sees. *@
+        @if (_registration.Allowed)
+        {
+            <div class="mt-6 text-sm text-center">
+                @if (_mode == Mode.Login)
+                {
+                    <span class="opacity-70">No account?</span>
+                    <MaterialButton Text="Create one" Style="MaterialButtonStyle.Text" OnClick="() => SwitchMode(Mode.Register)" Disabled="_busy" />
+                }
+                else
+                {
+                    <span class="opacity-70">Already have an account?</span>
+                    <MaterialButton Text="Sign in" Style="MaterialButtonStyle.Text" OnClick="() => SwitchMode(Mode.Login)" Disabled="_busy" />
+                }
+            </div>
+        }
+    </MaterialCard>
+</div>
+
+@code {
+    private enum Mode { Login, Register }
+
+    private Mode _mode = Mode.Login;
+    private bool _busy;
+    private readonly FormModel _model = new();
+    private RegistrationInfoResponse _registration = new();
+
+    protected override async Task OnInitializedAsync()
+        => _registration = await Auth.GetRegistrationInfoAsync();
+
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private void SwitchMode(Mode mode) => _mode = mode;
+
+    private async Task HandleSubmitAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (_mode == Mode.Login)
+            {
+                await Auth.LoginAsync(new LoginRequest { UserName = _model.Email, Password = _model.Password });
+            }
+            else
+            {
+                await Auth.RegisterAsync(new RegisterRequest
+                {
+                    UserName = _model.Email,
+                    Password = _model.Password,
+                    InviteCode = string.IsNullOrWhiteSpace(_model.InviteCode) ? null : _model.InviteCode,
+                });
+            }
+
+            AuthState.NotifyStateChanged();
+            Nav.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl) ? "" : ReturnUrl);
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+
+        public string InviteCode { get; set; } = string.Empty;
+    }
+}

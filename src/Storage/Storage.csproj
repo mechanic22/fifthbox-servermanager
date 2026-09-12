@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FifthBox.ServerManager.Storage</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\App\App.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
+    <!-- Pin the native SQLite bundle above the vulnerable 2.1.11 that EF Core 10 pulls transitively
+         (advisory GHSA-2m69-gcr7-jv3q). Warnings-as-errors turns the audit into a build failure. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.*">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- FifthBox.Identity supplies the store interfaces and POCOs; FifthBox.Identity.EntityFrameworkCore
+       supplies the EF store implementations + entity configs this component used to hand-write.
+       Package by default; local project in dev. -->
+  <ItemGroup Condition="'$(UseLocalIdentity)' != 'true'">
+    <PackageReference Include="FifthBox.Identity" Version="$(FifthBoxIdentityVersion)" />
+    <PackageReference Include="FifthBox.Identity.EntityFrameworkCore" Version="$(FifthBoxIdentityVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseLocalIdentity)' == 'true'">
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity/Identity.csproj" />
+    <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity.EntityFrameworkCore/Identity.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+</Project>

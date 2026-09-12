@@ -1,0 +1,317 @@
+@page "/"
+@attribute [Authorize]
+@using FifthBox.ServerManager.Client.Web.Pages.Home.Components
+@using FifthBox.ServerManager.Shared.Platform
+@inject IClusterClient ClusterApi
+@inject INodesClient NodesApi
+@inject IWorkloadsClient WorkloadsApi
+@inject IRoutesClient RoutesApi
+@inject ITlsClient TlsApi
+@inject ISystemClient SystemApi
+@inject NavigationManager Nav
+
+<PageTitle>Home — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-5xl mx-auto p-6">
+    <h1 class="text-2xl font-medium mb-6">FifthBox.ServerManager</h1>
+
+    @if (!_isAdmin)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-5">
+            <h2 class="text-lg font-medium mb-1">Your applications</h2>
+            @if (_workloads is { Count: > 0 })
+            {
+                <p class="text-sm opacity-70 mb-4">@RunningCount of @_workloads.Count running.</p>
+                <div class="flex flex-col">
+                    @foreach (var w in _workloads)
+                    {
+                        <a href="workloads/@w.Id" class="flex items-center gap-3 py-2 border-t hover:underline"
+                           style="border-color: var(--md-sys-color-outline-variant)">
+                            <span class="flex-1 min-w-0 truncate text-sm" style="color: var(--md-sys-color-primary)">@w.Name</span>
+                            @if (_statuses.GetValueOrDefault(w.Id) is { } status)
+                            {
+                                <MaterialChip Text="@StateText(status)" Color="@StateColor(status.State)" Size="MaterialChipSize.Small" />
+                            }
+                        </a>
+                    }
+                </div>
+            }
+            else if (_workloadsFailed)
+            {
+                <LoadFailure Message="Couldn't load your applications." OnRetry="LoadWorkloadsAsync" Inset="false" />
+            }
+            else if (!_loading)
+            {
+                <p class="text-sm opacity-70">Nothing has been shared with you yet.</p>
+            }
+        </MaterialCard>
+    }
+    else
+    {
+        <FirstRunChecklist Steps="SetupSteps()" />
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatusTile Label="Cluster" Href="cluster" Loading="_loading" Failed="_clusterFailed"
+                        Value="@NodesValue()" Detail="@NodesDetail()"
+                        Chip="@_cluster?.Membership.ToString()" ChipColor="MembershipColor()" />
+
+            <StatusTile Label="Applications" Href="workloads" Loading="_loading" Failed="_workloadsFailed"
+                        Value="@($"{RunningCount}/{_workloads?.Count ?? 0}")" Detail="running"
+                        Warning="@NotDeployedWarning()" />
+
+            <StatusTile Label="Edge" Href="routes" Loading="_loading" Failed="_proxyFailed"
+                        Value="@EdgeValue()" Detail="nginx"
+                        Warning="@(_proxy is { PendingChanges: true } ? "Changes not deployed" : null)" />
+
+            <StatusTile Label="TLS" Href="hostnames" Loading="_loading" Failed="_tlsFailed"
+                        Value="@($"{CertCount}")" Detail="@CertDetail()" Warning="@CertWarning()" />
+        </div>
+
+        @if (_deployment is { } d)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 mt-4 flex items-center gap-3 flex-wrap">
+                <span class="text-sm font-medium">This ServerManager</span>
+                <MaterialChip Text="@RunModeText(d)" Size="MaterialChipSize.Small"
+                              Color="@(d.RunMode == HostRunMode.SwarmService ? MaterialChipColor.Primary : MaterialChipColor.Default)" />
+                @if (d.SplitBrain)
+                {
+                    <span class="text-sm flex-1 min-w-56" style="color: var(--md-sys-color-error)">
+                        Two instances are running against the same Docker socket.
+                    </span>
+                    <MaterialButton Text="Fix this" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                                    OnClick="@(() => Nav.NavigateTo("system"))" />
+                }
+                else if (d.EncryptionKeyEphemeral)
+                {
+                    <span class="text-sm flex-1 min-w-56" style="color: var(--md-sys-color-error)">
+                        No encryption key is configured — stored secrets die with this process.
+                    </span>
+                    <MaterialButton Text="Details" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                    OnClick="@(() => Nav.NavigateTo("settings"))" />
+                }
+                else
+                {
+                    <span class="text-sm opacity-70 flex-1">@(d.ServiceName is { Length: > 0 } name ? name : "Running unmanaged.")</span>
+                    <MaterialButton Text="System" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                    OnClick="@(() => Nav.NavigateTo("system"))" />
+                }
+            </MaterialCard>
+        }
+    }
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool _isAdmin;
+    private bool _loading = true;
+
+    private ClusterStatusResponse? _cluster;
+    private IReadOnlyList<NodeResponse>? _nodes;
+    private IReadOnlyList<WorkloadResponse>? _workloads;
+    private Dictionary<string, WorkloadRuntimeStatus> _statuses = [];
+    private ProxyStateResponse? _proxy;
+    private TlsOverviewResponse? _tls;
+    private PlatformSettingsResponse? _settings;
+    private HostDeploymentInfo? _deployment;
+
+    private bool _clusterFailed;
+    private bool _workloadsFailed;
+    private bool _proxyFailed;
+    private bool _tlsFailed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is not null)
+        {
+            _isAdmin = (await AuthStateTask).User.IsInRole(Roles.Admin);
+        }
+
+        // Every tile is fetched on its own. One dead endpoint marks its own tile and leaves the rest of
+        // the page standing — a single sequential try/catch would blank everything after the first 403.
+        var loads = new List<Task> { LoadWorkloadsAsync() };
+        if (_isAdmin)
+        {
+            loads.Add(LoadClusterAsync());
+            loads.Add(LoadProxyAsync());
+            loads.Add(LoadTlsAsync());
+            loads.Add(LoadPlatformAsync());
+        }
+
+        await Task.WhenAll(loads);
+        _loading = false;
+    }
+
+    private async Task LoadWorkloadsAsync()
+    {
+        _workloadsFailed = false;
+        try
+        {
+            _workloads = await WorkloadsApi.ListAsync();
+            _statuses = new Dictionary<string, WorkloadRuntimeStatus>(await WorkloadsApi.GetStatusesAsync());
+        }
+        catch (ApiException)
+        {
+            _workloadsFailed = true;
+        }
+    }
+
+    private async Task LoadClusterAsync()
+    {
+        try
+        {
+            _cluster = await ClusterApi.GetStatusAsync();
+            _nodes = await NodesApi.ListAsync();
+        }
+        catch (ApiException)
+        {
+            _clusterFailed = true;
+        }
+    }
+
+    private async Task LoadProxyAsync()
+    {
+        try
+        {
+            _proxy = await RoutesApi.GetProxyStateAsync();
+        }
+        catch (ApiException)
+        {
+            _proxyFailed = true;
+        }
+    }
+
+    private async Task LoadTlsAsync()
+    {
+        try
+        {
+            _tls = await TlsApi.GetAsync();
+        }
+        catch (ApiException)
+        {
+            _tlsFailed = true;
+        }
+    }
+
+    private async Task LoadPlatformAsync()
+    {
+        try
+        {
+            _settings = await SystemApi.GetSettingsAsync();
+            _deployment = await SystemApi.GetDeploymentAsync();
+        }
+        catch (ApiException)
+        {
+            // The two least urgent panels on the page. Their absence reads as "not shown" rather than
+            // needing its own error state.
+        }
+    }
+
+    private List<FirstRunChecklist.SetupStep> SetupSteps() =>
+    [
+        new("Bootstrap the cluster",
+            "Initialises the swarm and its overlay network. Nothing can be deployed until this is done.",
+            "Bootstrap", "cluster",
+            _cluster is { IsInSwarm: true, ManagedNetworkExists: true }),
+
+        new("Set a root domain",
+            "Applications get their address under it, and Let's Encrypt needs it to issue certificates.",
+            "Open settings", "settings",
+            !string.IsNullOrWhiteSpace(_settings?.RootDomain)),
+
+        new("Deploy the nginx edge",
+            "The proxy that puts your applications on a hostname. Nothing is served publicly without it.",
+            "Open routes", "routes",
+            _proxy is { Status.State: not WorkloadState.NotDeployed }),
+
+        new("Create your first application",
+            "A container on the swarm, or a native process on an enrolled agent.",
+            "New application", "workloads/new",
+            _workloads is { Count: > 0 }),
+    ];
+
+    private int RunningCount => _workloads?.Count(w => _statuses.GetValueOrDefault(w.Id)?.State == WorkloadState.Running) ?? 0;
+
+    private string? NotDeployedWarning()
+    {
+        var count = _workloads?.Count(w =>
+            _statuses.GetValueOrDefault(w.Id) is null or { State: WorkloadState.NotDeployed }) ?? 0;
+        return count == 0 ? null : $"{count} never deployed";
+    }
+
+    private string NodesValue() => _nodes is null ? "—" : $"{_nodes.Count(n => n.Status == NodeStatus.Ready)}/{_nodes.Count}";
+
+    private string NodesDetail() => _nodes is null ? "machines" : _nodes.Count == 1 ? "machine ready" : "machines ready";
+
+    private MaterialChipColor MembershipColor() => _cluster?.Membership switch
+    {
+        SwarmMembership.Active => MaterialChipColor.Primary,
+        SwarmMembership.Error or SwarmMembership.Locked => MaterialChipColor.Error,
+        SwarmMembership.Pending => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+
+    private string EdgeValue() => _proxy?.Status switch
+    {
+        null => "—",
+        { State: WorkloadState.NotDeployed } => "Not deployed",
+        { State: var state } => state.ToString(),
+    };
+
+    private int CertCount => _tls?.Hosts.Count(h => h.Status == CertificateStatus.Valid) ?? 0;
+
+    private string CertDetail()
+    {
+        var hosts = _tls?.Hosts.Count ?? 0;
+        return hosts == 0 ? "certificates" : $"of {hosts} hostname(s)";
+    }
+
+    private string? CertWarning()
+    {
+        if (_tls is null)
+        {
+            return null;
+        }
+
+        if (_tls.Hosts.Any(h => h.Status == CertificateStatus.Failed))
+        {
+            return "Issuance failed";
+        }
+
+        // Renewal runs daily from 30 days out, so anything still inside a fortnight has failed
+        // quietly more than once.
+        var soonest = _tls.Hosts
+            .Where(h => h.Status == CertificateStatus.Valid && h.NotAfter is not null)
+            .Min(h => h.NotAfter);
+
+        if (soonest is not { } expiry)
+        {
+            return null;
+        }
+
+        var days = (int)Math.Floor((expiry - DateTimeOffset.UtcNow).TotalDays);
+        return days <= 14 ? (days < 0 ? "A certificate has expired" : $"Expires in {days}d") : null;
+    }
+
+    private static string StateText(WorkloadRuntimeStatus s) => s.State switch
+    {
+        WorkloadState.NotDeployed => "Not deployed",
+        WorkloadState.Updating => "Updating files",
+        _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
+    };
+
+    private static MaterialChipColor StateColor(WorkloadState state) => state switch
+    {
+        WorkloadState.Running => MaterialChipColor.Primary,
+        WorkloadState.Partial => MaterialChipColor.Tertiary,
+        WorkloadState.Updating => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+
+    private static string RunModeText(HostDeploymentInfo d) => d.RunMode switch
+    {
+        HostRunMode.SwarmService => "managed swarm service",
+        HostRunMode.Container => "plain container",
+        _ => "bare process",
+    };
+}

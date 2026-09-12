@@ -1,0 +1,147 @@
+@page "/system"
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@using FifthBox.ServerManager.Shared.Platform
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<PageTitle>System — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-4xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-medium">System services</h1>
+            <p class="text-sm opacity-60">ServerManager's own infrastructure (the nginx edge, and more later).</p>
+        </div>
+        <MaterialButton Text="Refresh" Style="MaterialButtonStyle.Outlined" OnClick="LoadAsync" Disabled="_busy || _loading" />
+    </div>
+
+    @if (_deployment is { } d)
+    {
+        <MaterialCard class="mb-6 p-4 flex flex-col gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-sm font-medium">This ServerManager</span>
+                <MaterialChip Text="@RunModeText(d)" Color="@(d.RunMode == HostRunMode.SwarmService ? MaterialChipColor.Primary : MaterialChipColor.Default)" />
+                @if (d.SplitBrain)
+                {
+                    <MaterialChip Text="two instances running" Color="MaterialChipColor.Error" />
+                }
+            </div>
+
+            @if (d.SplitBrain)
+            {
+                <div class="text-sm" style="color: var(--md-sys-color-error)">
+                    A <code>@_serviceLabel</code> swarm service already exists, but you're connected to a separate
+                    unmanaged instance. Both are driving the same Docker socket, and if they share a volume they're
+                    both writing one SQLite file. Stop this one — <code>docker rm -f fbsm-host</code> — and use the
+                    managed service.
+                </div>
+            }
+            else if (d.RunMode == HostRunMode.SwarmService)
+            {
+                <span class="text-sm opacity-70">Running as the managed swarm service <code>@d.ServiceName</code>.</span>
+            }
+            else
+            {
+                <span class="text-sm opacity-70">
+                    Running unmanaged. To hand over to a swarm service — same volume, so your data and login come
+                    with it — bootstrap the cluster first, then run:
+                </span>
+                <CopyBlock Text="@d.InstallCommand" />
+                <span class="text-xs opacity-60">Substitute the two keys you started this instance with — reusing
+                    the encryption key is what keeps stored registry passwords readable.</span>
+            }
+        </MaterialCard>
+    }
+
+    <MaterialTable Loading="_loading">
+        <thead>
+            <tr><th>Service</th><th>Image</th><th>Status</th><th class="text-right"></th></tr>
+        </thead>
+        <tbody>
+            @if (_services is { Count: > 0 })
+            {
+                @foreach (var s in _services)
+                {
+                    <tr>
+                        <td data-label="Service" class="font-medium">@s.Name</td>
+                        <td data-label="Image" class="font-mono text-xs">@s.Image</td>
+                        <td data-label="Status"><MaterialChip Text="@StatusText(s)" Color="StatusColor(s.State)" /></td>
+                        <td class="text-right">
+                            <MaterialButton Text="Restart" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small" OnClick="@(() => RestartAsync(s))" Disabled="_busy" />
+                        </td>
+                    </tr>
+                }
+            }
+            <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_services is null or { Count: 0 })"
+                        Empty="No platform services running. Deploy the nginx edge from the Routes page."
+                        OnRetry="LoadAsync" Busy="_busy" />
+        </tbody>
+    </MaterialTable>
+</div>
+
+@code {
+    private IReadOnlyList<PlatformServiceResponse>? _services;
+    private HostDeploymentInfo? _deployment;
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    private const string _serviceLabel = "fbsm-host";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _services = await SystemApi.ListServicesAsync();
+            _deployment = await SystemApi.GetDeploymentAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RestartAsync(PlatformServiceResponse service)
+    {
+        _busy = true;
+        try
+        {
+            await SystemApi.RestartServiceAsync(service.Name);
+            Snackbar.Show($"Restarted {service.Name}.");
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string RunModeText(HostDeploymentInfo d) => d.RunMode switch
+    {
+        HostRunMode.SwarmService => "managed swarm service",
+        HostRunMode.Container => "plain container",
+        _ => "bare process",
+    };
+
+    private static string StatusText(PlatformServiceResponse s) =>
+        s.State == WorkloadState.NotDeployed ? "Not deployed" : $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}";
+
+    private static MaterialChipColor StatusColor(WorkloadState state) => state switch
+    {
+        WorkloadState.Running => MaterialChipColor.Primary,
+        WorkloadState.Partial => MaterialChipColor.Tertiary,
+        _ => MaterialChipColor.Default,
+    };
+}

@@ -1,0 +1,61 @@
+@* A web address and published ports are independent — either, both, or neither. The address is only
+   offered at create: after that it's a route like any other and the Routes tab owns it. Nothing here
+   asks which node: a host-bound port is a node resource, so swarm spreads the replicas itself. *@
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+    <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Networking</h2>
+
+    @if (AllowWebAddress)
+    {
+        <div class="flex flex-col gap-2">
+            <MaterialSwitch Value="Model.WebApp" ValueChanged="@((bool on) => Model.WebApp = on)"
+                            Label="Give it a web address" Disabled="Busy || !HasRootDomain" />
+            @if (Model.WebApp)
+            {
+                <div class="@DetailCss">
+                    <span class="font-mono text-sm">@AutoHostname()</span>
+                    <div class="w-64">
+                        <MaterialInput @bind-Value="Model.HttpPort" For="@(() => Model.HttpPort)"
+                                       Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Type="number"
+                                       Label="Listens on port" Disabled="Busy" />
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="flex flex-col gap-2">
+        <span class="text-sm">Published ports</span>
+        <PortListEditor Ports="Model.Ports" Disabled="Busy" />
+        @if (Model.HasOutOfRangePortRow())
+        {
+            <span class="text-xs" style="color: var(--md-sys-color-error)">A published port must be between
+                1 and 65535.</span>
+        }
+    </div>
+</MaterialCard>
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadFormModel Model { get; set; }
+    [Parameter] public bool Busy { get; set; }
+
+    /// The platform's root domain, so the form can show the address a web app would earn.
+    [Parameter] public string? RootDomain { get; set; }
+
+    /// Only create offers an address: there's no Routes tab yet. Afterwards it's a route like any other.
+    [Parameter] public bool AllowWebAddress { get; set; }
+
+    private const string DetailCss = "flex flex-col gap-2 pl-12";
+
+    private bool HasRootDomain => !string.IsNullOrWhiteSpace(RootDomain);
+
+    private string AutoHostname() =>
+        $"{(string.IsNullOrWhiteSpace(Model.Name) ? "<name>" : Slugify(Model.Name))}.{RootDomain}";
+
+    /// Mirrors the server's slug rule closely enough to preview the address.
+    private static string Slugify(string value)
+    {
+        var separated = new string([.. value.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-')]);
+        return string.Join('-', separated.Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
+}

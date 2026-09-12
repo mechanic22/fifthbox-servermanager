@@ -1,0 +1,96 @@
+@* Swarm's task history, newest first. A slot accumulates a new task per restart, redeploy or crash and
+   keeps the dead ones, so several rows for one replica is normal — the "current" chip marks the live one.
+   "Partial 0/1" is the symptom and this is where the reason lives, which is why the dead attempts open
+   themselves when swarm wants a replica it hasn't got, and stay folded away when it has. *@
+
+<MaterialTable Variant="MaterialTableVariant.Dense">
+    <thead>
+        <tr>
+            <th>Replica</th>
+            <th>Node</th>
+            <th>State</th>
+            <th>When</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var t in Displayed)
+        {
+            <tr>
+                <td data-label="Replica">@t.Slot</td>
+                <td data-label="Node" class="text-sm">@NodeText(t)</td>
+                <td data-label="State">
+                    <MaterialChip Text="@t.State.ToString()" Color="@StateColor(t)" Size="MaterialChipSize.Small" />
+                    @if (t.DesiredState == WorkloadTaskState.Running)
+                    {
+                        <MaterialChip Text="current" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
+                    }
+                </td>
+                <td data-label="When" class="text-xs opacity-70">@WhenText(t)</td>
+                <td data-label="Detail" class="text-xs @(t.Error is null ? "opacity-60" : "")"
+                    style="@(t.Error is null ? "" : "color: var(--md-sys-color-error)")">
+                    @(t.Error ?? t.Message ?? "—")
+                </td>
+            </tr>
+        }
+    </tbody>
+</MaterialTable>
+
+@if (_earlier.Count > 0 && !_unhealthy)
+{
+    <MaterialButton Text="@ToggleText()" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" class="mt-2"
+                    OnClick="@(() => _showEarlier = !_showEarlier)" />
+}
+
+@code {
+    [Parameter, EditorRequired] public required IReadOnlyList<WorkloadTask> Tasks { get; set; }
+
+    /// Null for a non-admin, who can't read /api/nodes — the short id is still enough to tell two
+    /// replicas apart.
+    [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
+
+    private bool _showEarlier;
+    private IReadOnlyList<WorkloadTask> _live = [];
+    private IReadOnlyList<WorkloadTask> _earlier = [];
+    private bool _unhealthy;
+
+    private IReadOnlyList<WorkloadTask> Displayed => _showEarlier || _unhealthy ? Tasks : _live;
+
+    protected override void OnParametersSet()
+    {
+        var current = Tasks.Where(t => t.DesiredState == WorkloadTaskState.Running).ToList();
+
+        // A stopped or undeployed workload has nothing desired-running, and an empty table says less
+        // than the attempt it ended on.
+        _live = current.Count > 0 ? current : [.. Tasks.Take(1)];
+        _earlier = [.. Tasks.Where(t => !_live.Contains(t))];
+        _unhealthy = current.Any(t => t.State != WorkloadTaskState.Running);
+    }
+
+    private string ToggleText() => _showEarlier
+        ? "Hide earlier attempts"
+        : $"Show {_earlier.Count} earlier attempt{(_earlier.Count == 1 ? "" : "s")}";
+
+    private string NodeText(WorkloadTask t)
+    {
+        if (t.NodeId is null)
+        {
+            return "unplaced";
+        }
+
+        return Nodes?.FirstOrDefault(n => n.Id == t.NodeId)?.Hostname ?? t.NodeId[..Math.Min(12, t.NodeId.Length)];
+    }
+
+    private static string WhenText(WorkloadTask t) =>
+        t.Since is { } since ? since.LocalDateTime.ToString("g") : "—";
+
+    // Desired-Running but not running is the failure that matters; a task swarm has finished with is
+    // just history.
+    private static MaterialChipColor StateColor(WorkloadTask t) => t.State switch
+    {
+        WorkloadTaskState.Running => MaterialChipColor.Primary,
+        _ when t.DesiredState != WorkloadTaskState.Running => MaterialChipColor.Default,
+        WorkloadTaskState.Failed or WorkloadTaskState.Rejected or WorkloadTaskState.Orphaned => MaterialChipColor.Error,
+        _ => MaterialChipColor.Tertiary,
+    };
+}

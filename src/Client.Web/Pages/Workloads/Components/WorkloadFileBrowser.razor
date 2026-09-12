@@ -1,0 +1,154 @@
+@inject IWorkloadsClient WorkloadsApi
+@inject IMaterialSnackbarService Snackbar
+
+<div class="flex flex-col gap-3">
+    <div class="flex items-center gap-2">
+        <MaterialButton Text="Root" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                        OnClick="@(() => OpenAsync(null))" Disabled="_busy" />
+        @if (_path is { Length: > 0 })
+        {
+            <span class="text-sm opacity-70">/@_path</span>
+        }
+        <span class="grow"></span>
+        <MaterialButton Text="Refresh" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
+                        OnClick="@(() => OpenAsync(_path))" Disabled="_busy" />
+    </div>
+
+    @if (_error is { Length: > 0 })
+    {
+        <p class="text-sm" style="color: var(--md-sys-color-error)">@_error</p>
+    }
+
+    @if (_editing is null)
+    {
+        @if (_entries is { Count: > 0 })
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="divide-y">
+                @foreach (var entry in _entries)
+                {
+                    <div class="flex items-center gap-3 px-3 py-2">
+                        @* The library has no folder icon; a chevron reads as "go in" well enough.
+                           TODO: propose Folder for FifthBox.MaterialComponents.Blazor. *@
+                        <MaterialIcon Path="@(entry.IsDirectory ? MaterialIcons.ChevronRight : MaterialIcons.Description)"
+                                      Size="IconSize.SM" />
+                        <button class="text-sm text-left grow hover:underline" disabled="@_busy"
+                                @onclick="() => OpenEntryAsync(entry)">@entry.Name</button>
+                        @if (!entry.IsDirectory)
+                        {
+                            <span class="text-xs opacity-60">@Size(entry.Size)</span>
+                        }
+                    </div>
+                }
+            </MaterialCard>
+        }
+        else if (!_busy)
+        {
+            <p class="text-sm opacity-60">Nothing here.</p>
+        }
+    }
+    else
+    {
+        <div class="flex items-center gap-2">
+            <span class="text-sm font-medium grow">@_editing.Path</span>
+            <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                            OnClick="SaveAsync" Disabled="_busy" />
+            <MaterialButton Text="Close" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                            OnClick="@(() => { _editing = null; _text = string.Empty; })" Disabled="_busy" />
+        </div>
+        <MaterialInput @bind-Value="_text" Multiline Rows="20" Variant="MaterialInputVariant.Outlined"
+                       Size="MaterialSize.Small" Label="Contents" Disabled="_busy" />
+        <p class="text-xs opacity-60">
+            Saving writes the file straight away. The workload keeps running on whatever it already read —
+            restart it when you want the change picked up.
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required string WorkloadId { get; set; }
+
+    private IReadOnlyList<WorkloadFileEntry>? _entries;
+    private WorkloadFileContent? _editing;
+    private string _text = string.Empty;
+    private string? _path;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => OpenAsync(null);
+
+    private async Task OpenAsync(string? path)
+    {
+        _busy = true;
+        _error = null;
+        _editing = null;
+
+        try
+        {
+            _entries = await WorkloadsApi.ListFilesAsync(WorkloadId, path);
+            _path = path;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+            _entries = [];
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OpenEntryAsync(WorkloadFileEntry entry)
+    {
+        if (entry.IsDirectory)
+        {
+            await OpenAsync(entry.Path);
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            _editing = await WorkloadsApi.ReadFileAsync(WorkloadId, entry.Path);
+            _text = _editing.Text;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await WorkloadsApi.WriteFileAsync(WorkloadId, _editing.Path, _text);
+            Snackbar.Show("Saved.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Size(long bytes) => bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024} KB"
+        : $"{bytes / (1024 * 1024)} MB";
+}

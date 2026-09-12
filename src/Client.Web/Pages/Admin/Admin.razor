@@ -1,0 +1,110 @@
+@page "/admin"
+@using FifthBox.ServerManager.Shared.Users
+@using FifthBox.Identity.Claims
+@using FifthBox.ServerManager.Client.Web.Pages.Admin.Components
+@attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@inject IAdminClient AdminApi
+
+<PageTitle>Admin — FifthBox.ServerManager</PageTitle>
+
+<div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-2xl font-medium mb-6">Admin</h1>
+
+    <MaterialTabs Tabs="_tabs" @bind-ActiveTab="_tab" ShowContent="false" />
+
+    <div class="mt-6">
+        @if (_tab == "users")
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+                <h2 class="text-lg font-medium mb-4">Users</h2>
+                <UserList CurrentUserId="@_currentUserId" OnChanged="InvalidateDirectory" />
+            </MaterialCard>
+        }
+        else if (_tab == "teams")
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+                <h2 class="text-lg font-medium mb-4">Teams</h2>
+                <TeamList Users="_directory" />
+            </MaterialCard>
+        }
+        else if (_tab == "access")
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+                <h2 class="text-lg font-medium mb-4">Access</h2>
+                <GrantList Users="_directory" />
+            </MaterialCard>
+        }
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private readonly List<MaterialTab> _tabs =
+    [
+        new() { Value = "users", Label = "Users" },
+        new() { Value = "teams", Label = "Teams" },
+        new() { Value = "access", Label = "Access" },
+    ];
+
+    private string _tabValue = "users";
+    private string? _currentUserId;
+
+    // The setter stays synchronous and fires the load off: MaterialTabs awaits ActiveTabChanged inside
+    // its own click handler, so anything slow (or throwing) in here stalls the rest of the click.
+    private string _tab
+    {
+        get => _tabValue;
+        set
+        {
+            if (_tabValue == value)
+            {
+                return;
+            }
+
+            _tabValue = value;
+            _ = EnsureDirectoryAsync();
+        }
+    }
+
+    /// The account list the Teams and Access pickers need. The Users tab doesn't use it — UserList
+    /// fetches its own — so it stays null until a tab that needs it is opened, and is dropped whenever
+    /// a tab reports the roster changed.
+    private IReadOnlyList<UserSummaryResponse>? _directory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _currentUserId = state.User.FindFirst(IdentityClaimTypes.Subject)?.Value;
+        }
+
+        await EnsureDirectoryAsync();
+    }
+
+    private async Task EnsureDirectoryAsync()
+    {
+        if (_tabValue == "users" || _directory is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            _directory = await AdminApi.ListUsersAsync();
+        }
+        catch (ApiException)
+        {
+            // The tables surface their own failure; the pickers just show nothing to pick.
+            _directory = null;
+        }
+
+        // Fire-and-forget from the setter, so nothing else will redraw for us.
+        StateHasChanged();
+    }
+
+    /// The Users tab changed the roster. Just drop the cached copy — the tab that needs it refetches
+    /// on the way in, and nothing on screen right now is using it.
+    private void InvalidateDirectory() => _directory = null;
+}

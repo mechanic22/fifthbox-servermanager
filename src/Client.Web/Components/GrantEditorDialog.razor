@@ -1,0 +1,224 @@
+@* Gives one subject one level on one group or workload. Opened either from the admin Access tab
+   (pick everything) or from a workload/group's own access panel (target already decided). *@
+@using FifthBox.ServerManager.Shared.Access
+@using FifthBox.ServerManager.Shared.Teams
+@using FifthBox.ServerManager.Shared.Users
+@inject IAccessClient AccessApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialDialog IsOpen="IsOpen" IsOpenChanged="IsOpenChanged" Title="@(_isEdit ? "Change access" : "Give access")">
+    <ChildContent>
+        <div class="flex flex-col gap-4 sm:min-w-[24rem]">
+            @if (_isEdit)
+            {
+                <div class="text-sm">
+                    <span class="opacity-60">Who:</span> @_subjectName
+                </div>
+            }
+            else
+            {
+                <div>
+                    <div class="text-sm font-medium mb-1">Who</div>
+                    <div class="flex gap-4">
+                        <MaterialRadio TValue="AccessSubject" Name="grant-subject" Label="A person"
+                                       OptionValue="AccessSubject.User" Value="_subjectType"
+                                       ValueChanged="@((AccessSubject v) => SetSubjectType(v))" Disabled="_busy" />
+                        <MaterialRadio TValue="AccessSubject" Name="grant-subject" Label="A team"
+                                       OptionValue="AccessSubject.Team" Value="_subjectType"
+                                       ValueChanged="@((AccessSubject v) => SetSubjectType(v))" Disabled="_busy" />
+                    </div>
+                </div>
+
+                <MaterialSelect TValue="string" Value="_subjectId" ValueChanged="@((string v) => _subjectId = v)"
+                                Options="SubjectOptions()" OptionTextSelector="SubjectLabel"
+                                Label="@(_subjectType == AccessSubject.Team ? "Team" : "Person")"
+                                Variant="MaterialInputVariant.Outlined" Disabled="_busy" />
+
+                @if (_subjectType == AccessSubject.User && Users is { Count: > 0 } && SubjectOptions().Count <= 1)
+                {
+                    <p class="text-sm opacity-60">
+                        Every account is an administrator, and administrators already reach everything.
+                    </p>
+                }
+            }
+
+            @if (LockedTargetId is not null)
+            {
+                <div class="text-sm">
+                    <span class="opacity-60">@(LockedScope == AccessScope.Group ? "Group:" : "Workload:")</span> @LockedTargetName
+                </div>
+            }
+            else
+            {
+                <div>
+                    <div class="text-sm font-medium mb-1">What</div>
+                    <div class="flex gap-4">
+                        <MaterialRadio TValue="AccessScope" Name="grant-scope" Label="A workload"
+                                       OptionValue="AccessScope.Workload" Value="_scope"
+                                       ValueChanged="@((AccessScope v) => SetScope(v))" Disabled="@(_busy || _isEdit)" />
+                        <MaterialRadio TValue="AccessScope" Name="grant-scope" Label="A group"
+                                       OptionValue="AccessScope.Group" Value="_scope"
+                                       ValueChanged="@((AccessScope v) => SetScope(v))" Disabled="@(_busy || _isEdit)" />
+                    </div>
+                </div>
+
+                <MaterialSelect TValue="string" Value="_targetId" ValueChanged="@((string v) => _targetId = v)"
+                                Options="TargetOptions()" OptionTextSelector="TargetLabel"
+                                Label="@(_scope == AccessScope.Group ? "Group" : "Workload")"
+                                Variant="MaterialInputVariant.Outlined" Disabled="@(_busy || _isEdit)" />
+
+                @if (_scope == AccessScope.Group)
+                {
+                    <p class="text-sm opacity-60">Reaches every workload in this group, however deeply nested.</p>
+                }
+            }
+
+            <MaterialSelect TValue="AccessLevel" Value="_level" ValueChanged="@((AccessLevel v) => _level = v)"
+                            Options="Levels" OptionTextSelector="LevelLabel" Label="Can do"
+                            Variant="MaterialInputVariant.Outlined" Disabled="_busy" />
+            <p class="text-sm opacity-60">@LevelHelp(_level)</p>
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="CloseAsync" Disabled="_busy" />
+        <MaterialButton Text="Save" Style="MaterialButtonStyle.Filled" OnClick="SaveAsync" Disabled="@(_busy || !CanSave)" />
+    </Actions>
+</MaterialDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+
+    [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
+    [Parameter] public IReadOnlyList<TeamResponse>? Teams { get; set; }
+    [Parameter] public IReadOnlyList<WorkloadResponse>? Workloads { get; set; }
+    [Parameter] public IReadOnlyList<WorkloadGroupResponse>? Groups { get; set; }
+
+    /// Set together when the dialog is opened from a workload or group, so it grants on that one thing.
+    [Parameter] public AccessScope? LockedScope { get; set; }
+    [Parameter] public string? LockedTargetId { get; set; }
+    [Parameter] public string? LockedTargetName { get; set; }
+
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private static readonly List<AccessLevel> Levels = [AccessLevel.View, AccessLevel.Operate, AccessLevel.Configure];
+
+    private bool _isEdit;
+    private AccessSubject _subjectType = AccessSubject.User;
+    private string _subjectId = string.Empty;
+    private string _subjectName = string.Empty;
+    private AccessScope _scope = AccessScope.Workload;
+    private string _targetId = string.Empty;
+    private AccessLevel _level = AccessLevel.View;
+    private bool _busy;
+
+    private bool CanSave => _subjectId.Length > 0 && (LockedTargetId ?? _targetId).Length > 0;
+
+    /// Called by the parent before opening. Null starts a new grant; an existing one is level-only,
+    /// because changing who or what would be a different grant, not an edit of this one.
+    public void Load(AccessGrantResponse? grant)
+    {
+        _isEdit = grant is not null;
+        _subjectType = grant?.SubjectType ?? AccessSubject.User;
+        _subjectId = grant?.SubjectId ?? string.Empty;
+        _subjectName = grant?.SubjectName ?? string.Empty;
+        _scope = grant?.Scope ?? LockedScope ?? AccessScope.Workload;
+        _targetId = grant?.TargetId ?? string.Empty;
+        _level = grant?.Level ?? AccessLevel.View;
+    }
+
+    private void SetSubjectType(AccessSubject type)
+    {
+        _subjectType = type;
+        _subjectId = string.Empty;
+    }
+
+    private void SetScope(AccessScope scope)
+    {
+        _scope = scope;
+        _targetId = string.Empty;
+    }
+
+    // An admin bypasses grants, so the server refuses one — don't offer them as a choice.
+    private List<string> SubjectOptions() => _subjectType == AccessSubject.Team
+        ? [string.Empty, .. (Teams ?? []).Select(t => t.Id)]
+        : [string.Empty, .. (Users ?? []).Where(u => !u.Roles.Contains(Roles.Admin)).Select(u => u.Id)];
+
+    private string SubjectLabel(string id)
+    {
+        if (id.Length == 0)
+        {
+            return _subjectType == AccessSubject.Team ? "Pick a team…" : "Pick a person…";
+        }
+
+        return _subjectType == AccessSubject.Team
+            ? Teams?.FirstOrDefault(t => t.Id == id)?.Name ?? id
+            : Users?.FirstOrDefault(u => u.Id == id)?.UserName ?? id;
+    }
+
+    private List<string> TargetOptions() => _scope == AccessScope.Group
+        ? [string.Empty, .. GroupHierarchy.Flatten(Groups ?? []).Select(x => x.Group.Id)]
+        : [string.Empty, .. (Workloads ?? []).OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase).Select(w => w.Id)];
+
+    private string TargetLabel(string id)
+    {
+        if (id.Length == 0)
+        {
+            return _scope == AccessScope.Group ? "Pick a group…" : "Pick a workload…";
+        }
+
+        if (_scope != AccessScope.Group)
+        {
+            return Workloads?.FirstOrDefault(w => w.Id == id)?.Name ?? id;
+        }
+
+        var match = GroupHierarchy.Flatten(Groups ?? []).FirstOrDefault(x => x.Group.Id == id);
+        return match.Group is null ? id : $"{GroupHierarchy.Indent(match.Depth)}{match.Group.Name}";
+    }
+
+    private static string LevelLabel(AccessLevel level) => level switch
+    {
+        AccessLevel.View => "View",
+        AccessLevel.Operate => "Operate",
+        AccessLevel.Configure => "Configure",
+        _ => level.ToString(),
+    };
+
+    private static string LevelHelp(AccessLevel level) => level switch
+    {
+        AccessLevel.View => "See it: details, status, logs and deployment history.",
+        AccessLevel.Operate => "Restart, stop and scale it. Deploy only when there's nothing unpublished.",
+        AccessLevel.Configure => "Edit the saved config, revert, move it, and deploy whenever.",
+        _ => string.Empty,
+    };
+
+    private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await AccessApi.SetGrantAsync(new SetAccessGrantRequest
+            {
+                SubjectType = _subjectType,
+                SubjectId = _subjectId,
+                Scope = LockedScope ?? _scope,
+                TargetId = LockedTargetId ?? _targetId,
+                Level = _level,
+            });
+
+            Snackbar.Show("Access updated.");
+            await IsOpenChanged.InvokeAsync(false);
+            await OnSaved.InvokeAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

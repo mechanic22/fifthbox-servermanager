@@ -1,0 +1,163 @@
+@* Database backups: list, take one now, download, delete. Restoring is a terminal procedure (README). *@
+@using FifthBox.ServerManager.Shared.Platform
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+    <div class="flex items-center justify-between mb-1">
+        <div>
+            <h2 class="text-lg font-medium">Backups</h2>
+            <p class="text-sm opacity-60">Snapshots of the platform database — workloads, routes, agents and settings.</p>
+        </div>
+        <MaterialButton Text="Back up now" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                        OnClick="CreateAsync" Disabled="_busy" />
+    </div>
+
+    <p class="text-sm mb-4">
+        A backup holds encrypted secrets but <strong>not</strong> the encryption key. Keep
+        <span class="font-mono text-xs">Platform:Encryption:Key</span> somewhere separate, or restoring it
+        recovers nothing that was encrypted.
+    </p>
+
+    @if (_job is not null)
+    {
+        <p class="text-sm opacity-60 mb-4">
+            Scheduled every @(_job.IntervalSeconds / 3600)h.
+            @if (_job.LastRunAt is { } last)
+            {
+                <span>Last run @last.ToLocalTime().ToString("g").</span>
+            }
+            else
+            {
+                <span>Not run yet.</span>
+            }
+            @if (_job.LastError is { Length: > 0 } error)
+            {
+                <span class="text-(--md-sys-color-error)"> Last run failed: @error</span>
+            }
+        </p>
+    }
+
+    <MaterialTable Loading="_loading">
+        <thead>
+            <tr><th>File</th><th>Taken</th><th>Size</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (_backups is { Count: > 0 })
+            {
+                @foreach (var b in _backups)
+                {
+                    <tr>
+                        <td data-label="File" class="font-mono text-xs">@b.Name</td>
+                        <td data-label="Taken">@b.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td data-label="Size">@Size(b.SizeBytes)</td>
+                        <td class="text-right whitespace-nowrap">
+                            <a href="@($"api/system/backups/{b.Name}")" download>
+                                <MaterialButton Text="Download" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" Disabled="_busy" />
+                            </a>
+                            <MaterialButton Text="Delete" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                            OnClick="@(() => AskDelete(b))" Disabled="_busy" />
+                        </td>
+                    </tr>
+                }
+            }
+            <TableState Columns="4" Loading="_loading" Error="@_error" IsEmpty="@(_backups is null or { Count: 0 })"
+                        Empty="No backups yet." OnRetry="LoadAsync" Busy="_busy" />
+        </tbody>
+    </MaterialTable>
+</MaterialCard>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete backup?"
+                       Message="@($"{_pendingDelete?.Name} will be removed from disk.")"
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
+
+@code {
+    private IReadOnlyList<BackupFileResponse>? _backups;
+    private ScheduledJobStatus? _job;
+    private BackupFileResponse? _pendingDelete;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private bool _confirmOpen;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _backups = await SystemApi.ListBackupsAsync();
+            _job = (await SystemApi.ListJobsAsync()).FirstOrDefault(j => j.Name == "backup");
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        try
+        {
+            var created = await SystemApi.CreateBackupAsync();
+            Snackbar.Show($"Backed up to {created.Name}.");
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDelete(BackupFileResponse backup)
+    {
+        _pendingDelete = backup;
+        _confirmOpen = true;
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await SystemApi.DeleteBackupAsync(_pendingDelete.Name);
+            _confirmOpen = false;
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Razor reads a leading '<' in a code block as the start of a tag, so no relational switch arms here.
+    private static string Size(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+        {
+            return $"{bytes / (1024d * 1024d):0.#} MB";
+        }
+
+        return bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
+    }
+}

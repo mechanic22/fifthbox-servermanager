@@ -1,0 +1,284 @@
+@* Grouped workload config fields, shared by the create page and the detail Config tab. Renders only the
+   fields (no <EditForm>, no Name, no submit) — the host page owns those. Sections group what's used
+   together. Target/agent are editable only on create (AllowTargetChange). Instance count and choosing a
+   node aren't offered at all: together they were more confusing than useful. Both still round-trip, so an
+   existing workload keeps its count and its node, and instances are changed by scaling from its own page. *@
+
+<div class="flex flex-col gap-4">
+    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">General</h2>
+        <MaterialSelect TValue="string" @bind-Value="Model.GroupId" Label="Group (optional)" Options="GroupOptions()"
+                        Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" OptionTextSelector="GroupLabel"
+                        Disabled="Busy" />
+        @if (AllowTargetChange)
+        {
+            <MaterialSelect @bind-Value="Model.Target" Options="Targets" OptionTextSelector="TargetLabel"
+                            Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Label="Where does it run?"
+                            Disabled="Busy" />
+        }
+    </MaterialCard>
+
+    @if (Model.Target == WorkloadTarget.Swarm)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+            <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Container</h2>
+            <MaterialInput @bind-Value="Model.Image" For="@(() => Model.Image)" Variant="MaterialInputVariant.Outlined"
+                           Size="MaterialSize.Small" Label="Image (e.g. nginx:1.27)" Disabled="Busy" />
+        </MaterialCard>
+
+        <WorkloadNetworking Model="Model" RootDomain="@RootDomain" AllowWebAddress="AllowWebAddress" Busy="Busy" />
+
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+            <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Resources</h2>
+            <div class="flex gap-4 flex-wrap">
+                <div>
+                    <MaterialSelect TValue="int" Value="Model.MemoryLimitMb" ValueChanged="Model.SetMemoryLimit"
+                                    Options="ResourceScale.MemoryOptions(Model.MemoryLimitMb)"
+                                    OptionTextSelector="ResourceScale.MemoryLabel" Variant="MaterialInputVariant.Outlined"
+                                    Size="MaterialSize.Small" Label="Memory limit" Disabled="Busy" />
+                </div>
+                <div>
+                    <MaterialSelect TValue="double" Value="Model.CpuLimit" ValueChanged="Model.SetCpuLimit"
+                                    Options="ResourceScale.CpuOptions(Model.CpuLimit)" OptionTextSelector="ResourceScale.CpuLabel"
+                                    Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Label="CPU limit"
+                                    Disabled="Busy" />
+                </div>
+            </div>
+            <div class="flex gap-4 flex-wrap">
+                <div>
+                    <MaterialSelect TValue="int" @bind-Value="Model.MemoryReserveMb"
+                                    Options="ResourceScale.MemoryOptions(Model.MemoryReserveMb, Model.MemoryLimitMb)"
+                                    OptionTextSelector="ResourceScale.MemoryLabel" Variant="MaterialInputVariant.Outlined"
+                                    Size="MaterialSize.Small" Label="Memory reserved" Disabled="Busy" />
+                </div>
+                <div>
+                    <MaterialSelect TValue="double" @bind-Value="Model.CpuReserve"
+                                    Options="ResourceScale.CpuOptions(Model.CpuReserve, Model.CpuLimit)"
+                                    OptionTextSelector="ResourceScale.CpuLabel" Variant="MaterialInputVariant.Outlined"
+                                    Size="MaterialSize.Small" Label="CPU reserved" Disabled="Busy" />
+                </div>
+            </div>
+        </MaterialCard>
+
+        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+            <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Health check</h2>
+            <MaterialInput @bind-Value="Model.HealthCommand" Variant="MaterialInputVariant.Outlined"
+                           Size="MaterialSize.Small" Label="Shell command (blank = none)" Disabled="Busy" />
+            @if (!string.IsNullOrWhiteSpace(Model.HealthCommand))
+            {
+                <div class="flex gap-4 flex-wrap">
+                    <div class="w-36">
+                        <MaterialInput @bind-Value="Model.HealthIntervalSeconds" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Every (s)" Type="number" Disabled="Busy" />
+                    </div>
+                    <div class="w-36">
+                        <MaterialInput @bind-Value="Model.HealthTimeoutSeconds" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Timeout (s)" Type="number" Disabled="Busy" />
+                    </div>
+                    <div class="w-36">
+                        <MaterialInput @bind-Value="Model.HealthRetries" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Retries" Type="number" Disabled="Busy" />
+                    </div>
+                    <div class="w-36">
+                        <MaterialInput @bind-Value="Model.HealthStartPeriodSeconds" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Grace (s)" Type="number" Disabled="Busy" />
+                    </div>
+                </div>
+            }
+            </MaterialCard>
+
+            <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-2">
+                <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Volumes</h2>
+                <VolumeListEditor Mounts="Model.Mounts" Disabled="Busy"
+                                  NamePrefix="@VolumeNamePrefix" />
+            </MaterialCard>
+        }
+    else
+        {
+            @if (AllowTargetChange)
+            {
+                <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-2">
+                    <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Agent</h2>
+                    <MaterialSelect TValue="string" @bind-Value="Model.AgentId" For="@(() => Model.AgentId)" Label="Agent"
+                                    Options="AgentOptions()" Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small"
+                                    OptionTextSelector="AgentLabel" Disabled="Busy" />
+                    @if (Agents is { Count: 0 })
+                    {
+                        <span class="text-xs" style="color: var(--md-sys-color-error)">No agents enrolled yet — add one from
+                            the Cluster page.</span>
+                        }
+                    </MaterialCard>
+                }
+
+                <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+                    <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Command</h2>
+                    <MaterialInput @bind-Value="Model.Command" For="@(() => Model.Command)" Variant="MaterialInputVariant.Outlined"
+                                   Size="MaterialSize.Small" Label="Command / executable" Disabled="Busy" />
+                    <MaterialInput @bind-Value="Model.ArgsText" Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small"
+                                   Multiline Rows="2" Label="Arguments — one per line" Disabled="Busy" />
+                    <MaterialSwitch @bind-Value="Model.ManagedDirectory" Label="Let the agent own the directory" Disabled="Busy" />
+                    @if (Model.ManagedDirectory)
+                    {
+                        <span class="text-xs opacity-60">
+                            The agent creates a folder for this workload under its own root and runs the process there.
+                            A relative command resolves inside that folder; an absolute one, or a bare name like
+                            <code>java</code>, is used as-is.
+                        </span>
+
+                        <MaterialSelect @bind-Value="Model.SourceKind" Options="SourceKinds" OptionTextSelector="SourceLabel"
+                                        Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small"
+                                        Label="Where the files come from" Disabled="Busy" />
+
+                        @if (Model.SourceKind == SourceKind.Zip)
+                        {
+                            <MaterialInput @bind-Value="Model.SourceUrl" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Archive URL" Disabled="Busy" />
+                        }
+                        else if (Model.SourceKind == SourceKind.SteamCmd)
+                        {
+                            <MaterialInput @bind-Value="Model.SteamAppId" Type="number" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Steam app id" Disabled="Busy" />
+                            <MaterialInput @bind-Value="Model.SteamBranch" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Branch (optional)" Disabled="Busy" />
+                            <MaterialInput @bind-Value="Model.SteamUsername" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Steam account (blank for anonymous)" Disabled="Busy" />
+                            <MaterialInput @bind-Value="Model.SteamPassword" Type="password" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small"
+                                           Label="@(Model.HasSteamPassword ? "Steam password (leave blank to keep)" : "Steam password")"
+                                           Disabled="Busy" />
+                            <span class="text-xs opacity-60">
+                                Most dedicated servers install anonymously and need no account at all.
+                            </span>
+                        }
+                        @if (Model.SourceKind != SourceKind.None)
+                        {
+                            <span class="text-xs opacity-60">
+                                Fetched by the Update button on the Overview tab, never as part of a deploy — it can take
+                                a while, and the workload has to be stopped while it runs.
+                            </span>
+                        }
+                    }
+                    else
+                    {
+                        <MaterialInput @bind-Value="Model.WorkingDirectory" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Working directory (optional)" Disabled="Busy" />
+                    }
+                </MaterialCard>
+
+                <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-2">
+                    <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Ports</h2>
+                    <PortListEditor Ports="Model.Ports" SinglePort Disabled="Busy" />
+                    </MaterialCard>
+
+                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
+                        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Supervision</h2>
+                        <MaterialSelect @bind-Value="Model.RestartPolicy" Options="RestartPolicies" OptionTextSelector="RestartLabel"
+                                        Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Label="If the process exits"
+                                        Disabled="Busy" />
+                        <div class="w-52">
+                            <MaterialInput @bind-Value="Model.StopGraceSeconds" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Stop grace (seconds)" Type="number" Disabled="Busy" />
+                        </div>
+                        <MaterialInput @bind-Value="Model.StopCommand" Variant="MaterialInputVariant.Outlined"
+                                       Size="MaterialSize.Small" Label="Stop command (optional)" Disabled="Busy" />
+                        <p class="text-xs opacity-60">
+                            Written to the console to ask for a clean shutdown — a game server's <code>stop</code> or
+                            <code>quit</code>. On Windows this is the only polite option a process without a window has;
+                            leave it blank and stopping means killing it.
+                        </p>
+                        </MaterialCard>
+                    }
+
+                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-2">
+                        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Scheduled restart</h2>
+                        <div class="w-52">
+                            <MaterialInput @bind-Value="Model.RestartDailyAt" Variant="MaterialInputVariant.Outlined"
+                                           Size="MaterialSize.Small" Label="Daily at (HH:mm)" Disabled="Busy" />
+                        </div>
+                        <span class="text-xs opacity-60">
+                            Server local time; blank for never. Takes effect on save — it isn't deployed config,
+                            so it never asks for a redeploy.
+                        </span>
+                    </MaterialCard>
+
+                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-2">
+                        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Environment</h2>
+                        <KeyValueEditor Items="Model.Env" KeyPlaceholder="NAME" ValuePlaceholder="value" AllowSecrets Disabled="Busy" />
+                    </MaterialCard>
+                </div>
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadFormModel Model { get; set; }
+    [Parameter] public IReadOnlyList<WorkloadGroupResponse>? Groups { get; set; }
+    [Parameter] public IReadOnlyList<AgentResponse>? Agents { get; set; }
+    [Parameter] public bool Busy { get; set; }
+
+    /// True on create (target + agent are chosen); false on edit (they're fixed).
+    [Parameter] public bool AllowTargetChange { get; set; }
+    [Parameter] public bool AllowWebAddress { get; set; }
+
+    /// The platform's root domain, so the form can show the address a web app would earn.
+    [Parameter] public string? RootDomain { get; set; }
+
+    /// What the platform prefixes a workload's docker objects with, from platform settings — the editor
+    /// composes it with the workload name to show a volume's real name on the host.
+    [Parameter] public string VolumePrefix { get; set; } = string.Empty;
+
+    /// Empty for a non-admin, who can't read platform settings: no name beats a wrong one. The
+    /// placeholder covers the new-workload form, where the name is still being typed.
+    private string VolumeNamePrefix => string.IsNullOrEmpty(VolumePrefix)
+        ? string.Empty
+        : $"{VolumePrefix}{(string.IsNullOrWhiteSpace(Model.Name) ? "<name>" : Model.Name)}--";
+
+    private static readonly WorkloadTarget[] Targets = [WorkloadTarget.Swarm, WorkloadTarget.Agent];
+
+    private static string TargetLabel(WorkloadTarget target) =>
+        target == WorkloadTarget.Swarm ? "Docker Swarm — container" : "Agent — native process";
+
+    private static readonly SourceKind[] SourceKinds = [SourceKind.None, SourceKind.Zip, SourceKind.SteamCmd];
+
+    private static string SourceLabel(SourceKind kind) => kind switch
+    {
+        SourceKind.Zip => "A zip archive over http",
+        SourceKind.SteamCmd => "Steam, via SteamCMD",
+        _ => "Already installed on the machine",
+    };
+
+    private static readonly RestartPolicy[] RestartPolicies =
+        [RestartPolicy.OnFailure, RestartPolicy.Always, RestartPolicy.Never];
+
+    private static string RestartLabel(RestartPolicy policy) => policy switch
+    {
+        RestartPolicy.OnFailure => "Restart only if it crashed",
+        RestartPolicy.Always => "Always restart",
+        _ => "Leave it stopped",
+    };
+
+    // "" is the root choice; the rest are group ids in hierarchy order.
+    private List<string> GroupOptions() =>
+        GroupHierarchy.Flatten(Groups ?? []).Select(x => x.Group.Id).Prepend(string.Empty).ToList();
+
+    private string GroupLabel(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return "Root";
+        }
+
+        var match = GroupHierarchy.Flatten(Groups ?? []).FirstOrDefault(x => x.Group.Id == id);
+        return match.Group is null ? id : $"{GroupHierarchy.Indent(match.Depth)}{match.Group.Name}";
+    }
+
+    private List<string> AgentOptions() => (Agents ?? []).Select(a => a.Id).ToList();
+
+    private string AgentLabel(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return "Select an agent";
+        }
+
+        var agent = (Agents ?? []).FirstOrDefault(a => a.Id == id);
+        return agent is null ? id : $"{agent.Name} ({agent.Platform})";
+    }
+}

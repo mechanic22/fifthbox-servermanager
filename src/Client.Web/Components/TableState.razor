@@ -1,0 +1,25 @@
+@* The row a table shows when it has no rows: nothing while loading, the failure when the load broke,
+   the empty copy only when the backend actually answered with nothing. Sits after the row loop. *@
+
+@if (Error is not null)
+{
+    <tr>
+        <td colspan="@Columns" class="p-4">
+            <LoadFailure Message="@Error" OnRetry="OnRetry" Busy="Busy" Inset="false" />
+        </td>
+    </tr>
+}
+else if (IsEmpty && !Loading)
+{
+    <tr><td colspan="@Columns" class="text-sm opacity-60 p-4">@Empty</td></tr>
+}
+
+@code {
+    [Parameter, EditorRequired] public int Columns { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public bool IsEmpty { get; set; }
+    [Parameter] public string? Empty { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+    [Parameter] public bool Busy { get; set; }
+}

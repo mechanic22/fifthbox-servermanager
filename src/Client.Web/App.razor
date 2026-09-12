@@ -1,0 +1,55 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized Context="authState">
+                    @* Anonymous → send to login. Authenticated but lacking the required role/policy
+                       (e.g. a non-admin hitting /admin) → an access-denied message, not a bounce
+                       back to login they're already past. *@
+                    @if (authState.User.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="max-w-2xl mx-auto p-6">
+                            <MaterialCard Variant="MaterialCardVariant.Filled" class="p-6">
+                                <h1 class="text-xl font-medium mb-1">You don't have access to this page</h1>
+                                <p class="text-sm opacity-70 mb-4">
+                                    It needs an administrator account. If you think you should have one, ask whoever
+                                    runs this server to grant it.
+                                </p>
+                                <MaterialButton Text="Back to home" Style="MaterialButtonStyle.Filled"
+                                                Size="MaterialSize.Small" OnClick="GoHome" />
+                            </MaterialCard>
+                        </div>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="flex justify-center p-8">
+                        <MaterialProgressIndicator Indeterminate="true" />
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div class="max-w-2xl mx-auto p-6">
+                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6">
+                        <h1 class="text-xl font-medium mb-1">There's nothing at this address</h1>
+                        <p class="text-sm opacity-70 mb-4">The link may be out of date, or the page may have moved.</p>
+                        <MaterialButton Text="Back to home" Style="MaterialButtonStyle.Filled"
+                                        Size="MaterialSize.Small" OnClick="GoHome" />
+                    </MaterialCard>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private void GoHome() => Nav.NavigateTo("");
+}

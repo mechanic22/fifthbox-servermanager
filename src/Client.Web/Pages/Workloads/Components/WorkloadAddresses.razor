@@ -1,0 +1,137 @@
+@* Where this workload can actually be reached, as links you can click. Routed hostnames get the scheme
+   their certificate earns them; a host-published workload gets its node's address. The overlay name is
+   the one address that always exists, and the one nobody can guess. *@
+
+@if (_links.Count == 0)
+{
+    <p class="text-sm opacity-60">Not reachable from outside.</p>
+}
+else
+{
+    <div class="flex flex-col gap-2">
+        @foreach (var link in _links)
+        {
+            <div class="flex items-center gap-2 flex-wrap">
+                @if (link.Enabled)
+                {
+                    <a href="@link.Url" target="_blank" rel="noopener noreferrer" class="font-mono text-sm underline">@link.Url</a>
+                }
+                else
+                {
+                    <span class="font-mono text-sm line-through opacity-60">@link.Url</span>
+                }
+
+                @if (link.Hostname is { } hostname)
+                {
+                    <TlsChip Status="TlsFor(hostname)?.Status" NotAfter="TlsFor(hostname)?.NotAfter" />
+                }
+                @if (!link.Enabled)
+                {
+                    <MaterialChip Text="route off" Size="MaterialChipSize.Small" />
+                }
+                @if (link.BasicAuth)
+                {
+                    <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                }
+                @if (link.DirectLabel is { } label)
+                {
+                    <MaterialChip Text="@label" Size="MaterialChipSize.Small" Color="MaterialChipColor.Secondary" />
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (Workload.ServiceName is { } service)
+{
+    <div class="flex flex-col gap-1 mt-4">
+        <span class="text-xs opacity-60">On the overlay</span>
+        <CopyBlock Text="@service" />
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
+
+    /// This workload's routes, already filtered by the page.
+    [Parameter] public IReadOnlyList<RouteResponse>? Routes { get; set; }
+
+    [Parameter] public IReadOnlyDictionary<string, TlsHostResponse>? Tls { get; set; }
+    [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
+
+    /// The nodes its tasks are actually running on. A published port is bound where the task landed, so
+    /// this — not the definition — is what says where to knock.
+    [Parameter] public IReadOnlyList<string>? RunningNodeIds { get; set; }
+
+    /// Ports the edge is published on — a link to a non-standard port has to say so or it won't open.
+    [Parameter] public int EdgeHttpPort { get; set; } = 80;
+    [Parameter] public int EdgeHttpsPort { get; set; } = 443;
+
+    private List<Link> _links = [];
+
+    private sealed record Link(string Url, bool Enabled, string? Hostname, bool BasicAuth, string? DirectLabel);
+
+    protected override void OnParametersSet() => _links = BuildLinks();
+
+    private TlsHostResponse? TlsFor(string hostname) => Tls?.GetValueOrDefault(hostname);
+
+    /// A browser implies :80 and :443; anything else has to be spelled out or the link doesn't open.
+    private string PortSuffix(bool https)
+    {
+        var port = https ? EdgeHttpsPort : EdgeHttpPort;
+        return port == (https ? 443 : 80) ? string.Empty : $":{port}";
+    }
+
+    private List<Link> BuildLinks()
+    {
+        var links = (Routes ?? [])
+            .OrderBy(r => r.Hostname, StringComparer.Ordinal).ThenBy(r => r.Path, StringComparer.Ordinal)
+            .Select(r =>
+            {
+                // A hostname with no valid certificate is still worth linking — plenty of internal apps
+                // live on plain HTTP quite happily.
+                var https = TlsFor(r.Hostname)?.Status == CertificateStatus.Valid;
+                return new Link(
+                    $"{(https ? "https" : "http")}://{r.Hostname}{PortSuffix(https)}{r.Path}",
+                    r.Enabled,
+                    r.Hostname,
+                    r.BasicAuthEnabled,
+                    DirectLabel: null);
+            })
+            .ToList();
+
+        // A published port binds on the node its task landed on, with no nginx in the way — so every node
+        // running one is its own entry point. Before it runs there is nowhere to point at yet, unless it
+        // was pinned or has already settled onto a node.
+        links.AddRange(
+            from nodeId in PublishedOn()
+            let address = NodeAddress(nodeId)
+            where address is not null
+            from port in Workload.Ports.Where(p => p.Protocol != PortProtocol.Udp)
+            select new Link($"http://{address}:{port.Published}", Enabled: true, Hostname: null, BasicAuth: false,
+                DirectLabel: "direct"));
+
+        return links;
+    }
+
+    private IEnumerable<string> PublishedOn()
+    {
+        if (Workload.Ports.Count == 0)
+        {
+            return [];
+        }
+
+        if (RunningNodeIds is { Count: > 0 })
+        {
+            return RunningNodeIds.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        }
+
+        return (Workload.NodeId ?? Workload.PlacedNodeId) is { } settled ? [settled] : [];
+    }
+
+    private string? NodeAddress(string nodeId)
+    {
+        var node = (Nodes ?? []).FirstOrDefault(n => n.Id == nodeId);
+        return node is null ? null : node.Address ?? node.Hostname;
+    }
+}
