@@ -30,6 +30,16 @@ public static class NginxConfigGenerator
         if (routes.Count > 0)
         {
             sb.Append("\nresolver 127.0.0.11 valid=10s ipv6=off;\n");
+
+            // Without this, a hostname with no certificate of its own falls through to the first
+            // `listen 443 ssl` block and is served someone else's certificate — a name mismatch the
+            // visitor reads as a hijack. Rejecting the handshake fails it as what it is: not configured.
+            // Port 80 keeps its fallback, so an ACME challenge still lands while a route is unapplied.
+            sb.Append('\n');
+            sb.Append("server {\n");
+            sb.Append("    listen 443 ssl default_server;\n");
+            sb.Append("    ssl_reject_handshake on;\n");
+            sb.Append("}\n");
         }
 
         foreach (var host in routes.GroupBy(r => r.Hostname).OrderBy(g => g.Key, StringComparer.Ordinal))

@@ -91,7 +91,7 @@ public class NginxConfigGeneratorTests
             Route("b.example.com", "/", "wb", 80),
         ]);
 
-        Assert.AreEqual(2, CountOccurrences(config, "server {"));
+        Assert.AreEqual(2, CountOccurrences(config, "server_name "));
     }
 
     [TestMethod]
@@ -188,6 +188,32 @@ public class NginxConfigGeneratorTests
     }
 
     [TestMethod]
+    public void An_uncertified_hostname_is_refused_rather_than_handed_another_sites_certificate()
+    {
+        // detroitlakestkd sorts first, so without a default server it is what every uncertified
+        // hostname on the box gets offered — a name mismatch the visitor reads as a hijack.
+        var config = NginxConfigGenerator.Generate(
+            [Route("detroitlakestkd.com", "/", "a", 80), Route("digikeygolf.com", "/", "b", 80)],
+            AcmeUpstream,
+            [Certificate("detroitlakestkd.com")]);
+
+        StringAssert.Contains(config, "listen 443 ssl default_server;");
+        StringAssert.Contains(config, "ssl_reject_handshake on;");
+        Assert.IsLessThan(
+            config.IndexOf("server_name detroitlakestkd.com", StringComparison.Ordinal),
+            config.IndexOf("default_server", StringComparison.Ordinal),
+            "the default server has to precede the certified blocks to be the fallback");
+    }
+
+    [TestMethod]
+    public void Port_80_keeps_its_fallback_so_a_challenge_lands_while_a_route_is_unapplied()
+    {
+        var config = Generate([Route("app.example.com", "/", "web", 80)], "app.example.com");
+
+        Assert.AreEqual(0, CountOccurrences(config, "listen 80 default_server"));
+    }
+
+    [TestMethod]
     public void The_redirect_carries_a_non_standard_https_port()
     {
         var config = NginxConfigGenerator.Generate(
@@ -213,7 +239,7 @@ public class NginxConfigGeneratorTests
 
         // Renewal revalidates over port 80 every time. Redirecting the challenge would break issuance
         // ~60 days later, long after anyone would connect it to enabling HTTPS.
-        var port80 = config[config.IndexOf("listen 80;", StringComparison.Ordinal)..config.IndexOf("listen 443", StringComparison.Ordinal)];
+        var port80 = config[config.IndexOf("listen 80;", StringComparison.Ordinal)..config.IndexOf("listen 443 ssl;", StringComparison.Ordinal)];
         StringAssert.Contains(port80, "location ^~ /.well-known/acme-challenge/ {");
         Assert.IsLessThan(
             port80.IndexOf("return 301", StringComparison.Ordinal),

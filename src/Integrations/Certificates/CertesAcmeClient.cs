@@ -50,7 +50,7 @@ public sealed class CertesAcmeClient(
 
             var key = KeyFactory.NewKey(KeyAlgorithm.ES256);
             var chain = await order.Generate(new CsrInfo { CommonName = hostnames[0] }, key);
-            var pem = chain.ToPem();
+            var pem = CertificateChainPem.Combine(chain.Certificate.ToPem(), chain.Issuers.Select(i => i.ToPem()));
             var (notBefore, notAfter) = CertificateChainReader.Validity(pem);
 
             log.LogInformation("Issued a certificate for {Hostnames} valid until {NotAfter}",
