@@ -153,8 +153,7 @@
         await ReloadStateAsync();
     }
 
-    // Every write below changes the desired config, so the banner has to be re-asked each time —
-    // it's the whole point of the thing.
+    // every write below changes the config, so re-ask for the banner
     private async Task ReloadStateAsync()
     {
         try
@@ -272,7 +271,7 @@
         try
         {
             await RoutesApi.SetEnabledAsync(route.Id, enabled);
-            _config = null; // the preview is now stale
+            _config = null; // preview is stale
             await LoadAsync();
             await ReloadStateAsync();
             Snackbar.Show(enabled ? $"{route.Hostname} enabled — deploy nginx to apply." : $"{route.Hostname} disabled — deploy nginx to apply.");

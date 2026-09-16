@@ -6,6 +6,6 @@ public enum NodePlatform
     Linux,
     Windows,
 
-    /// Agent nodes only — a swarm node is never macOS.
+    /// agent nodes only
     MacOS,
 }

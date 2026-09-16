@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="IWorkloadGroupRepository"/>. Thin adapter — no business rules.
 public class EfWorkloadGroupRepository(AppDbContext db) : IWorkloadGroupRepository
 {
     public async Task<IReadOnlyList<WorkloadGroup>> ListAsync(CancellationToken ct = default)

@@ -6,21 +6,16 @@ public sealed class ReverseProxyOptions
     public string Image { get; set; } = "nginx:1.27";
     public string ConfigPath { get; set; } = "/etc/nginx/conf.d/default.conf";
 
-    /// Where nginx sends HTTP-01 challenges — the Host's own swarm service on the overlay. Defaults
-    /// match HostDeploymentOptions (service name + container port).
+    /// the Host's own service on the overlay, defaults match HostDeploymentOptions
     public string AcmeUpstream { get; set; } = "fbsm-host:8080";
 
-    /// Ports the edge binds on its node. nginx always listens on 80/443 inside the container; these are
-    /// the published side, for a machine where something else already owns the standard ports.
-    /// Moving HTTP off 80 breaks certificate issuance unless something external forwards port 80 here —
-    /// Let's Encrypt fetches the HTTP-01 challenge on port 80 and offers no way to say otherwise.
+    /// published side only, nginx is always 80/443 inside the container
+    /// moving http off 80 breaks cert issuance unless something forwards port 80 here
     public int HttpPort { get; set; } = 80;
     public int HttpsPort { get; set; } = 443;
 
-    /// Run the edge on every node instead of pinning it to the one ServerManager talks to. Pinned is a
-    /// single point of failure for every route — drain or lose that node and nothing answers — but
-    /// global means every node has to be able to bind the ports above and every node's address has to be
-    /// somewhere DNS points. Off by default so an upgrade never re-topologises a running edge.
+    /// pinned is a single point of failure, global needs every node able to bind the ports and in dns
+    /// off by default so an upgrade never reshapes a running edge
     public bool OnEveryNode { get; set; }
 }
 
@@ -29,7 +24,7 @@ public static class ReverseProxyPorts
     public const int StandardHttp = 80;
     public const int StandardHttps = 443;
 
-    /// The ":port" a URL needs, or "" when it's the scheme's default and browsers imply it.
+    /// "" when it's the scheme's default port
     public static string Suffix(int port, bool https) =>
         port == (https ? StandardHttps : StandardHttp) ? string.Empty : $":{port}";
 }

@@ -2,7 +2,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Shared.Platform;
 
-/// One of ServerManager's own infrastructure services (nginx, etc.) with its observed status.
+/// our own infra services, nginx etc
 public record PlatformServiceResponse
 {
     public required string Name { get; init; }

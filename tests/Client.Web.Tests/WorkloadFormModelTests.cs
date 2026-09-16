@@ -54,8 +54,7 @@ public class WorkloadFormModelTests
     [TestMethod]
     public void Switching_target_moves_what_is_required()
     {
-        // The reason this lives in Validate rather than on the properties: the same model is valid or
-        // not depending on a field the attributes can't see.
+        // lives in Validate because validity depends on a field the attributes can't see
         var model = new WorkloadFormModel { Name = "x", Target = WorkloadTarget.Agent, AgentId = "a1", Command = "./run" };
         Assert.IsEmpty(Validate(model));
 
@@ -123,7 +122,7 @@ public class WorkloadFormModelTests
     [TestMethod]
     public void Publishing_ports_asks_for_no_node_at_all()
     {
-        // Swarm won't put two tasks of one service on the same host port, so it spreads them itself.
+        // swarm won't stack two tasks on one host port, so it spreads them itself
         var model = new WorkloadFormModel
         {
             Name = "game",
@@ -152,8 +151,7 @@ public class WorkloadFormModelTests
     [TestMethod]
     public void Lowering_a_limit_brings_its_reservation_down_with_it()
     {
-        // Reserving more than the limit allows is rejected by the server; the form shouldn't be able to
-        // ask for it in the first place.
+        // the server rejects reserve over limit, so the form shouldn't let you ask
         var model = new WorkloadFormModel { Name = "db", Image = "postgres:17", MemoryLimitMb = 4096, MemoryReserveMb = 2048 };
 
         model.SetMemoryLimit(1024);

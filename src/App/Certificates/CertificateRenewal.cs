@@ -4,8 +4,7 @@ namespace FifthBox.ServerManager.App.Certificates;
 
 public static class CertificateRenewal
 {
-    /// Rows the renewal pass should request. Pending and Failed are retried every tick — the usual
-    /// cause is DNS that isn't pointing here yet, which fixes itself without anyone touching this app.
+    /// pending and failed retry every tick, usually it's dns not pointing here yet
     public static bool IsDue(Certificate certificate, DateTimeOffset now, int renewBeforeDays)
         => certificate.Status != CertificateStatus.Valid
            || certificate.NotAfter is not { } expiry

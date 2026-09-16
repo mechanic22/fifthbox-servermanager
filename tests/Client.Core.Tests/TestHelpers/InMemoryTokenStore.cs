@@ -2,11 +2,7 @@ using FifthBox.ServerManager.Client.Core;
 
 namespace FifthBox.ServerManager.Client.Core.Tests;
 
-/// <summary>
-/// Stateful <see cref="ITokenStore"/> fake — the bearer handler reads back what it just saved during a
-/// refresh, so a constant Moq return wouldn't model it. Hand-written per the testing rules for
-/// stateful doubles a mocking framework handles poorly.
-/// </summary>
+/// stateful on purpose, the bearer handler reads back what it just saved during a refresh
 internal sealed class InMemoryTokenStore : ITokenStore
 {
     public string? Access;

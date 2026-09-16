@@ -4,8 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Stores;
 
-/// The ACME account lives on the single platform-settings row. It writes only its own two columns, so
-/// saving settings from the UI and registering an account can't overwrite each other.
+/// only writes its own two columns on the settings row so it can't clobber a settings save
 public sealed class AcmeAccountStore(AppDbContext db) : IAcmeAccountStore
 {
     public async Task<StoredAcmeAccount?> GetAsync(CancellationToken ct = default)

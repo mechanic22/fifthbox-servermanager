@@ -1,6 +1,5 @@
 using FifthBox.ServerManager.Agent;
 
-// Service registration runs and exits; it never starts the worker.
 if (args.Length > 0 && OperatingSystem.IsWindows())
 {
     switch (args[0].ToLowerInvariant())
@@ -14,8 +13,7 @@ if (args.Length > 0 && OperatingSystem.IsWindows())
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// A no-op unless the service manager started this process, so the same executable still runs as a
-// console app when it's double-clicked, and on Linux.
+// no-op unless started as a windows service, so it still runs as a console app
 builder.Services.AddWindowsService(options => options.ServiceName = ServiceInstaller.ServiceName);
 
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection("Agent"));

@@ -7,8 +7,6 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace FifthBox.ServerManager.Host.Agents;
 
-/// Sends commands to a connected agent over the AgentHub and awaits its reply (SignalR server→client
-/// invocation with a result). Thin transport — no logic.
 public sealed class AgentCommandChannel(IHubContext<AgentHub> hub, IAgentRegistry registry) : IAgentCommandChannel
 {
     public bool IsConnected(string agentId) => registry.IsOnline(agentId);
@@ -63,7 +61,7 @@ public sealed class AgentCommandChannel(IHubContext<AgentHub> hub, IAgentRegistr
     {
         var connectionId = registry.ConnectionFor(agentId);
         return connectionId is null
-            ? Task.CompletedTask // not connected — nothing to follow
+            ? Task.CompletedTask
             : hub.Clients.Client(connectionId).SendAsync(method, argument, ct);
     }
 

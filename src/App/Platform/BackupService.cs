@@ -11,12 +11,9 @@ public interface IBackupService
     Stream OpenRead(string name);
     void Delete(string name);
 
-    /// Take a backup, then delete whatever falls outside the retention window.
     Task<BackupFileResponse> CreateAndPruneAsync(CancellationToken ct = default);
 }
 
-/// Database backups: take one, list them, hand one back for download, delete one. The file naming and
-/// retention decisions live here; reading and writing the files is the store's job.
 public sealed class BackupService(
     IBackupStore store,
     IOptions<BackupOptions> options,
@@ -63,8 +60,7 @@ public sealed class BackupService(
         return file;
     }
 
-    // The name reaches here straight off a route, so it has to be a bare filename — anything that
-    // survives GetFileName unchanged can't climb out of the backup directory.
+    // name comes straight off a route, must be a bare filename so it can't climb out of the backup dir
     private static string Validate(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name || !name.EndsWith(".db", StringComparison.OrdinalIgnoreCase))

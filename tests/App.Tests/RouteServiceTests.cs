@@ -167,7 +167,7 @@ public class RouteServiceTests
 
         await NewService(routes, workloads, proxy).RenderConfigAsync();
 
-        // Must track whatever the swarm backend actually named the service, or nginx proxies to nothing.
+        // has to match what the swarm backend named the service, or nginx proxies to nothing
         Assert.AreEqual("fbsm--web", captured!.Single().UpstreamService);
     }
 
@@ -199,8 +199,7 @@ public class RouteServiceTests
         Assert.AreEqual("cert-app.example.com.pem", chain.FileName);
         Assert.AreEqual("-----BEGIN EC PRIVATE KEY-----secret", key.Content);
 
-        // The paths handed to the generator have to be where those files actually land, or nginx points
-        // ssl_certificate at nothing and refuses to start.
+        // paths have to match where the files land, or nginx points at nothing and won't start
         var certified = rendered!.Single();
         Assert.AreEqual($"/run/secrets/{chain.FileName}", certified.CertificatePath);
         Assert.AreEqual($"/run/secrets/{key.FileName}", certified.PrivateKeyPath);
@@ -242,7 +241,7 @@ public class RouteServiceTests
         await NewService(routes, workloads, proxy, backend,
             proxyOptions: new ReverseProxyOptions { HttpPort = 8080, HttpsPort = 8443 }).ApplyAsync();
 
-        // Published moves; the container still listens on 80/443, so the generated config is unaffected.
+        // published port moves, the container still listens on 80/443 so the config doesn't change
         var http = sent!.Ports.Single(p => p.Target == 80);
         var https = sent.Ports.Single(p => p.Target == 443);
         Assert.AreEqual(8080, http.Published);
@@ -297,11 +296,11 @@ public class RouteServiceTests
 
         Assert.IsTrue(saved!.BasicAuthEnabled);
         Assert.AreEqual("admin", saved.BasicAuthUsername);
-        Assert.AreEqual("$2y$FAKEHASH", saved.BasicAuthPasswordHash);   // the hasher output, not the plaintext
+        Assert.AreEqual("$2y$FAKEHASH", saved.BasicAuthPasswordHash);
         Assert.DoesNotContain("s3cret", saved.BasicAuthPasswordHash!);
         Assert.IsTrue(result.BasicAuthEnabled);
         Assert.AreEqual("admin", result.BasicAuthUsername);
-        // RouteResponse has no password/hash member — nothing to leak.
+        // no hash assert, RouteResponse doesn't have one
     }
 
     [TestMethod]
@@ -377,8 +376,7 @@ public class RouteServiceTests
     [TestMethod]
     public async Task Render_skips_routes_pointing_at_a_native_workload()
     {
-        // nginx resolves upstreams at config load; one unresolvable name stops it starting at all, so a
-        // stray route must never reach the generated config.
+        // nginx won't start on one unresolvable upstream, so a stray route must never reach the config
         var routes = new Mock<IRouteRepository>();
         routes.Setup(r => r.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Route>
         {
@@ -420,7 +418,7 @@ public class RouteServiceTests
         await svc.RenderConfigAsync();
         Assert.AreEqual("live.example.com", captured!.Single().Hostname);
 
-        // Still listed — disabling hides it from nginx, it doesn't delete it.
+        // still listed, disabling only hides it from nginx
         Assert.HasCount(2, await svc.ListAsync());
     }
 
@@ -477,7 +475,6 @@ public class RouteServiceTests
                 UpstreamHost = "nas.lan", UpstreamScheme = UpstreamScheme.Https, TargetPort = 5001, Enabled = true,
             },
         });
-        // No workloads at all — an external route must survive the routable gate regardless.
         var workloads = new Mock<IWorkloadRepository>();
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload>());
 
@@ -513,8 +510,7 @@ public class RouteServiceTests
     {
         var (svc, _) = Build();
 
-        // It is interpolated straight into proxy_pass, so anything carrying a scheme, port, path or a
-        // second directive is refused rather than escaped.
+        // goes straight into proxy_pass, so scheme/port/path/extra directives get refused, not escaped
         await Assert.ThrowsExactlyAsync<ValidationException>(() => svc.CreateAsync(new CreateRouteRequest
         {
             Hostname = "nas.example.com", Path = "/", Target = RouteTarget.External,

@@ -10,12 +10,11 @@ public interface IScheduledJobs
 {
     IReadOnlyList<ScheduledJobStatus> List();
 
-    /// Run a job now, outside its schedule, and return how it went. Throws if it's already running.
+    /// throws if it's already running
     Task<ScheduledJobStatus> RunNowAsync(string name, CancellationToken ct = default);
 }
 
-/// Runs every registered <see cref="IScheduledJob"/> on its own interval, one scope per execution. A job
-/// that throws is logged and retried at its next due time — it never stops the other jobs or the runner.
+/// a job that throws just gets logged and tried again next time
 public sealed class ScheduledJobRunner(
     IServiceScopeFactory scopeFactory,
     ILogger<ScheduledJobRunner> logger,
@@ -99,8 +98,7 @@ public sealed class ScheduledJobRunner(
         }
     }
 
-    // No last run means due now: a job that wants to run daily should also run on the first boot after
-    // it was configured, rather than waiting a day to prove it works.
+    // never run means due now, so a daily job doesn't wait a day to prove it works
     private bool IsDue(IScheduledJob job)
     {
         var state = _state.GetValueOrDefault(job.Name);

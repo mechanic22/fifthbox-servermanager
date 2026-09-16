@@ -2,13 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FifthBox.ServerManager.Shared.Auth;
 
-/// <summary>
-/// Self-service registration request from the browser client. (Host maps it to Identity's own
-/// internal RegisterRequest.)
-/// </summary>
+/// not Identity's RegisterRequest, the host maps between them
 public class RegisterRequest
 {
-    /// <summary>Login id — we use the email as the username.</summary>
+    /// the email, we use it as the username
     [Required]
     [EmailAddress]
     [MaxLength(256)]
@@ -19,6 +16,6 @@ public class RegisterRequest
     [MaxLength(100)]
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>Only needed when registration policy is InviteOnly.</summary>
+    /// only needed for InviteOnly
     public string? InviteCode { get; set; }
 }

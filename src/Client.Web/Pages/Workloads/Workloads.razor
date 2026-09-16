@@ -38,8 +38,7 @@
     {
         <MaterialSkeleton Type="MaterialSkeletonType.TableRow" AriaLabel="Loading applications" />
     }
-    @* Unfiltered counts on purpose: Root() is filtered, so a filter that matched nothing used to
-       render "No groups or workloads yet" over a cluster full of them. *@
+    @* unfiltered on purpose, Root() is filtered *@
     else if (_groups is { Count: 0 } && TotalCount == 0)
     {
         <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-8 text-center">
@@ -69,8 +68,7 @@
             </div>
         }
 
-        @* Only ever a *filter* message. Groups render below with or without workloads in them, so
-           gating the whole tree on the workload count hid every group behind "nothing matches". *@
+        @* filter message only, groups render either way *@
         @if (Filtering && Matching().Count == 0)
         {
             <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-8 text-center">
@@ -184,8 +182,7 @@
         await Realtime.EnsureWorkloadsConnectedAsync();
     }
 
-    // Broadcast covers every workload, so the id says which row moved. Mutating inside InvokeAsync keeps
-    // the write on the render loop rather than the hub's callback.
+    // mutate inside InvokeAsync so it lands on the render loop, not the hub callback
     private void OnStatusChanged(string workloadId, WorkloadRuntimeStatus status)
         => _ = InvokeAsync(() =>
         {
@@ -231,8 +228,6 @@
                     || w.Name.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))
         .ToList();
 
-    // The tree is built from what matches, so a filtered view keeps its grouping rather than
-    // collapsing into a flat list.
     private List<GroupTreeNode> Roots() => GroupTreeNode.Build(_groups ?? [], Matching());
 
     private List<WorkloadResponse> Root()
@@ -267,7 +262,7 @@
         }
         catch (ApiException)
         {
-            // Backend unreachable — leave the statuses as they were rather than blanking the list.
+            // unreachable, keep the old statuses rather than blank the list
         }
 
         StateHasChanged();

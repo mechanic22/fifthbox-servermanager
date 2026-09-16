@@ -31,7 +31,7 @@ public class ScheduledRestartTests
     [TestMethod]
     public void A_missed_window_is_skipped_rather_than_fired_hours_late()
     {
-        // A Host that was down overnight must not come back and bounce everything at lunchtime.
+        // a host down overnight mustn't come back and bounce everything at lunch
         Assert.IsFalse(ScheduledRestart.IsDue(FiveAm, Local(12), null));
     }
 
@@ -55,7 +55,6 @@ public class ScheduledRestartTests
     [TestMethod]
     public void Midnight_is_a_real_schedule_not_an_absent_one()
     {
-        // 0 minutes past midnight is falsy-looking; it must not be confused with "no schedule".
         Assert.IsTrue(ScheduledRestart.IsDue(0, Local(0, 10), null));
     }
 

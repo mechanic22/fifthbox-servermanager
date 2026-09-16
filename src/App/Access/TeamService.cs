@@ -11,8 +11,7 @@ public interface ITeamService
     Task<TeamResponse> UpdateAsync(Caller caller, string id, SaveTeamRequest request, CancellationToken ct = default);
     Task<TeamResponse> SetMembersAsync(Caller caller, string id, SetTeamMembersRequest request, CancellationToken ct = default);
 
-    /// Deletes the team and every grant it held. Members lose that access; anything granted to them
-    /// personally is untouched.
+    /// drops the team's grants too, personal grants are untouched
     Task DeleteAsync(Caller caller, string id, CancellationToken ct = default);
 }
 

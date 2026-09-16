@@ -4,8 +4,6 @@ using DockerModels = Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Maps a raw Docker swarm node into the domain Node. Pure — this is the tested part of the
-/// integration; the adapter around it (SwarmNodeSource) just calls Docker.
 public static class SwarmNodeMapper
 {
     public static Node ToNode(DockerModels.NodeListResponse n) => new()

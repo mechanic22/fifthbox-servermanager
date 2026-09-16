@@ -2,8 +2,7 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.App.Nodes;
 
-/// Compares two node snapshots for meaningful change, order-independent. The refresh uses this to
-/// publish only when something actually changed.
+/// order-independent
 public static class NodeSnapshot
 {
     public static bool Differs(IReadOnlyList<NodeResponse> previous, IReadOnlyList<NodeResponse> current)

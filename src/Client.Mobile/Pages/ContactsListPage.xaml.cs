@@ -15,7 +15,7 @@ public partial class ContactsListPage : ContentPage
         _auth = auth;
     }
 
-    // Reload each time we return (e.g. after a capture) so a newly saved location shows immediately.
+    // reload on every return so a new capture shows up
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -66,7 +66,6 @@ public partial class ContactsListPage : ContentPage
     }
 }
 
-/// <summary>A contact flattened for the list: the source contact plus display-ready strings.</summary>
 public sealed record ContactRow(ContactResponse Contact, string Subtitle, string LocationText, bool HasLocation)
 {
     public string Name => Contact.Name;

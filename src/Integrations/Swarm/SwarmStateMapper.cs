@@ -4,8 +4,6 @@ using DockerModels = Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Maps Docker's swarm Info (from the system-info response) into the domain SwarmState. Pure — the
-/// tested part of the lifecycle adapter.
 public static class SwarmStateMapper
 {
     public static SwarmState ToState(DockerModels.Info swarm) => new()

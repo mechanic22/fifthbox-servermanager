@@ -6,9 +6,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Workload groups (the archive's application groups). Listing is filtered to what the caller can
-/// reach; shaping the tree stays with the administrator. Deleting a group ungroups its workloads rather
-/// than removing them.
+/// deleting a group ungroups its workloads, doesn't delete them
 public static class WorkloadGroupEndpoints
 {
     public static IEndpointRouteBuilder MapWorkloadGroupEndpoints(this IEndpointRouteBuilder app)

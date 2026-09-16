@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.App.Routes;
 
-/// Persistence port for route definitions. Implemented by Storage (EF). Pure persistence — no rules.
 public interface IRouteRepository
 {
     Task<IReadOnlyList<Route>> ListAsync(CancellationToken ct = default);

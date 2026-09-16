@@ -16,8 +16,7 @@ using Moq;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// What a granted user can and can't do. Goes through the real AccessMap rather than a stubbed one, so
-/// a caller here resolves exactly the way a request does.
+/// uses the real AccessMap so callers resolve the same way a request does
 [TestClass]
 public class WorkloadAccessTests
 {
@@ -141,7 +140,7 @@ public class WorkloadAccessTests
     {
         var (svc, _, _) = Build(Container());
 
-        // 404, not 403 — a 403 would confirm the id exists to someone probing for it.
+        // 404 not 403, a 403 confirms the id exists
         await Assert.ThrowsExactlyAsync<NotFoundException>(() => svc.GetAsync(Friend, "w1"));
     }
 
@@ -186,7 +185,7 @@ public class WorkloadAccessTests
         var (svc, _, backend) = Build(workload, [Grant(AccessLevel.Operate)]);
         backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        // Revision 1 = what's running, and the saved config still matches it.
+        // revision 1 is what's running and the saved config still matches it
         await svc.DeployAsync(Admin, "w1");
 
         Assert.IsTrue((await svc.DeployAsync(Friend, "w1")).Deployed);
@@ -208,7 +207,7 @@ public class WorkloadAccessTests
     [TestMethod]
     public async Task Operate_cannot_perform_the_very_first_deploy()
     {
-        // Nothing deployed yet, so the draft doesn't register as pending — it's still unpublished.
+        // nothing deployed yet, so the draft isn't pending, just unpublished
         var (svc, _, _) = Build(Container(), [Grant(AccessLevel.Operate)]);
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(() => svc.DeployAsync(Friend, "w1"));
@@ -295,7 +294,7 @@ public class WorkloadAccessTests
 
         var statuses = await svc.GetStatusesAsync(Friend);
 
-        // The keys are workload ids, so an unfiltered map would leak the whole inventory.
+        // keys are workload ids, unfiltered would leak the whole inventory
         Assert.AreEqual("w1", statuses.Keys.Single());
     }
 
@@ -309,7 +308,7 @@ public class WorkloadAccessTests
         };
         var (svc, _, _) = Build(Container(), [Grant(AccessLevel.View)], routes: routes);
 
-        // Listing every route is admin-only; this is how a granted user sees just their own address.
+        // listing all routes is admin-only, this is how a granted user sees their address
         Assert.AreEqual("r1", (await svc.GetRoutesAsync(Friend, "w1")).Single().Id);
     }
 
@@ -373,7 +372,7 @@ public class WorkloadAccessTests
     [TestMethod]
     public async Task The_higher_of_a_personal_and_a_team_grant_wins()
     {
-        // Personal View, team Configure: the team must raise it, not the personal grant cap it.
+        // personal View, team Configure: the team raises it, the personal grant doesn't cap it
         var (svc, _, _) = Build(
             Container(),
             [Grant(AccessLevel.View), TeamGrant(AccessLevel.Configure)],

@@ -4,7 +4,6 @@ using FifthBox.ServerManager.App.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Thin adapter: reads a live service back and hands it to SwarmSpecReader. Test-exempt; the reading is.
 public sealed class SwarmDeployedSpecSource(IDockerClient client) : IDeployedSpecSource
 {
     public async Task<DeployedSpec?> GetAsync(string serviceName, CancellationToken ct = default)

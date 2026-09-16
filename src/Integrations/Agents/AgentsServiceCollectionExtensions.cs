@@ -5,8 +5,7 @@ namespace FifthBox.ServerManager.Integrations.Agents;
 
 public static class AgentsServiceCollectionExtensions
 {
-    /// Wires the agent workload backend. The command channel (transport over the AgentHub) is supplied
-    /// by the Host composition root.
+    /// the Host has to register the IAgentCommandChannel
     public static IServiceCollection AddAgents(this IServiceCollection services)
     {
         services.AddScoped<IWorkloadBackend, AgentBackend>();

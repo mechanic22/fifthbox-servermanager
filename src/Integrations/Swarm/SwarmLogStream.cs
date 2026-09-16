@@ -21,8 +21,7 @@ public sealed class SwarmLogStream(IDockerClient client) : IWorkloadLogStream
             yield break;
         }
 
-        // Whether the payload carries the 8-byte stdout/stderr framing depends on how the service was
-        // created, so ask rather than assume — guessing wrong throws "unknown stream type".
+        // ask about TTY, guessing the framing wrong throws "unknown stream type"
         var tty = service.Spec?.TaskTemplate?.ContainerSpec?.TTY ?? false;
 
         using var stream = await client.Swarm.GetServiceLogsAsync(service.ID, tty, new ServiceLogsParameters
@@ -31,7 +30,7 @@ public sealed class SwarmLogStream(IDockerClient client) : IWorkloadLogStream
             ShowStderr = true,
             Timestamps = true,
             Follow = true,
-            // The page fetched its history over HTTP before subscribing, so this carries only what's new.
+            // history already came over HTTP, only stream what's new
             Tail = "0",
         }, ct);
 

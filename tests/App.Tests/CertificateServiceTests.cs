@@ -36,8 +36,7 @@ public class CertificateServiceTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    /// Reversible stand-in for AES — and, like the real thing, it refuses anything it didn't produce,
-    /// which is what a database restored without its encryption key looks like.
+    /// refuses anything it didn't produce, like a db restored without its key
     private sealed class PassthroughProtector : ISecretProtector
     {
         public string Protect(string plaintext) => $"enc:{plaintext}";
@@ -115,7 +114,7 @@ public class CertificateServiceTests
         var routes = new Mock<IRouteRepository>();
         routes.Setup(r => r.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
-        // HTTP-01 validates by fetching from the hostname, so nginx has to be serving it already.
+        // HTTP-01 fetches from the hostname, so nginx has to be serving it already
         await Assert.ThrowsExactlyAsync<ValidationException>(() =>
             Build(repo, routes: routes).EnableAsync("app.example.com"));
 
@@ -131,8 +130,7 @@ public class CertificateServiceTests
         var thrown = await Assert.ThrowsExactlyAsync<ValidationException>(() =>
             Build(repo, acme, WithRoute("dev-01.local")).EnableAsync("dev-01.local"));
 
-        // The CA would refuse it anyway ("does not end with a valid public suffix"), leaving a Failed
-        // row and a burned order behind.
+        // the CA would refuse it anyway and leave a Failed row and a burned order
         StringAssert.Contains(thrown.Errors[nameof(EnableHttpsRequest.Hostname)].Single(), ".local");
         repo.Verify(r => r.AddAsync(It.IsAny<Certificate>(), It.IsAny<CancellationToken>()), Times.Never);
         acme.Verify(a => a.IssueAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -150,8 +148,7 @@ public class CertificateServiceTests
 
         var overview = await Build(Repo(), routes: routes).OverviewAsync();
 
-        // The page offers Enable off this flag, so a hostname that can never get one says so instead
-        // of failing after the click.
+        // the page offers Enable off this flag, so say so up front instead of failing after the click
         StringAssert.Contains(overview.Hosts.Single(h => h.Hostname == "dev-01.local").IssuanceBlockedReason, ".local");
         Assert.IsNull(overview.Hosts.Single(h => h.Hostname == "app.example.com").IssuanceBlockedReason);
     }
@@ -187,8 +184,7 @@ public class CertificateServiceTests
 
         var changed = await Build(repo, Failing("connection refused")).IssueDueAsync();
 
-        // ~20 days of daily retries remain. Dropping the site to HTTP over one transient CA failure
-        // would be a self-inflicted outage.
+        // ~20 days of retries left, dropping to http over one flaky CA call is a self-inflicted outage
         Assert.AreEqual(0, changed);
         Assert.AreEqual(CertificateStatus.Valid, existing.Status);
         Assert.AreEqual("-----BEGIN CERTIFICATE-----old", existing.PemChain);
@@ -203,8 +199,7 @@ public class CertificateServiceTests
 
         await Build(repo, Failing()).IssueDueAsync();
 
-        // The generator only emits ssl_certificate for Valid rows, so this drops back to plain HTTP
-        // rather than serving a certificate every browser rejects.
+        // generator only emits ssl_certificate for Valid rows, so this drops to plain http instead of a bad cert
         Assert.AreEqual(CertificateStatus.Failed, expired.Status);
     }
 
@@ -241,8 +236,7 @@ public class CertificateServiceTests
 
         await Build(repo).IssueDueAsync();
 
-        // Enabling HTTPS is always an operator's decision — a job that could enable it would issue for
-        // hostnames nobody asked about.
+        // enabling https is always the operator's call, a job doing it would issue for hosts nobody asked about
         repo.Verify(r => r.AddAsync(It.IsAny<Certificate>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -277,7 +271,7 @@ public class CertificateServiceTests
 
         var overview = await Build(repo, routes: routes).OverviewAsync();
 
-        // The hostnames without HTTPS are the whole point of the page — they're what you'd enable.
+        // hosts without https are what you'd enable, so they have to be listed
         CollectionAssert.AreEqual(
             new[] { "app.example.com", "plain.example.com" },
             overview.Hosts.Select(h => h.Hostname).ToArray());
@@ -295,7 +289,7 @@ public class CertificateServiceTests
 
         var overview = await Build(repo, routes: routes).OverviewAsync();
 
-        // Otherwise it's invisible and un-disableable — a private key nobody can see or delete.
+        // otherwise it's a private key nobody can see or delete
         Assert.AreEqual("orphan.example.com", overview.Hosts.Single().Hostname);
         Assert.AreEqual(0, overview.Hosts.Single().RouteCount);
     }
@@ -349,8 +343,7 @@ public class CertificateServiceTests
 
         var installable = await Build(repo).InstallableAsync();
 
-        // An expired row can still say Valid if nothing has retried it yet (the Host was off). Serving
-        // it would hand every visitor a certificate error; dropping to HTTP at least works.
+        // an expired row can still say Valid if nothing retried it (host was off), http beats a cert error
         Assert.IsEmpty(installable);
     }
 
@@ -364,8 +357,7 @@ public class CertificateServiceTests
 
         var installable = await Build(repo).InstallableAsync();
 
-        // Restored database, different Platform:Encryption:Key. Skipping one keeps the edge deployable
-        // for everything else rather than failing the whole apply; renewal re-issues the odd one out.
+        // restored db with a different encryption key, skip that one so the rest of the edge still deploys
         Assert.AreEqual("good.example.com", installable.Single().Hostname);
     }
 

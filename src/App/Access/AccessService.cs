@@ -8,12 +8,10 @@ public interface IAccessService
 {
     Task<IReadOnlyList<AccessGrantResponse>> ListAsync(CancellationToken ct = default);
 
-    /// Everyone who can reach one group or workload: grants on it, plus grants on any group above it,
-    /// which reach it by inheritance.
+    /// grants on it plus grants on any group above it
     Task<IReadOnlyList<AccessGrantResponse>> ListForTargetAsync(AccessScope scope, string targetId, CancellationToken ct = default);
 
-    /// Upserts one grant. Returns null when the request removed it (level None) — there's nothing left
-    /// to describe.
+    /// null when level None removed the grant
     Task<AccessGrantResponse?> SetAsync(SetAccessGrantRequest request, CancellationToken ct = default);
 
     Task RemoveAsync(string id, CancellationToken ct = default);
@@ -184,8 +182,7 @@ public sealed class AccessService(
             var team = await teams.FindByIdAsync(subject.Id, ct)
                 ?? throw new ValidationException(nameof(SetAccessGrantRequest.SubjectId), "Team not found.");
 
-            // No admin check here, unlike a user grant: an admin member simply gains nothing from the
-            // team, and the roster is worth keeping intact across a promotion.
+            // no admin check unlike user grants, keeps the roster intact across a promotion
             return team.Name;
         }
 

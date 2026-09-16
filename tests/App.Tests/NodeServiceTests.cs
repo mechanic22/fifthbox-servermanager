@@ -57,8 +57,7 @@ public class NodeServiceTests
     [TestMethod]
     public async Task A_source_that_cannot_answer_does_not_empty_the_list()
     {
-        // Before the cluster is bootstrapped the swarm source always throws; the agents still exist and
-        // still have to show up.
+        // the swarm source always throws before bootstrap, agents still have to show up
         var svc = Build([FailingSource(), Source(Agent("agent-1"))]);
 
         var nodes = await svc.ListAsync();
@@ -115,8 +114,7 @@ public class NodeServiceTests
     [TestMethod]
     public async Task The_node_we_reach_docker_through_cannot_be_demoted()
     {
-        // Demoting it would leave ServerManager connected to a worker, which answers no manager calls —
-        // the cluster keeps running and nothing here can touch it again.
+        // demoting it leaves ServerManager talking to a worker, which can't answer manager calls
         var svc = Build([Source(Swarm("n1", NodeRole.Manager), Swarm("n2", NodeRole.Manager))], localNodeId: "n1");
 
         await Assert.ThrowsExactlyAsync<ConflictException>(() => svc.SetRoleAsync("n1", NodeRole.Worker));
@@ -136,7 +134,7 @@ public class NodeServiceTests
     [TestMethod]
     public async Task A_reachable_node_is_not_removed()
     {
-        // docker node rm on a live node needs --force and leaves it believing it is still a member.
+        // docker node rm on a live node needs --force and it still thinks it's a member
         var svc = Build([Source(Swarm("n1"))]);
 
         await Assert.ThrowsExactlyAsync<ConflictException>(() => svc.RemoveAsync("n1"));

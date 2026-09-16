@@ -1,7 +1,3 @@
-@* A web address and published ports are independent — either, both, or neither. The address is only
-   offered at create: after that it's a route like any other and the Routes tab owns it. Nothing here
-   asks which node: a host-bound port is a node resource, so swarm spreads the replicas itself. *@
-
 <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
     <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Networking</h2>
 
@@ -39,10 +35,9 @@
     [Parameter, EditorRequired] public required WorkloadFormModel Model { get; set; }
     [Parameter] public bool Busy { get; set; }
 
-    /// The platform's root domain, so the form can show the address a web app would earn.
     [Parameter] public string? RootDomain { get; set; }
 
-    /// Only create offers an address: there's no Routes tab yet. Afterwards it's a route like any other.
+    /// create only, after that the address is just a route
     [Parameter] public bool AllowWebAddress { get; set; }
 
     private const string DetailCss = "flex flex-col gap-2 pl-12";
@@ -52,7 +47,7 @@
     private string AutoHostname() =>
         $"{(string.IsNullOrWhiteSpace(Model.Name) ? "<name>" : Slugify(Model.Name))}.{RootDomain}";
 
-    /// Mirrors the server's slug rule closely enough to preview the address.
+    /// mirrors the server's slug rule, only for the preview
     private static string Slugify(string value)
     {
         var separated = new string([.. value.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-')]);

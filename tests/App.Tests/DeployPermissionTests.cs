@@ -28,8 +28,7 @@ public class DeployPermissionTests
     [TestMethod]
     public void Operate_cannot_perform_the_first_deploy()
     {
-        // HasPendingChanges is false before anything has ever been deployed, so this is the case the
-        // hasRevision check exists for — the draft is unpublished, it just doesn't look like it.
+        // HasPendingChanges is false before the first deploy, which is why hasRevision exists
         Assert.IsFalse(DeployPermission.Allowed(AccessLevel.Operate, hasRevision: false, hasPendingChanges: false));
     }
 

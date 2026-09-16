@@ -2,8 +2,7 @@ using System.Text.Json;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// The agent's persisted identity after enrollment. The secret is a bearer credential — written to a
-/// file with owner-only permissions on Unix.
+/// the secret is a bearer credential, owner-only file on unix
 public sealed class AgentCredentials
 {
     public string AgentId { get; set; } = string.Empty;
@@ -39,7 +38,7 @@ public sealed class AgentCredentials
             }
             catch (Exception)
             {
-                // Best effort — permissions hardening isn't fatal.
+                // best effort
             }
         }
     }

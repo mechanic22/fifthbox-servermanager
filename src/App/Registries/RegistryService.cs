@@ -11,8 +11,6 @@ public interface IRegistryService
     Task DeleteAsync(string id, CancellationToken ct = default);
 }
 
-/// Manages private-registry credentials (CRUD) and resolves image → auth for pulls. Passwords are stored
-/// encrypted via ISecretProtector and never returned; decryption happens only in ResolveAsync.
 public sealed class RegistryService(
     IRegistryRepository registries,
     ISecretProtector protector,
@@ -52,7 +50,7 @@ public sealed class RegistryService(
         registry.Username = Require(request.Username, nameof(UpdateRegistryRequest.Username), "A username is required.");
         registry.Prefix = Blank(request.Prefix);
 
-        // Blank password on update = keep the existing one.
+        // blank password on update keeps the existing one
         if (!string.IsNullOrEmpty(request.Password))
         {
             registry.PasswordEnc = protector.Protect(request.Password);

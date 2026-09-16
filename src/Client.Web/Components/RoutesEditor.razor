@@ -1,5 +1,3 @@
-@* Route CRUD for one workload. The global Routes page is read-only — a route needs its workload's
-   context to be worth creating, so creation only happens here. Owns list + add/edit dialog + delete. *@
 @inject IRoutesClient RoutesApi
 @inject IWorkloadsClient WorkloadsApi
 @inject ITlsClient TlsApi
@@ -83,18 +81,14 @@
 </MaterialDialog>
 
 @code {
-    /// The workload these routes belong to. Every route created here attaches to it.
     [Parameter, EditorRequired] public required string WorkloadId { get; set; }
 
-    /// Raised after a create/update/delete so the host can refresh proxy status etc.
     [Parameter] public EventCallback OnChanged { get; set; }
 
-    /// Routes are admin-only to change. Read-only also means the admin-only route and TLS APIs are
-    /// never called — the list comes from the workload's own View-level endpoint instead.
+    /// also skips the admin-only route and TLS calls, the list comes from the workload's own endpoint
     [Parameter] public bool ReadOnly { get; set; }
 
-    /// The address this workload would have been given automatically, so adding one by hand isn't
-    /// retyping the convention.
+    /// prefills a new route with the default address
     [Parameter] public string? SuggestedHostname { get; set; }
     [Parameter] public int? SuggestedPort { get; set; }
 

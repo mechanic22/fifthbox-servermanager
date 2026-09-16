@@ -19,25 +19,21 @@ public interface IRouteService
     Task<RouteResponse> UpdateAsync(string id, UpdateRouteRequest request, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 
-    /// Take a route in or out of the generated config without changing its definition. The only thing
-    /// that writes Enabled — an ordinary edit must never flip it as a side effect.
+    /// the only writer of Enabled, a normal edit must never flip it
     Task<RouteResponse> SetEnabledAsync(string id, bool enabled, CancellationToken ct = default);
 
-    /// The nginx config for all current routes (no side effects).
+    /// no side effects
     Task<string> RenderConfigAsync(CancellationToken ct = default);
 
-    /// Deploy (or roll) the nginx edge service with the current routes' config. Returns its status.
+    /// deploys or rolls the nginx edge with the current routes
     Task<WorkloadRuntimeStatus> ApplyAsync(CancellationToken ct = default);
 
-    /// Observed status of the nginx edge service.
     Task<WorkloadRuntimeStatus> GetProxyStatusAsync(CancellationToken ct = default);
 
-    /// Status plus whether saved routes and certificates have reached the running edge.
+    /// status plus whether saved routes and certs have reached the running edge
     Task<ProxyStateResponse> GetProxyStateAsync(CancellationToken ct = default);
 }
 
-/// Manages routes (host/path → workload), renders the reverse-proxy config, and deploys the nginx edge
-/// service with it. Validates, keeps (host, path) unique, resolves workload ids to swarm service names.
 public sealed class RouteService(
     IRouteRepository routes,
     IWorkloadRepository workloads,
@@ -139,16 +135,13 @@ public sealed class RouteService(
     public async Task<string> RenderConfigAsync(CancellationToken ct = default)
         => (await BuildDesiredAsync(ct)).Config;
 
-    /// Everything the edge should be running: the config, one htpasswd per basic-auth route, and the
-    /// certificate material. Deploying and fingerprinting both read this, so they can't disagree about
-    /// what "current" means.
+    /// deploy and fingerprint both read this so they can't disagree on what's current
     private async Task<DesiredProxy> BuildDesiredAsync(CancellationToken ct)
     {
         var (routable, names) = await LoadRoutableAsync(ct);
 
-        // Only certificates the generator is given get an ssl_certificate line, and only those get their
-        // files mounted — one list drives both, so nginx can never be pointed at a file that isn't there.
-        // A missing ssl_certificate stops nginx starting at all, taking every other site down with it.
+        // one list drives both ssl_certificate lines and mounts
+        // a missing cert file stops nginx and every other site with it
         var installable = await certificates.InstallableAsync(ct);
         var config = reverseProxy.Render(ToConfigs(routable, names), [.. installable.Select(ToHostCertificate)]);
 
@@ -180,8 +173,7 @@ public sealed class RouteService(
 
     private sealed record DesiredProxy(string Config, List<ConfigMount> Mounts, List<SecretMount> Secrets, int RouteCount)
     {
-        /// Names and contents in order. The config alone would miss a renewed certificate or a changed
-        /// basic-auth password — the config only references those by path.
+        /// includes file contents, the config alone misses a renewed cert or changed password
         public string Fingerprint()
         {
             var payload = new StringBuilder();
@@ -212,14 +204,14 @@ public sealed class RouteService(
             Image = _proxy.Image,
             Mode = _proxy.OnEveryNode ? WorkloadMode.Global : WorkloadMode.Replicated,
             Replicas = 1,
-            // nginx listens on 80/443 inside the container whatever it's published as.
+            // nginx is 80/443 inside whatever it's published as
             Ports =
             [
                 new PortMapping(_proxy.HttpPort, ReverseProxyPorts.StandardHttp, PortProtocol.Tcp, PortPublishMode.Host),
                 new PortMapping(_proxy.HttpsPort, ReverseProxyPorts.StandardHttps, PortProtocol.Tcp, PortPublishMode.Host),
             ],
             Network = _network,
-            // A global edge places itself; pinning it as well would leave one node running it.
+            // global places itself, pinning too would leave it on one node
             PinToControlNode = !_proxy.OnEveryNode,
             Configs = mounts,
             Secrets = secrets,
@@ -229,7 +221,7 @@ public sealed class RouteService(
         var backend = backends.Resolve(WorkloadKind.Container);
         await backend.DeployAsync(deployment, ct);
 
-        // Recorded only after the deploy lands, so a failed apply keeps reporting pending changes.
+        // recorded only after the deploy lands so a failed apply still shows pending
         var row = await settings.GetAsync(ct) ?? new PlatformSettings();
         row.AppliedProxyHash = desired.Fingerprint();
         row.ProxyAppliedAt = clock.GetUtcNow();
@@ -238,9 +230,7 @@ public sealed class RouteService(
         return await backend.GetStatusAsync(deployment, ct);
     }
 
-    // Swarm mounts secrets by name under /run/secrets rather than at an arbitrary path, so the file name
-    // is what the config has to point at. Content-hashed object names change per renewal; these don't,
-    // which keeps the nginx config itself stable across one.
+    // swarm mounts secrets by name under /run/secrets, stable names keep the nginx config the same across renewals
     private static string CertificateFileName(string hostname) => $"cert-{hostname}.pem";
 
     private static string PrivateKeyFileName(string hostname) => $"key-{hostname}.pem";
@@ -258,7 +248,7 @@ public sealed class RouteService(
     {
         var all = await routes.ListAsync(ct);
         var names = await WorkloadNamesAsync(ct);
-        // External routes need no workload; workload routes only survive if theirs is still a container.
+        // external routes need no workload, workload routes need theirs to still be a container
         return (all.Where(r => r.Enabled
             && (r.Target == RouteTarget.External || (r.WorkloadId is not null && names.ContainsKey(r.WorkloadId))))
             .ToList(), names);
@@ -269,7 +259,7 @@ public sealed class RouteService(
         {
             Hostname = r.Hostname,
             Path = r.Path,
-            // Workload routes proxy to the namespaced swarm service, not the workload's own name.
+            // the namespaced swarm service, not the workload name
             UpstreamService = r.Target == RouteTarget.External
                 ? r.UpstreamHost!
                 : SwarmNaming.ServiceName(names[r.WorkloadId!]),
@@ -330,8 +320,7 @@ public sealed class RouteService(
         return new ProxyStateResponse
         {
             Status = status,
-            // With no record of an apply, there's drift only if there's something to serve — an empty
-            // platform shouldn't nag about an edge nobody needs yet.
+            // no apply on record only counts as drift if there's something to serve
             PendingChanges = row?.AppliedProxyHash is { Length: > 0 } applied
                 ? !string.Equals(applied, desired.Fingerprint(), StringComparison.Ordinal)
                 : desired.RouteCount > 0,
@@ -346,14 +335,13 @@ public sealed class RouteService(
     private async Task<Route> GetExistingAsync(string id, CancellationToken ct)
         => await routes.FindByIdAsync(id, ct) ?? throw new NotFoundException($"Route '{id}' not found.");
 
-    /// Container workloads only. nginx proxies to a swarm service name, so a route to anything else has
-    /// no resolvable upstream — and nginx refuses to start on one bad upstream, taking every site with it.
+    /// containers only, nginx won't start on one unresolvable upstream and takes every site down
     private async Task<Dictionary<string, string>> WorkloadNamesAsync(CancellationToken ct)
         => (await workloads.ListAsync(ct))
             .Where(w => w.Kind == WorkloadKind.Container)
             .ToDictionary(w => w.Id, w => w.Name);
 
-    /// Returns the validated (workloadId, upstreamHost) pair — exactly one is set, per the target.
+    /// exactly one of the pair is set, per target
     private async Task<(string? WorkloadId, string? UpstreamHost)> ValidateTargetAsync(
         RouteTarget target, string? workloadId, string? upstreamHost, CancellationToken ct)
     {
@@ -371,8 +359,7 @@ public sealed class RouteService(
         return (workloadId, null);
     }
 
-    /// A bare host or IP. It goes straight into proxy_pass, so anything that could carry a scheme, a
-    /// path, a port or a second directive is rejected rather than escaped.
+    /// goes straight into proxy_pass, so a scheme, path, port or extra directive is rejected, not escaped
     private static string ValidateUpstreamHost(string? host)
     {
         var value = (host ?? string.Empty).Trim();

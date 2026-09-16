@@ -2,9 +2,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// Compares the config we believe is deployed against what the backend is really holding. Anyone who
-/// knows docker will eventually run `docker service update` by hand, and without this the platform keeps
-/// reporting "in sync" while the Config tab describes something that isn't running.
+/// catches someone running docker service update by hand
 public static class SpecDrift
 {
     public static IReadOnlyList<string> Compare(WorkloadDeployment expected, DeployedSpec live)
@@ -28,9 +26,8 @@ public static class SpecDrift
 
         var ports = expected.Ports.SelectMany(PortKeys).ToList();
 
-        // Both, because they fail differently: the spec disagreeing means someone edited the service,
-        // and the containers disagreeing means an edit of ours never reached them. Running ports are
-        // only compared when the backend reports them at all.
+        // both, a spec mismatch means someone edited the service, a container mismatch means ours never landed
+        // running ports only compared when the backend reports them
         if (!SameSet(ports, live.Ports)
             || (live.RunningPorts.Count > 0 && !SameSet(ports, live.RunningPorts)))
         {
@@ -40,8 +37,7 @@ public static class SpecDrift
         return drifted;
     }
 
-    /// Swarm pins the tag it resolved, so a service created from "nginx:1.27" reads back as
-    /// "nginx:1.27@sha256:…", and an untagged image comes back tagged "latest".
+    /// swarm pins the digest ("nginx:1.27@sha256:…") and tags untagged images "latest"
     private static bool SameImage(string expected, string live)
         => string.Equals(Normalize(expected), Normalize(live), StringComparison.Ordinal);
 
@@ -49,12 +45,12 @@ public static class SpecDrift
     {
         var withoutDigest = image.Split('@', 2)[0];
 
-        // A colon in the last segment is a tag; one earlier is a registry port.
+        // a colon in the last segment is a tag, earlier it's a registry port
         var lastSegment = withoutDigest[(withoutDigest.LastIndexOf('/') + 1)..];
         return lastSegment.Contains(':') ? withoutDigest : $"{withoutDigest}:latest";
     }
 
-    /// One entry per protocol, matching how a Both mapping is published.
+    /// one entry per protocol, same as how Both gets published
     private static IEnumerable<string> PortKeys(PortMapping p)
     {
         var protocols = p.Protocol switch

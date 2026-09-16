@@ -12,11 +12,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage;
 
-/// <summary>
-/// The app's primary database. Owns the identity tables (mapping the FifthBox.Identity POCOs — they
-/// stay plain, EF configures them here) and the profile sidecar. Domain tables are added here as each
-/// Manager lands. Storage is the only component that touches this.
-/// </summary>
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<IdentityUser> Users => Set<IdentityUser>();
@@ -37,7 +32,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Identity POCOs mapped by the EF companion package; the app's own configs here.
         modelBuilder.ApplyFifthBoxIdentityConfigurations();
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }

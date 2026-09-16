@@ -5,9 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// Turns a stored workload into the shape a backend runs. One implementation on purpose: this used to be
-/// duplicated in AgentDesiredState, and the copy there forgot to decrypt secret env — so a workload with
-/// a secret got ciphertext, but only on the reconcile path.
+/// the one place this happens, a copy in AgentDesiredState once forgot to decrypt secret env
 public sealed class WorkloadDeploymentFactory(ISecretProtector protector, IOptions<ClusterOptions> clusterOptions)
 {
     private readonly string _network = clusterOptions.Value.OverlayNetwork;
@@ -85,8 +83,7 @@ public sealed class WorkloadDeploymentFactory(ISecretProtector protector, IOptio
     };
     public List<EnvVar> Decrypted(IEnumerable<EnvVar> env) =>
         env.Select(v => v.Secret ? v with { Value = protector.Unprotect(v.Value) } : v).ToList();
-    /// What the backend knows this workload as. Swarm services are namespaced; an agent keeps tracking
-    /// its processes by the plain name, and renaming those would orphan whatever is already running.
+    /// swarm services are namespaced, agents keep the plain name so running processes don't get orphaned
     public static string BackendName(Workload w) =>
         w.Kind == WorkloadKind.Container ? SwarmNaming.ServiceName(w.Name) : w.Name;
 }

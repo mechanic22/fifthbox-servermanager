@@ -4,8 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage;
 
-/// Snapshots the live database with SQLite's online backup API, which is safe to run while the app is
-/// writing, and manages the resulting files.
+/// sqlite online backup api, safe while the app is writing
 public sealed class SqliteBackupStore(AppDbContext db) : IBackupStore
 {
     public async Task<BackupFile> WriteAsync(string directory, string fileName, CancellationToken ct = default)

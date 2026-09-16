@@ -2,7 +2,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Web.Components;
 
-/// Flattens the group forest into a depth-annotated, hierarchy-ordered list for dropdowns.
 public static class GroupHierarchy
 {
     public static List<(WorkloadGroupResponse Group, int Depth)> Flatten(IReadOnlyList<WorkloadGroupResponse> groups)
@@ -31,6 +30,6 @@ public static class GroupHierarchy
         return result;
     }
 
-    /// Non-breaking-space indent so nesting reads in a plain <option>.
+    /// nbsp, plain spaces collapse in an <option>
     public static string Indent(int depth) => depth == 0 ? string.Empty : new string(' ', depth * 4);
 }

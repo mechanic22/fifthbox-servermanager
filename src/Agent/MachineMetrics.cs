@@ -4,8 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// What the agent can say about its own machine without per-OS code. Disk is read for the drive holding
-/// the workload root, because that is the one that fills up.
+/// disk is for the drive holding the workload root, that's the one that fills up
 public sealed class MachineMetrics(IOptions<AgentOptions> options)
 {
     private readonly string _root = options.Value.ResolvedRootPath;
@@ -28,7 +27,7 @@ public sealed class MachineMetrics(IOptions<AgentOptions> options)
     {
         try
         {
-            // The root may not exist until the first managed deploy, so walk up to something that does.
+            // root may not exist before the first managed deploy, walk up until something does
             var path = Path.GetFullPath(_root);
             while (!Directory.Exists(path) && Path.GetDirectoryName(path) is { Length: > 0 } parent)
             {

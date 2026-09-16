@@ -7,6 +7,6 @@ public enum WorkloadState
     Partial,
     Stopped,
 
-    /// Native only: the agent is acquiring this workload's files and won't run it until it's done.
+    /// native only, acquiring files and won't run until done
     Updating,
 }

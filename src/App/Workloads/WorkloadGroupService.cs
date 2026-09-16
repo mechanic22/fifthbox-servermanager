@@ -11,8 +11,7 @@ public interface IWorkloadGroupService
     Task<WorkloadGroupResponse> CreateAsync(Caller caller, CreateWorkloadGroupRequest request, CancellationToken ct = default);
     Task<WorkloadGroupResponse> RenameAsync(Caller caller, string id, UpdateWorkloadGroupRequest request, CancellationToken ct = default);
 
-    /// Deletes the group, reparenting its subgroups up to its own parent and ungrouping its direct
-    /// workloads. Nothing else is removed.
+    /// subgroups move up to its parent, direct workloads get ungrouped, nothing else is removed
     Task DeleteAsync(Caller caller, string id, CancellationToken ct = default);
 }
 
@@ -23,8 +22,7 @@ public sealed class WorkloadGroupService(
     IAccessGrantRepository accessGrants,
     TimeProvider clock) : IWorkloadGroupService
 {
-    /// Groups the caller can see, plus the ancestors that connect them to the root. Without those
-    /// ancestors a granted subgroup would orphan-parent to the top of the tree and lose its context.
+    /// includes ancestors so a granted subgroup doesn't float to the top of the tree
     public async Task<IReadOnlyList<WorkloadGroupResponse>> ListAsync(Caller caller, CancellationToken ct = default)
     {
         var map = await access.MapAsync(caller, ct);
@@ -101,7 +99,6 @@ public sealed class WorkloadGroupService(
         var all = await groups.ListAsync(ct);
         var group = all.FirstOrDefault(g => g.Id == id) ?? throw new NotFoundException($"Group '{id}' not found.");
 
-        // Reparent direct children up to the deleted group's own parent, then ungroup its direct workloads.
         foreach (var child in all.Where(g => g.ParentId == id))
         {
             child.ParentId = group.ParentId;
@@ -112,8 +109,7 @@ public sealed class WorkloadGroupService(
         await workloads.ClearGroupAsync(id, ct);
         await groups.RemoveAsync(group, ct);
 
-        // Drop the grants rather than reparenting them: moving a grant up to the deleted group's parent
-        // would silently widen it across every sibling subtree.
+        // drop grants rather than move them up, moving would widen them across sibling subtrees
         await accessGrants.RemoveForTargetAsync(AccessScope.Group, id, ct);
     }
 

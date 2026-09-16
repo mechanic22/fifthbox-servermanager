@@ -8,8 +8,7 @@ public class AgentPathsTests
     [TestMethod]
     public void A_relative_path_lands_next_to_the_executable()
     {
-        // As a Windows service the working directory is System32; anchoring to the exe is what keeps the
-        // credential file where the operator unzipped it — and stops a re-enroll on every restart.
+        // as a windows service cwd is System32, anchor to the exe or creds move and it re-enrolls every restart
         Assert.AreEqual(
             Path.Combine(Base, "agent-credentials.json"),
             AgentPaths.Resolve("agent-credentials.json", Base));

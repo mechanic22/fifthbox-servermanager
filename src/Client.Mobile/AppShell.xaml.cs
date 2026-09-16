@@ -8,7 +8,6 @@ public partial class AppShell : Shell
     {
         InitializeComponent();
 
-        // Pushed (non-root) routes. Login switches to "contacts"; a tapped contact pushes "capture".
         Routing.RegisterRoute("contacts", typeof(ContactsListPage));
         Routing.RegisterRoute("capture", typeof(ContactCapturePage));
     }

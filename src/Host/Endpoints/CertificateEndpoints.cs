@@ -7,9 +7,8 @@ public static class CertificateEndpoints
 {
     public static IEndpointRouteBuilder MapCertificateEndpoints(this IEndpointRouteBuilder app)
     {
-        // Let's Encrypt fetches this from the internet over plain port 80, unauthenticated — the token
-        // is the secret. An unknown token gets a bare 404 rather than ProblemDetails: the validation
-        // server only reads the status, and there's no reason to echo the token back.
+        // let's encrypt hits this anonymously over port 80, the token is the secret
+        // bare 404 on a miss, no ProblemDetails echoing the token back
         app.MapGet("/.well-known/acme-challenge/{token}", (string token, IAcmeChallengeStore challenges) =>
                 challenges.Resolve(token) is { } keyAuthorization
                     ? Results.Text(keyAuthorization, "text/plain")

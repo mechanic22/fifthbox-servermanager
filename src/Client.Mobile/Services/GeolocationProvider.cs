@@ -4,11 +4,6 @@ using Microsoft.Maui.Devices.Sensors;
 
 namespace FifthBox.ServerManager.Client.Mobile.Services;
 
-/// <summary>
-/// <see cref="ILocationProvider"/> over MAUI <see cref="Geolocation"/>. Thin adapter: request
-/// permission, ask for a medium-accuracy fix, map to the Core <see cref="DeviceLocation"/>. Returns
-/// <c>null</c> when permission is denied or no fix is available.
-/// </summary>
 public sealed class GeolocationProvider : ILocationProvider
 {
     public async Task<DeviceLocation?> GetCurrentAsync(CancellationToken ct = default)

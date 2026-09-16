@@ -1,6 +1,3 @@
-@* Saved routes and certificates don't reach traffic until the edge is redeployed. Without this the
-   only signal was a snackbar, so a disabled route looked off while it was still being served. Same
-   visual language as a workload's pending-changes card, for the same reason. *@
 @inject IRoutesClient RoutesApi
 @inject IMaterialSnackbarService Snackbar
 
@@ -21,10 +18,8 @@
 }
 
 @code {
-    /// Owned by the page, so one load serves both this and whatever else reads the edge's status.
     [Parameter] public ProxyStateResponse? State { get; set; }
 
-    /// Raised after a successful deploy so the page can refresh what it holds.
     [Parameter] public EventCallback OnApplied { get; set; }
 
     [Parameter] public string Message { get; set; } =

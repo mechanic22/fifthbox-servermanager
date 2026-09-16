@@ -5,12 +5,6 @@ using FifthBox.ServerManager.Shared.Users;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// <see cref="IAuthClient"/> for native (bearer) heads. Talks to <c>/api/auth/native/*</c>, persists
-/// the token pair via <see cref="ITokenStore"/>, and keeps <see cref="IAuthSession"/> in step. The
-/// <see cref="HttpClient"/> it's handed is composed with <see cref="BearerTokenHandler"/>, so once
-/// tokens are stored <see cref="GetCurrentUserAsync"/> just works.
-/// </summary>
 public sealed class NativeAuthClient(HttpClient http, ITokenStore store, IAuthSession session) : IAuthClient
 {
     public async Task LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -24,7 +18,7 @@ public sealed class NativeAuthClient(HttpClient http, ITokenStore store, IAuthSe
         var refresh = await store.GetRefreshTokenAsync(ct);
         if (!string.IsNullOrEmpty(refresh))
         {
-            // Best-effort server-side revoke; we clear locally regardless of the outcome.
+            // best effort revoke, we clear locally either way
             using var response = await http.PostAsJsonAsync("api/auth/native/revoke", new RefreshRequest { RefreshToken = refresh }, ct);
         }
 
@@ -66,8 +60,7 @@ public sealed class NativeAuthClient(HttpClient http, ITokenStore store, IAuthSe
         using var response = await http.GetAsync("api/auth/registration", ct);
         if (!response.IsSuccessStatusCode)
         {
-            // An older server, or one that's down. Assume closed: offering a path that 403s is worse
-            // than hiding one that would have worked.
+            // old or down server, assume registration is closed
             return new RegistrationInfoResponse();
         }
 

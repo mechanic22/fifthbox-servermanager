@@ -1,13 +1,9 @@
-@* The nav itself, so the sidebar and the small-screen drawer show the same thing rather than two
-   copies that drift. Admin areas are gated by the same AdminOnly policy the Host enforces. *@
-
 <nav class="flex-1 px-2 py-2 overflow-y-auto" @onclick="OnNavigate">
     <NavGroup Label="Overview">
         <NavItem Href="" Match="NavLinkMatch.All">Home</NavItem>
     </NavGroup>
 
-    @* NavGroup renders its label unconditionally, so a group whose every item is admin-only has to be
-       gated as a whole or a stray header is left behind. *@
+    @* NavGroup always renders its label, so gate the whole group or a stray header is left *@
     <AuthorizeView Policy="@AuthPolicies.AdminOnly" Context="a1">
         <NavGroup Label="Cluster">
             <NavItem Href="cluster">Cluster</NavItem>
@@ -15,8 +11,6 @@
         </NavGroup>
     </AuthorizeView>
 
-    @* The one group a non-admin can reach — what they see inside it is decided per application by
-       their granted level. *@
     <NavGroup Label="Applications">
         <NavItem Href="workloads">All applications</NavItem>
         <AuthorizeView Policy="@AuthPolicies.AdminOnly" Context="a2">
@@ -34,6 +28,5 @@
 </nav>
 
 @code {
-    /// Lets the drawer close itself when a link inside is taken.
     [Parameter] public EventCallback OnNavigate { get; set; }
 }

@@ -4,8 +4,7 @@ using DockerModels = Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm.Tests;
 
-/// The bulk sweep folds one service list and one task list into a status per service — the pass that
-/// catches replicas dying on nodes whose container events the Host never sees.
+/// catches replicas dying on nodes whose container events the Host never sees
 [TestClass]
 public class SwarmStatusMapperTests
 {
@@ -54,7 +53,7 @@ public class SwarmStatusMapperTests
     [TestMethod]
     public void Shut_down_task_history_is_not_counted()
     {
-        // A service restarted twice keeps its dead tasks. Counting them would report 3/1 running.
+        // a service restarted twice keeps its dead tasks, counting them would say 3/1
         var statuses = SwarmStatusMapper.Derive(
             [Service("s1", "fbsm--web", 1)],
             [
@@ -90,7 +89,6 @@ public class SwarmStatusMapperTests
     [TestMethod]
     public void A_service_with_no_tasks_at_all_is_partial_not_missing()
     {
-        // Deployed but nothing scheduled yet — it exists, so it must not read as NotDeployed.
         var statuses = SwarmStatusMapper.Derive([Service("s1", "fbsm--web", 1)], []);
 
         Assert.IsTrue(statuses["fbsm--web"].Deployed);
@@ -112,7 +110,7 @@ public class SwarmStatusMapperTests
     [TestMethod]
     public void Platform_and_foreign_services_are_still_returned()
     {
-        // Filtering by prefix is the caller's job — this maps whatever the daemon reports.
+        // prefix filtering is the caller's job
         var statuses = SwarmStatusMapper.Derive(
             [Service("s1", "fbsm-nginx", 1), Service("s2", "someone-elses", 1)],
             []);

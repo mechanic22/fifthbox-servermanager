@@ -50,7 +50,7 @@ public class AccessMapTests
             [Grant(AccessScope.Group, "top", AccessLevel.Configure), Grant(AccessScope.Group, "leaf", AccessLevel.View)],
             groups);
 
-        // Nearest-ancestor-wins would give View here; max keeps the broader Configure.
+        // nearest ancestor would give View, max keeps Configure
         Assert.AreEqual(AccessLevel.Configure, map.ForGroup("leaf"));
     }
 

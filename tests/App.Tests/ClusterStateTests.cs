@@ -45,7 +45,7 @@ public class ClusterStateTests
     [TestMethod]
     public void A_cluster_with_no_nodes_still_counts_as_observed()
     {
-        // Otherwise every read would re-fan-out forever against a swarm that genuinely has nothing.
+        // otherwise every read re-fans-out forever against a swarm that really is empty
         var state = new ClusterState();
 
         Assert.IsTrue(state.SetNodes([]));

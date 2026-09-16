@@ -20,8 +20,7 @@ public class PortProbeTests
     [TestMethod]
     public async Task A_udp_only_workload_is_unknown_rather_than_unreachable()
     {
-        // Plenty of game servers are UDP-only. An unanswered datagram looks exactly like a healthy quiet
-        // server, so reporting false here would be a lie the operator would learn to ignore.
+        // lots of game servers are udp only, and no reply looks just like a quiet healthy server
         Assert.IsNull(await PortProbe.ReachableAsync([Port(27015, PortProtocol.Udp)], CancellationToken.None));
     }
 

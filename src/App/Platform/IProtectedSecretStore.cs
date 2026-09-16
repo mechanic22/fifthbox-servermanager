@@ -1,17 +1,14 @@
 namespace FifthBox.ServerManager.App.Platform;
 
-/// A store that persists values encrypted with <c>ISecretProtector</c>. Every component holding one
-/// implements this so the key can be checked and rotated without anything else knowing what they are.
+/// anything holding ISecretProtector ciphertext implements this so the key can be checked and rotated
 public interface IProtectedSecretStore
 {
-    /// Named for what the secrets are, so a rotation failure says something useful.
+    /// shows in rotation errors, so name it for what the secrets are
     string Name { get; }
 
-    /// Any one stored ciphertext, or null if there are none — enough to test whether the configured key
-    /// still opens them.
+    /// any one ciphertext, enough to check the key still opens them
     Task<string?> SampleAsync(CancellationToken ct = default);
 
-    /// Pass every stored ciphertext through <paramref name="rewrite"/> and save. Building the new state
-    /// in memory before saving means a rewrite that throws leaves the store untouched.
+    /// builds the new state in memory first, a throwing rewrite leaves the store untouched
     Task RewriteAsync(Func<string, string> rewrite, CancellationToken ct = default);
 }

@@ -122,7 +122,7 @@ public class WorkloadGroupServiceTests
 
         await svc.DeleteAsync(Admin, "b");
 
-        Assert.AreEqual("p1", child.ParentId); // reparented up to b's parent
+        Assert.AreEqual("p1", child.ParentId);
         groups.Verify(g => g.UpdateAsync(It.Is<WorkloadGroup>(x => x.Id == "c" && x.ParentId == "p1"), It.IsAny<CancellationToken>()), Times.Once);
         workloads.Verify(w => w.ClearGroupAsync("b", It.IsAny<CancellationToken>()), Times.Once);
         groups.Verify(g => g.RemoveAsync(It.Is<WorkloadGroup>(x => x.Id == "b"), It.IsAny<CancellationToken>()), Times.Once);
@@ -173,7 +173,7 @@ public class WorkloadGroupServiceTests
 
         var list = await svc.ListAsync(Friend);
 
-        // acme is granted; clients only comes along so acme still nests under it; internal is absent.
+        // acme is granted, clients only comes along so acme still nests, internal is hidden
         CollectionAssert.AreEquivalent(new[] { "acme", "clients" }, list.Select(g => g.Id).ToArray());
         Assert.AreEqual(AccessLevel.Operate, list.Single(g => g.Id == "acme").Access);
         Assert.AreEqual(AccessLevel.None, list.Single(g => g.Id == "clients").Access);
@@ -193,7 +193,7 @@ public class WorkloadGroupServiceTests
 
         var group = (await svc.ListAsync(Friend)).Single();
 
-        // Counting all of them would tell a client exactly how much they can't see.
+        // counting all of them tells a client how much they can't see
         Assert.AreEqual(1, group.WorkloadCount);
         Assert.AreEqual(AccessLevel.None, group.Access);
     }
@@ -205,7 +205,7 @@ public class WorkloadGroupServiceTests
 
         await svc.DeleteAsync(Admin, "g1");
 
-        // Dropped rather than reparented — moving them up would widen them across every sibling subtree.
+        // dropped, not reparented, moving them up would widen them across sibling subtrees
         grants.Verify(g => g.RemoveForTargetAsync(AccessScope.Group, "g1", It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -13,11 +13,8 @@ public interface IWorkloadFileService
     Task WriteAsync(Caller caller, string id, string path, string text, CancellationToken ct = default);
 }
 
-/// Browsing and editing the files of a workload the agent installed. Deliberately not routed through
-/// IWorkloadBackend: a container's files live in a volume the manager can't reach from here, which is a
-/// different mechanism entirely, so pretending both fit one port would buy nothing.
-///
-/// Configure, not Operate — a game server's config directory holds its passwords.
+/// not on IWorkloadBackend, container files live in a volume we can't reach from here
+/// needs Configure not Operate, game server configs hold passwords
 public sealed class WorkloadFileService(WorkloadLoader loader, IAgentCommandChannel agents) : IWorkloadFileService
 {
     public async Task<IReadOnlyList<WorkloadFileEntry>> ListAsync(Caller caller, string id, string? path, CancellationToken ct = default)

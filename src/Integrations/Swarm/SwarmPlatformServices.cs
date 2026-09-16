@@ -6,8 +6,6 @@ using FifthBox.ServerManager.Shared.Platform;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Lists ServerManager's platform-labelled swarm services (nginx, later letsencrypt) and bounces them via
-/// force-update. Thin Docker adapter — state derivation reuses WorkloadSpecMapper.
 public sealed class SwarmPlatformServices(IDockerClient client) : IPlatformServices
 {
     public async Task<IReadOnlyList<PlatformServiceResponse>> ListAsync(CancellationToken ct = default)

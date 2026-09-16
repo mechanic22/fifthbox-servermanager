@@ -2,8 +2,7 @@ namespace FifthBox.ServerManager.App.Workloads;
 
 public static class GroupChain
 {
-    /// The group, then each ancestor, nearest first. Stops on a missing parent or a repeat — ParentId
-    /// has no cycle check anywhere, so a hand-edited row must not spin here.
+    /// nearest first, stops on a missing parent or a repeat since ParentId has no cycle check
     public static IEnumerable<string> SelfAndAncestors(string? groupId, IReadOnlyDictionary<string, WorkloadGroup> byId)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);

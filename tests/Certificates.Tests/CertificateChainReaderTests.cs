@@ -37,8 +37,7 @@ public class CertificateChainReaderTests
 
         var (_, notAfter) = CertificateChainReader.Validity(chain);
 
-        // Renewal is scheduled off this. Reading the intermediate would push the next attempt a decade
-        // out — the site would simply stop working three months in with nothing having looked wrong.
+        // renewal is scheduled off this, the intermediate would push it a decade out and the site dies in three months
         Assert.AreEqual(leafExpiry, notAfter);
     }
 

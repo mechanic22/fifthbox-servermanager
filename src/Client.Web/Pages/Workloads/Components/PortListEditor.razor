@@ -38,7 +38,7 @@
     [Parameter] public List<PortRow> Ports { get; set; } = [];
     [Parameter] public bool Disabled { get; set; }
 
-    /// Native workloads bind one port directly — there is no container port to map onto.
+    /// native binds one port directly, no container port to map
     [Parameter] public bool SinglePort { get; set; }
 
     private static readonly PortProtocol[] Protocols = [PortProtocol.Both, PortProtocol.Tcp, PortProtocol.Udp];

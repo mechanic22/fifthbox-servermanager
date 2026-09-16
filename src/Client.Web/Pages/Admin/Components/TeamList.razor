@@ -1,4 +1,3 @@
-@* Teams: the roster a grant can be given to instead of naming people one at a time. *@
 @using FifthBox.ServerManager.Shared.Teams
 @using FifthBox.ServerManager.Shared.Users
 @inject ITeamsClient TeamsApi
@@ -60,7 +59,6 @@
                        Message="@DeleteMessage()" ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteConfirmedAsync" />
 
 @code {
-    /// Every account, for the member picker. Owned by the page so both tabs read one list.
     [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
 
     private IReadOnlyList<TeamResponse>? _teams;

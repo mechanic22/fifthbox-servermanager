@@ -1,5 +1,4 @@
-@* Creating an account. The EditForm wraps the whole dialog rather than sitting inside it, so the
-   Create button in the action bar is still a real submit and the annotations still run. *@
+@* EditForm wraps the whole dialog so the action bar's Create is still a real submit *@
 @using System.ComponentModel.DataAnnotations
 @inject IAdminClient AdminApi
 @inject IMaterialSnackbarService Snackbar
@@ -47,7 +46,7 @@
     private bool _busy;
     private FormModel _model = new();
 
-    /// Called by the parent before opening, so a cancelled attempt doesn't come back half-typed.
+    /// call before opening, clears a cancelled attempt
     public void Reset() => _model = new FormModel();
 
     private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
@@ -57,9 +56,7 @@
         _busy = true;
         try
         {
-            // Email doubles as the login identifier, matching the self-service flow. Assigning the
-            // admin role here is how you mint another admin — the role travels to the new user's
-            // claims exactly like the bootstrap admin's does.
+            // email is the login name, same as self-service
             await AdminApi.CreateUserAsync(new CreateUserRequest
             {
                 UserName = _model.Email,

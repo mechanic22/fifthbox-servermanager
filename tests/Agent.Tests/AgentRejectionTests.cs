@@ -9,8 +9,7 @@ public class AgentRejectionTests
     [TestMethod]
     public void The_hosts_rejection_is_recognised_by_the_agent()
     {
-        // Both ends of this contract are in different projects, so the round-trip is the thing worth
-        // asserting — a reworded message on one side must not silently stop the other side reacting.
+        // the two ends live in different projects, so a reworded message can't quietly break the other side
         var thrown = new HubException(AgentRejection.Message("this agent is not enrolled here."));
 
         Assert.IsTrue(AgentRejection.IsRejection(thrown));
@@ -19,7 +18,6 @@ public class AgentRejectionTests
     [TestMethod]
     public void An_ordinary_disconnect_is_not_a_rejection()
     {
-        // The agent must keep reconnecting through these; only a refused credential is terminal.
         Assert.IsFalse(AgentRejection.IsRejection(new IOException("The remote party closed the connection.")));
         Assert.IsFalse(AgentRejection.IsRejection(new TaskCanceledException("A task was canceled.")));
     }

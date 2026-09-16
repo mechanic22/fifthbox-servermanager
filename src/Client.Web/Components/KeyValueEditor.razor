@@ -1,4 +1,4 @@
-@* TODO: promote to FifthBox.MaterialComponents.Blazor — a generic key/value list editor with a bulk-edit toggle. *@
+@* TODO: promote to FifthBox.MaterialComponents.Blazor *@
 
 <div class="flex flex-col gap-2">
     @if (AllowBulk)
@@ -8,8 +8,7 @@
 
     @if (_bulk)
     {
-        @* Wrapper is owned by this component so its scope attribute carries the ::deep rule (see .razor.css)
-           into MaterialInput's inner textarea — a plain class on MaterialInput lands on its container. *@
+        @* the wrapper carries the ::deep rule into the textarea, a class on MaterialInput lands on its container *@
         <div class="mono-field mt-4">
             <MaterialInput Value="_bulkText" ValueChanged="@((string? text) => ParseBulk(text))"
                            Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Multiline Rows="6" Label="@BulkLabel"
@@ -52,7 +51,7 @@
 </div>
 
 @code {
-    // The eye is the only affordance left for "this is a secret", so the label has to live on the button.
+    // the eye is the only secret hint, so the label goes on the button
     private RenderFragment SecretToggle(int index) => @<MaterialIconButton
         Size="MaterialSize.Small"
         IconPath="@(Items[index].Secret ? MaterialIcons.VisibilityOn : MaterialIcons.VisibilityOff)"
@@ -82,13 +81,12 @@
         _bulk = on;
     }
 
-    // Bulk edits flow straight into Items (mutated in place so the parent sees them).
+    // mutates Items in place so the parent sees it
     private void ParseBulk(string? text)
     {
         _bulkText = text ?? string.Empty;
 
-        // Parsing rebuilds every row from scratch, so carry the secret flags over by key — otherwise a
-        // secret comes back as a plain var and saving stores it unencrypted.
+        // carry secret flags over by key or a secret comes back plain and saves unencrypted
         var secrets = Items.Where(x => x.Secret).Select(x => x.Key).ToHashSet();
 
         Items.Clear();

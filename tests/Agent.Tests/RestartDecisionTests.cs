@@ -99,8 +99,7 @@ public class RestartDecisionTests
     [TestMethod]
     public void A_recovered_workload_gets_the_whole_budget_back()
     {
-        // The point of the reset: at the cap, the same exit that would have been given up on restarts
-        // again — and does it on the base delay, not the capped one.
+        // after the reset the exit that was given up on restarts again, on the base delay not the capped one
         var givenUp = RestartDecision.Decide(RestartPolicy.Always, 1, false, RestartDecision.MaxAttempts);
         Assert.IsFalse(givenUp.Restart);
 

@@ -33,8 +33,7 @@ public partial class LoginPage : ContentPage
         }
         catch (Exception ex)
         {
-            // Never fail silently — anything that isn't a clean API error (network, storage,
-            // navigation) still needs to reach the user.
+            // catch-all so network/storage/nav failures still reach the user
             ErrorLabel.Text = $"Sign-in failed: {ex.Message}";
             ErrorLabel.IsVisible = true;
         }

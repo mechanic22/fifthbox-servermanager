@@ -1,7 +1,5 @@
 namespace FifthBox.ServerManager.App.Platform;
 
-/// Shape of the managed install, bound from the "HostDeployment" config section. Defaults are the
-/// documented install, so nothing needs configuring unless you deviate from it.
 public sealed class HostDeploymentOptions
 {
     public string ServiceName { get; set; } = "fbsm-host";
@@ -11,10 +9,9 @@ public sealed class HostDeploymentOptions
     public int PublishedPort { get; set; } = 5080;
     public int ContainerPort { get; set; } = 8080;
 
-    /// Matches Cluster:OverlayNetwork — the managed install joins it so nginx can resolve the Host.
+    /// must match Cluster:OverlayNetwork so nginx can resolve the Host
     public string OverlayNetwork { get; set; } = "fbsm-overlay";
 
-    /// Name of the plain container started by the documented `docker run` — removed as part of the
-    /// handover so two Hosts never share the socket and database.
+    /// the documented docker run container, removed on handover so two Hosts never share the socket and db
     public string UnmanagedContainerName { get; set; } = "fbsm-host";
 }

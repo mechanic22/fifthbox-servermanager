@@ -4,8 +4,7 @@ namespace FifthBox.ServerManager.Host.Composition;
 
 public sealed class HostProcessInfo : IHostProcessInfo
 {
-    /// Populated from `--env FBSM_SERVICE_NAME='{{.Service.Name}}'`, which swarm expands per task. It
-    /// can only be present when running as a service, so no container introspection is needed.
+    /// from --env FBSM_SERVICE_NAME='{{.Service.Name}}', swarm fills it in per task. null outside swarm
     public string? SwarmServiceName
     {
         get

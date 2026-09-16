@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Registries;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// Typed HTTP client for private Docker registry credentials.
 public interface IRegistriesClient
 {
     Task<IReadOnlyList<RegistryResponse>> ListAsync(CancellationToken ct = default);

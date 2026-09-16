@@ -3,10 +3,6 @@ using FifthBox.ServerManager.Shared.Cluster;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for cluster status and lifecycle. Reads ProblemDetails on failure and throws
-/// <see cref="ApiException"/> — so a non-admin's 403 on join/bootstrap surfaces as a friendly message.
-/// </summary>
 public interface IClusterClient
 {
     Task<ClusterStatusResponse> GetStatusAsync(CancellationToken ct = default);

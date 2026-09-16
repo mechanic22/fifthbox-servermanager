@@ -5,10 +5,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for workload definitions. Reads ProblemDetails on failure and throws
-/// <see cref="ApiException"/> with a user-safe message (validation errors surface as their text).
-/// </summary>
 public interface IWorkloadsClient
 {
     Task<IReadOnlyList<WorkloadResponse>> ListAsync(CancellationToken ct = default);
@@ -21,10 +17,10 @@ public interface IWorkloadsClient
     Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(CancellationToken ct = default);
     Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(string id, int tail = 200, CancellationToken ct = default);
 
-    /// This workload's routes only. Works for a granted non-admin, unlike listing every route.
+    /// just this workload's routes, works for a granted non-admin
     Task<IReadOnlyList<RouteResponse>> GetRoutesAsync(string id, CancellationToken ct = default);
 
-    /// <summary>Agents this workload could move to. Needs Configure on the workload.</summary>
+    /// needs Configure on the workload
     Task<IReadOnlyList<AgentResponse>> GetMoveTargetsAsync(string id, CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> DeployAsync(string id, CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> ScaleAsync(string id, int replicas, CancellationToken ct = default);
@@ -32,13 +28,11 @@ public interface IWorkloadsClient
     Task<WorkloadRuntimeStatus> StartAsync(string id, CancellationToken ct = default);
     Task StopAsync(string id, CancellationToken ct = default);
 
-    /// Send one line to a native workload's console.
     Task SendConsoleAsync(string id, string text, CancellationToken ct = default);
 
-    /// Start fetching a native workload's files. Returns once the acquire has started, not finished.
+    /// fetches a native workload's files, returns once it's started, not finished
     Task<WorkloadRuntimeStatus> UpdateAsync(string id, CancellationToken ct = default);
 
-    /// Browse and edit the files under a managed workload's directory.
     Task<IReadOnlyList<WorkloadFileEntry>> ListFilesAsync(string id, string? path, CancellationToken ct = default);
     Task<WorkloadFileContent> ReadFileAsync(string id, string path, CancellationToken ct = default);
     Task WriteFileAsync(string id, string path, string text, CancellationToken ct = default);

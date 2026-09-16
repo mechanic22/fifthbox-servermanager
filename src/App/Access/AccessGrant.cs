@@ -2,8 +2,7 @@ using FifthBox.ServerManager.Shared.Access;
 
 namespace FifthBox.ServerManager.App.Access;
 
-/// One user's or one team's access to one group or one workload. At most one row per
-/// (subject, scope, target); a re-grant updates the level rather than adding a second row.
+/// one row per (subject, scope, target), a re-grant updates the level
 public class AccessGrant
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("n");

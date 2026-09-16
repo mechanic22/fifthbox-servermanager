@@ -3,14 +3,9 @@ using FifthBox.Identity.AspNetCore;
 
 namespace FifthBox.ServerManager.Host.Infrastructure;
 
-/// <summary>
-/// Wires up the app's auth. The dual cookie + JWT bearer scheme comes from
-/// <c>FifthBox.Identity.AspNetCore</c>; this wrapper feeds it the config values (cookie name, JWT) and
-/// registers the external providers we use. Google only shows up when it's configured.
-/// </summary>
 public static class AuthenticationSetup
 {
-    /// <summary>Temp cookie holding the external provider result during the OAuth callback.</summary>
+    /// temp cookie holding the provider result during the oauth callback
     public const string ExternalScheme = IdentityAuthenticationExtensions.DefaultExternalScheme;
 
     public static IServiceCollection AddAppAuthentication(this IServiceCollection services, IConfiguration configuration)
@@ -27,8 +22,7 @@ public static class AuthenticationSetup
             options.ExternalScheme = ExternalScheme;
             options.Jwt = jwt;
 
-            // Escape hatch for a host without TLS yet. The session cookie travels in the clear when
-            // this is on, so it belongs on a LAN box or a first deployment, never on anything public.
+            // for a box without tls yet. cookie goes in the clear, never turn on for anything public
             options.AllowInsecureCookies = configuration.GetValue("Identity:AllowInsecureCookies", false);
 
             if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))

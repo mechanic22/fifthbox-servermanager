@@ -4,9 +4,7 @@ namespace FifthBox.ServerManager.Integrations.Certificates;
 
 public static class CertificateChainReader
 {
-    /// The validity window of the leaf — the first certificate in the PEM chain. Renewal is scheduled
-    /// off this, so reading the wrong element (an intermediate outlives the leaf by years) would mean
-    /// never renewing until the site was already broken.
+    /// the leaf (first cert). an intermediate outlives it by years and we'd never renew
     public static (DateTimeOffset NotBefore, DateTimeOffset NotAfter) Validity(string pemChain)
     {
         if (string.IsNullOrWhiteSpace(pemChain))

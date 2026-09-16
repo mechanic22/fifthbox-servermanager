@@ -34,7 +34,7 @@ public class CertificateRenewalTests
     [TestMethod]
     public void A_valid_row_with_no_expiry_is_due_rather_than_ignored()
     {
-        // Nothing should produce this, but treating unknown as "never renew" would silently strand it.
+        // shouldn't happen, but treating unknown as never-renew would strand it
         Assert.IsTrue(CertificateRenewal.IsDue(new Certificate { Status = CertificateStatus.Valid }, Now, 30));
     }
 }

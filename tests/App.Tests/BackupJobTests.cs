@@ -62,7 +62,7 @@ public class BackupJobTests
         backups.Verify(b => b.CreateAndPruneAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // The runner's last-run state dies with the process, so a restart re-runs every job immediately.
+    // the runner forgets last-run on restart, so without this every job re-runs right away
     [TestMethod]
     public async Task Skips_a_restart_that_lands_inside_the_interval()
     {

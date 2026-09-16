@@ -3,15 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace FifthBox.ServerManager.Eventing;
 
-/// Raises events to their handlers. Components publish through this and never touch a broker. The
-/// implementation is in-process today; a broker can replace it without changing publishers.
 public interface IEventPublisher
 {
     Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default) where TEvent : class;
 }
 
-/// Resolves every IEventHandler&lt;TEvent&gt; in a fresh scope and invokes them in turn. A handler that
-/// throws is logged and skipped — one bad reaction never breaks the publish or the other handlers.
+/// a throwing handler gets logged and skipped, it never breaks the publish
 public sealed class InProcessEventPublisher(IServiceScopeFactory scopeFactory, ILogger<InProcessEventPublisher> logger)
     : IEventPublisher
 {

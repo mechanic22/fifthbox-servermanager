@@ -20,8 +20,7 @@ public class WorkloadSecretTests
 {
     private static readonly Caller Admin = new("admin", IsAdmin: true);
 
-    /// Reversible, and a fresh nonce every call — the property that makes re-encrypting an unchanged
-    /// secret look like a config change if the service gets it wrong.
+    /// fresh nonce every call, so re-encrypting an unchanged secret shows up as a config change
     private sealed class ReversibleProtector : ISecretProtector
     {
         private int _nonce;
@@ -129,9 +128,7 @@ public class WorkloadSecretTests
     [TestMethod]
     public async Task Saving_twice_without_touching_a_secret_leaves_no_pending_changes()
     {
-        // The regression this guards: re-encrypting an unchanged secret on every save produces new
-        // ciphertext, so the signature drifts from the deployed revision and the UI claims a pending
-        // change that the operator never made.
+        // regression: re-encrypting an unchanged secret on save drifted the signature and faked a pending change
         var (svc, repo, _) = Build();
         Workload? saved = null;
         repo.Setup(r => r.AddAsync(It.IsAny<Workload>(), It.IsAny<CancellationToken>()))

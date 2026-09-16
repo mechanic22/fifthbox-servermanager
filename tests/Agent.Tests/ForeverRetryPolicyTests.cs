@@ -9,8 +9,7 @@ public class ForeverRetryPolicyTests
     [TestMethod]
     public void It_never_gives_up()
     {
-        // The whole point: the default policy returns null after four attempts, and a supervisor that
-        // stopped trying looks exactly like one that is fine.
+        // the default policy gives up after four tries, and a supervisor that quit looks just like a healthy one
         var policy = new ForeverRetryPolicy();
 
         foreach (var count in new long[] { 0, 1, 5, 100, 100_000 })
@@ -35,7 +34,7 @@ public class ForeverRetryPolicyTests
             new[] { 0, 2, 5, 10, 30 }.Select(s => TimeSpan.FromSeconds(s)).ToArray(),
             delays.Take(5).ToArray());
 
-        // Capped, not growing: a Host down for an hour must not push retries out to hours.
+        // capped so a host that's down for an hour doesn't push retries out to hours
         Assert.AreEqual(TimeSpan.FromSeconds(30), delays[^1]);
     }
 

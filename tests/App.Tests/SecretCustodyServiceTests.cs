@@ -10,8 +10,7 @@ namespace FifthBox.ServerManager.App.Tests;
 [TestClass]
 public class SecretCustodyServiceTests
 {
-    /// Reversible stand-in for AES: prefixes with the key, so a value written under one key visibly
-    /// fails to open under another.
+    /// prefixes with the key, so a value from another key visibly fails to open
     private sealed class KeyedProtector(string key) : ISecretProtector
     {
         public string Protect(string plaintext) => $"{key}:{plaintext}";
@@ -22,7 +21,6 @@ public class SecretCustodyServiceTests
                 : throw new InvalidOperationException("wrong key");
     }
 
-    /// Stands in for a store holding the given ciphertexts, applying the rewrite in place.
     private sealed class FakeStore(params string[] stored) : IProtectedSecretStore
     {
         public List<string> Values { get; } = [.. stored];
@@ -115,8 +113,7 @@ public class SecretCustodyServiceTests
     [TestMethod]
     public async Task The_same_secret_stored_twice_rotates_to_the_same_ciphertext()
     {
-        // Desired config and its revisions share bytes; if rotation gave them different ones, every
-        // workload would show pending changes straight after a rotation.
+        // config and revisions share bytes, different ones would show pending changes everywhere after rotation
         var (svc, store) = Build("old", false, "old:hunter2", "old:hunter2");
 
         await svc.RotateAsync("new");

@@ -43,7 +43,7 @@ public class ResourceScaleTests
     [TestMethod]
     public void A_value_saved_before_the_scale_existed_keeps_its_place()
     {
-        // Rounding it to the nearest stop would change the workload just by opening its Config tab.
+        // snapping to the nearest stop would change the workload just by opening its Config tab
         var options = ResourceScale.MemoryOptions(current: 384);
 
         Assert.Contains(384, options);

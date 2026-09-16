@@ -4,8 +4,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm.Tests;
 
-/// Docker's reads end wherever the socket fills, so the buffer has to survive a line split across two
-/// reads — and a character split across two reads.
+/// docker reads end wherever the socket fills, so lines and chars can split across reads
 [TestClass]
 public class SwarmLogBufferTests
 {
@@ -67,7 +66,6 @@ public class SwarmLogBufferTests
     [TestMethod]
     public void A_multi_byte_character_split_across_reads_survives()
     {
-        // "é" is two bytes in UTF-8; hand over one byte per read.
         var buffer = new SwarmLogBuffer();
         var bytes = Encoding.UTF8.GetBytes("café\n");
 
@@ -103,8 +101,7 @@ public class SwarmLogBufferTests
     [TestMethod]
     public void Output_past_the_old_two_hundred_line_tail_keeps_flowing()
     {
-        // The bug this replaced: the poller diffed by count against a tail of 200, so once a workload
-        // had logged 200 lines the count never grew and following silently stopped forever.
+        // regression: poller diffed by count against a tail of 200, so after 200 lines following stopped forever
         var buffer = new SwarmLogBuffer();
         var total = 0;
 

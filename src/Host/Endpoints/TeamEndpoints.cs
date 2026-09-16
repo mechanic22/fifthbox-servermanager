@@ -6,8 +6,6 @@ using FifthBox.ServerManager.Shared.Teams;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Teams — named rosters that access grants attach to. Managing them is the administrator's job, so
-/// the whole group is admin-only.
 public static class TeamEndpoints
 {
     public static IEndpointRouteBuilder MapTeamEndpoints(this IEndpointRouteBuilder app)

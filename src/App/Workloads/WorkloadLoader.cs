@@ -4,12 +4,9 @@ using FifthBox.ServerManager.Shared.Exceptions;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// Loads a workload and checks the caller may do what they are about to do. Shared, because both halves
-/// of the workload surface start every operation this way and they must agree on the answer.
 public sealed class WorkloadLoader(IWorkloadRepository repository, IWorkloadAccess access)
 {
-    /// The only way to load a workload here, so enforcement can't be forgotten on a method added later.
-    /// Returns the resolved level too — Deploy and the secret gate both need it.
+    /// the only load path so the access check can't be skipped, also hands back the level
     public async Task<(Workload Workload, AccessLevel Level)> LoadAsync(
         Caller caller, string id, AccessLevel needed, CancellationToken ct)
     {
@@ -18,7 +15,7 @@ public sealed class WorkloadLoader(IWorkloadRepository repository, IWorkloadAcce
 
         var level = (await access.MapAsync(caller, ct)).ForWorkload(workload.Id, workload.GroupId);
 
-        // Below View, "you can't" and "it isn't there" have to look identical, or ids become probeable.
+        // below View, not allowed and not found must look the same or ids are probeable
         if (level < AccessLevel.View)
         {
             throw new NotFoundException($"Workload '{id}' not found.");

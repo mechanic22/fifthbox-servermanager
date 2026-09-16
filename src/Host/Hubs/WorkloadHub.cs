@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace FifthBox.ServerManager.Host.Hubs;
 
-/// Server→client push of workload runtime state and, while a Logs tab is open, its output. Status
-/// updates originate from agents reporting to AgentHub; log lines only flow for followed workloads.
 [Authorize]
 public sealed class WorkloadHub(IWorkloadLogFollower follower, IWorkloadAudience audience) : Hub
 {
@@ -21,7 +19,7 @@ public sealed class WorkloadHub(IWorkloadLogFollower follower, IWorkloadAudience
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // A closed tab never says goodbye, so the source would stream forever without this.
+        // closed tabs never unfollow, so this is the only cleanup
         await follower.ReleaseAllAsync(Context.ConnectionId);
         await base.OnDisconnectedAsync(exception);
     }

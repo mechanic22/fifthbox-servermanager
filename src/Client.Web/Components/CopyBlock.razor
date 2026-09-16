@@ -1,6 +1,4 @@
-@* Text whose whole purpose is to end up on a clipboard — enrollment keys, join commands, generated
-   config. Hand-selecting base64 out of a <pre> is a tax, and the enrollment key is shown exactly once.
-   TODO: promote to FifthBox.MaterialComponents.Blazor — generic, domain-free, Material-shaped. *@
+@* TODO: promote to FifthBox.MaterialComponents.Blazor *@
 @implements IDisposable
 @inject IJSRuntime JS
 
@@ -28,8 +26,7 @@
         }
         catch (JSException)
         {
-            // No clipboard permission, or an insecure origin. The text is still selectable, so say
-            // nothing rather than throwing an error at someone who can just select it.
+            // no clipboard access (perms or insecure origin), text is still selectable so stay quiet
             return;
         }
 

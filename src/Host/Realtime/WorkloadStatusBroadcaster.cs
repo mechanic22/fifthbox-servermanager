@@ -11,8 +11,7 @@ public sealed class WorkloadStatusBroadcaster(IHubContext<WorkloadHub> hub, IWor
 {
     public async Task HandleAsync(WorkloadStatusChanged @event, CancellationToken ct = default)
     {
-        // Addressed rather than broadcast: the payload names a workload, so sending it to everyone tells
-        // every signed-in user what exists. SubjectUserIdProvider keys these on the sub claim.
+        // not broadcast, that'd tell every user what workloads exist. user ids are the sub claim
         var viewers = await audience.ViewerIdsAsync(@event.WorkloadId, ct);
         if (viewers.Count == 0)
         {

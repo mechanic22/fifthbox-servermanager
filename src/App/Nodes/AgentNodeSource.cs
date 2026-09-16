@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.App.Nodes;
 
-/// Surfaces enrolled agents as nodes so they show alongside swarm nodes. Online/offline comes from the
-/// connection registry; the rest from the agent record.
 public sealed class AgentNodeSource(IAgentRepository agents, IAgentRegistry registry) : INodeSource
 {
     public async Task<IReadOnlyList<Node>> GetNodesAsync(CancellationToken ct = default)

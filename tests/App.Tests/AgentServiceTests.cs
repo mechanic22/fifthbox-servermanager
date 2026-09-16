@@ -28,7 +28,7 @@ public class AgentServiceTests
         var result = await svc.GenerateEnrollmentKeyAsync();
 
         Assert.IsFalse(string.IsNullOrEmpty(result.Key));
-        Assert.AreNotEqual(result.Key, storedHash);          // stored the hash, not the key
+        Assert.AreNotEqual(result.Key, storedHash);
         Assert.IsTrue(AgentSecrets.Verify(result.Key, storedHash));
     }
 
@@ -48,7 +48,7 @@ public class AgentServiceTests
         Assert.AreEqual(saved!.Id, result.AgentId);
         Assert.AreEqual("win-1", saved.Name);
         Assert.AreEqual(AgentPlatform.Windows, saved.Platform);
-        Assert.AreNotEqual(result.Secret, saved.SecretHash);              // stored hash, not plaintext
+        Assert.AreNotEqual(result.Secret, saved.SecretHash);
         Assert.IsTrue(AgentSecrets.Verify(result.Secret, saved.SecretHash));
     }
 

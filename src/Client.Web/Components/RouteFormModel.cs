@@ -3,8 +3,6 @@ using FifthBox.ServerManager.Shared.Routes;
 
 namespace FifthBox.ServerManager.Client.Web.Components;
 
-/// Editable state behind RouteForm; owns mapping to/from the route DTOs. Password is write-only (blank on
-/// edit = keep the existing one).
 public sealed class RouteFormModel
 {
     [Required(ErrorMessage = "Hostname is required.")]
@@ -12,7 +10,7 @@ public sealed class RouteFormModel
 
     public string Path { get; set; } = "/";
 
-    /// Which shape the form is in. Set by whichever surface opened it, never chosen in the form.
+    /// set by whatever opened the form, never picked in it
     public RouteTarget Target { get; set; } = RouteTarget.Workload;
 
     public string WorkloadId { get; set; } = string.Empty;
@@ -30,6 +28,7 @@ public sealed class RouteFormModel
 
     public bool BasicAuthEnabled { get; set; }
     public string BasicAuthUsername { get; set; } = string.Empty;
+    /// blank on edit keeps the existing one
     public string BasicAuthPassword { get; set; } = string.Empty;
 
     public static RouteFormModel From(RouteResponse r) => new()

@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="IAccessGrantRepository"/>. Thin adapter — no business rules.
 public class EfAccessGrantRepository(AppDbContext db) : IAccessGrantRepository
 {
     public async Task<IReadOnlyList<AccessGrant>> ListAsync(CancellationToken ct = default)
@@ -17,7 +16,7 @@ public class EfAccessGrantRepository(AppDbContext db) : IAccessGrantRepository
             return [];
         }
 
-        // Split by kind so both sides are a plain Contains — a tuple Contains won't translate.
+        // split by kind, a tuple Contains won't translate to sql
         var userIds = subjects.Where(s => s.Type == AccessSubject.User).Select(s => s.Id).ToList();
         var teamIds = subjects.Where(s => s.Type == AccessSubject.Team).Select(s => s.Id).ToList();
 

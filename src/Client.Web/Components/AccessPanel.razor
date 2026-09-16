@@ -1,5 +1,3 @@
-@* Who can reach one workload or group, and the way to change it. Admin-only — the panel is only ever
-   rendered behind an admin check, and every endpoint behind it is AdminOnly anyway. *@
 @using FifthBox.ServerManager.Shared.Access
 @using FifthBox.ServerManager.Shared.Teams
 @using FifthBox.ServerManager.Shared.Users
@@ -111,7 +109,6 @@
     {
         _loading = true;
         _error = null;
-        // Independent of each other: the table needs the grants, the editor's pickers need the rest.
         var grants = AccessApi.ListGrantsForTargetAsync(Scope, TargetId);
         var users = AdminApi.ListUsersAsync();
         var teams = TeamsApi.ListAsync();

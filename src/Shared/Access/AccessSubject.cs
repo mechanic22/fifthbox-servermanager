@@ -1,7 +1,7 @@
 namespace FifthBox.ServerManager.Shared.Access;
 
-/// Who a grant is for. A team grant reaches every member; someone holding both keeps the higher level.
-/// Append only — these serialize as numbers, so the order is a wire contract.
+/// team grants reach every member, highest level wins
+/// append only, these go over the wire as numbers
 public enum AccessSubject
 {
     User = 0,

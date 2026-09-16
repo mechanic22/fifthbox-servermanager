@@ -1,5 +1,4 @@
-@* Route fields. Fields only — the host owns the EditForm + submit. There is no target picker: a
-   workload route is opened from its workload, an external one from the Routes page. *@
+@* fields only, the parent owns the EditForm and submit *@
 
 <div class="flex flex-col gap-4 sm:min-w-88">
     <MaterialInput @bind-Value="Model.Hostname" For="@(() => Model.Hostname)" Label="Hostname (e.g. app.example.com)" Disabled="Busy" />

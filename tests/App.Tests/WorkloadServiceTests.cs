@@ -80,8 +80,7 @@ public class WorkloadServiceTests
             TimeProvider.System);
     }
 
-    /// The grant store the real WorkloadAccess resolves against — so a non-admin Caller in these tests
-    /// goes through the same resolution the Host does.
+    /// so a non-admin Caller goes through the same resolution the Host does
     private static Mock<IAccessGrantRepository> GrantRepo(IReadOnlyList<AccessGrant>? grants)
     {
         var repo = new Mock<IAccessGrantRepository>();
@@ -92,8 +91,7 @@ public class WorkloadServiceTests
         return repo;
     }
 
-    /// Stands in for AES without a key: reversible, and — like the real thing — a fresh call on the same
-    /// plaintext produces different ciphertext, which is what the pending-changes tests rely on.
+    /// fresh ciphertext every call, the pending-changes tests rely on it
     private sealed class ReversibleProtector : ISecretProtector
     {
         private int _nonce;
@@ -129,7 +127,7 @@ public class WorkloadServiceTests
         await Build(Repo(), routes: routes, rootDomain: "apps.example.com")
             .CreateAsync(Admin, new CreateWorkloadRequest { Name = "worker", Image = "worker:1" });
 
-        // Plenty of containers aren't web apps. Naming the port is how you say "this one is".
+        // plenty of containers aren't web apps, naming the port is how you say this one is
         routes.Verify(r => r.CreateAsync(It.IsAny<CreateRouteRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -155,8 +153,7 @@ public class WorkloadServiceTests
                 Name = "srcds", Target = WorkloadTarget.Agent, AgentId = "a1", Command = "/srv/srcds",
             });
 
-        // nginx reaches containers by service name over the overlay; an agent process is host-bound and
-        // isn't on it at all.
+        // nginx reaches containers by service name on the overlay, an agent process isn't on it
         routes.Verify(r => r.CreateAsync(It.IsAny<CreateRouteRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -170,7 +167,7 @@ public class WorkloadServiceTests
         var result = await Build(Repo(), routes: routes, rootDomain: "apps.example.com")
             .CreateAsync(Admin, new CreateWorkloadRequest { Name = "web", Image = "nginx", HttpPort = 80 });
 
-        // The address is a convenience. Losing it must not lose the workload the operator just defined.
+        // the address is a nice-to-have, losing it can't lose the workload
         Assert.AreEqual("web", result.Name);
     }
 
@@ -185,8 +182,7 @@ public class WorkloadServiceTests
 
         await Build(repo, backend).DeployAsync(Admin, "w1");
 
-        // Deploy updates whatever service already answers to this name, so an unnamespaced one could
-        // take over something else on a shared daemon.
+        // deploy updates whatever service has this name, so unnamespaced could take over something on a shared daemon
         Assert.AreEqual("fbsm--grafana", sent!.Name);
     }
 
@@ -201,7 +197,7 @@ public class WorkloadServiceTests
 
         await Build(repo, backend, agents: WithAgent()).DeployAsync(Admin, "w1");
 
-        // The agent tracks running processes by this name; renaming would orphan whatever is up.
+        // the agent tracks processes by this name, renaming would orphan what's running
         Assert.AreEqual("srcds", sent!.Name);
     }
 
@@ -214,7 +210,7 @@ public class WorkloadServiceTests
         return routes;
     }
 
-    /// Agent presence. With no ids everything is online; naming ids leaves every other agent offline.
+    /// no ids means everything's online, otherwise only the named ones are
     private static Mock<IAgentRegistry> Online(params string[] agentIds)
     {
         var registry = new Mock<IAgentRegistry>();
@@ -450,8 +446,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_rolled_back_deploy_does_not_become_the_running_revision()
     {
-        // Swarm accepted the update, watched the new task fail its health check, and put v1 back. The
-        // platform used to record v2 as running and report no pending changes.
+        // swarm failed the health check and rolled back to v1, we used to record v2 as running
         var workload = new Workload { Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1 };
         var (repo, backend) = Deployable(workload);
         var svc = Build(repo, backend);
@@ -484,7 +479,7 @@ public class WorkloadServiceTests
         workload.Image = "v2";
         await svc.DeployAsync(Admin, "w1");
 
-        // Swarm keeps reporting the rollback long after it happened, and the reconcile runs every minute.
+        // swarm keeps reporting the rollback long after, and reconcile runs every minute
         var rolledBack = new WorkloadRuntimeStatus { Name = "web", Deployed = true, UpdateState = "rollback_completed" };
         await svc.SettleRevisionAsync("w1", rolledBack);
         await svc.SettleRevisionAsync("w1", rolledBack);
@@ -514,7 +509,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_native_deploy_is_running_as_soon_as_the_agent_takes_it()
     {
-        // There is no rollout to wait for and nothing will come back to settle it.
+        // no rollout to wait for and nothing comes back to settle it
         var workload = new Workload
         {
             Id = "w1", Name = "svc", Target = WorkloadTarget.Agent, Kind = WorkloadKind.Native,
@@ -527,8 +522,7 @@ public class WorkloadServiceTests
 
         Assert.AreEqual(1, (await svc.GetAsync(Admin, "w1")).CurrentRevision);
 
-        // And again on a redeploy — the status sweep that settles container rollouts never sees a
-        // native workload, so if the deploy doesn't settle it nothing will.
+        // same on redeploy, the status sweep never sees native workloads so the deploy has to settle it
         workload.Command = "run2.exe";
         await svc.DeployAsync(Admin, "w1");
 
@@ -706,8 +700,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_steam_account_without_a_password_is_refused()
     {
-        // A username with no password can never log in, and anonymous ignores both — so this is always
-        // a mistake rather than a valid anonymous install.
+        // a username with no password can't log in and anonymous ignores both, so it's always a mistake
         var repo = Repo();
         repo.Setup(r => r.NameExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
@@ -741,8 +734,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_blank_steam_password_keeps_the_stored_one()
     {
-        // Otherwise editing the branch would either wipe the password or force the client to round-trip
-        // the secret — and re-encrypting would move the config signature and fake a pending change.
+        // otherwise an edit wipes the password or round-trips the secret, and re-encrypting fakes a pending change
         var workload = new Workload
         {
             Id = "w1", Name = "srcds", Kind = WorkloadKind.Native, AgentId = "a1", Command = "srcds", ManagedDirectory = true,
@@ -775,7 +767,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Update_fetches_the_saved_source_not_the_running_revision()
     {
-        // An update is about files, so a corrected URL must take effect without a deploy first.
+        // an update is about files, so a fixed url has to work without a deploy first
         var workload = new Workload
         {
             Id = "w1", Name = "srcds", Kind = WorkloadKind.Native, AgentId = "a1", Command = "srcds",
@@ -886,7 +878,7 @@ public class WorkloadServiceTests
 
         await Build(repo, backend).RestartAsync(Admin, "w1");
 
-        Assert.AreEqual("running", restarted!.Image); // the deployed revision, not the unsaved edit
+        Assert.AreEqual("running", restarted!.Image); // deployed revision, not the unsaved edit
         Assert.AreEqual(2, restarted.Replicas);
     }
 
@@ -1057,8 +1049,7 @@ public class WorkloadServiceTests
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1,
-            // Bind, not a named volume: that one pins to a node and refuses to scale, which isn't the
-            // subject here.
+            // bind not named volume, a named one pins to a node and won't scale
             MemoryLimitMb = 512, CpuLimit = 0.5, Mounts = [new VolumeMount(VolumeMountType.Bind, "/srv/data", "/data", false)],
             Revisions =
             [
@@ -1084,9 +1075,8 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Scaling_a_workload_with_a_health_check_is_not_drift()
     {
-        // The revision used to be rebuilt field by field on scale, and the rebuild left the health
-        // settings behind — which the config signature reads, so the workload went permanently
-        // "pending changes" the first time anyone scaled it.
+        // regression: scale rebuilt the revision field by field and dropped the health settings,
+        // so the workload read as pending changes forever
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1,
@@ -1111,7 +1101,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_reservation_cannot_exceed_its_limit()
     {
-        // Reserving space the container is then forbidden to use schedules a node full of nothing.
+        // reserving space the container can't use schedules a node full of nothing
         var ex = await Assert.ThrowsExactlyAsync<ValidationException>(() =>
             Build(Repo()).CreateAsync(Admin, new CreateWorkloadRequest
             {
@@ -1153,8 +1143,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Deploying_again_undoes_a_stop()
     {
-        // Redeploying unchanged config records no revision, so the desired state has to be saved
-        // regardless of whether one was written.
+        // an unchanged redeploy writes no revision, so desired state has to save regardless
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1,
@@ -1188,7 +1177,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Deleting_a_workload_takes_its_service_with_it()
     {
-        // Without this the record goes and the service keeps running, findable only from the docker CLI.
+        // otherwise the record goes and the service keeps running, only findable from the docker cli
         var workload = new Workload { Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1 };
         var (repo, backend) = Deployable(workload);
 
@@ -1201,8 +1190,8 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Deleting_a_workload_takes_its_routes_with_it()
     {
-        // They drop out of the generated config on their own, but they keep their (hostname, path) —
-        // enough to leave a workload recreated under the same name silently without an address.
+        // they drop out of the config anyway but keep hostname/path, which would leave a recreated
+        // same-name workload with no address
         var workload = new Workload { Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1 };
         var (repo, backend) = Deployable(workload);
         var routes = RouteService();
@@ -1245,8 +1234,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_deploy_that_has_not_settled_yet_is_not_drifting()
     {
-        // Mid-rollout the service already holds the new spec while the running revision is still the
-        // old one. Comparing them reports our own redeploy as a change made outside ServerManager.
+        // mid-rollout the service has the new spec but the running revision is old, that's our redeploy not drift
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1,
@@ -1269,8 +1257,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_stopped_workload_is_not_drifting()
     {
-        // Stop holds the service at zero replicas on purpose. Reporting that as drift would put a
-        // permanent banner on every stopped workload and teach people to ignore it.
+        // stop holds zero replicas on purpose, calling that drift puts a permanent banner on every stopped workload
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 3,
@@ -1286,7 +1273,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task An_undeployed_workload_is_not_drifting()
     {
-        // No service to read back is "not deployed", which the status already says.
+        // no service to read back just means not deployed, status already says that
         var workload = new Workload
         {
             Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "v1", Replicas = 1,
@@ -1454,7 +1441,7 @@ public class WorkloadServiceTests
 
         if (deployed)
         {
-            // Replicas mirrors the workload's default — a real revision is snapshotted from it.
+            // real revisions snapshot Replicas from the workload
             workload.Revisions = [new WorkloadRevision { Number = 1, Replicas = 1, Command = "/srv/srcds", Ports = [.. ports] }];
         }
 
@@ -1588,7 +1575,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Published_ports_are_always_host_bound()
     {
-        // The ingress mesh SNATs, so the container would see the gateway instead of the real client.
+        // ingress mesh SNATs, so the container would see the gateway not the client
         var repo = Repo();
         Workload? saved = null;
         repo.Setup(r => r.AddAsync(It.IsAny<Workload>(), It.IsAny<CancellationToken>()))
@@ -1606,7 +1593,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task Publishing_ports_neither_pins_a_node_nor_caps_the_replicas()
     {
-        // Swarm treats a host port as a node resource, so it spreads the tasks across nodes itself.
+        // swarm treats host ports as a node resource and spreads tasks itself
         var repo = Repo();
         Workload? saved = null;
         repo.Setup(r => r.AddAsync(It.IsAny<Workload>(), It.IsAny<CancellationToken>()))
@@ -1739,7 +1726,7 @@ public class WorkloadServiceTests
     [TestMethod]
     public async Task A_remembered_node_is_never_revised()
     {
-        // Re-learning would quietly bless whatever empty volume it landed on next as the real one.
+        // re-learning would bless whatever empty volume it landed on next
         var workload = new Workload
         {
             Id = "w1", Name = "db", Kind = WorkloadKind.Container, Image = "postgres:17", Replicas = 1,
@@ -1799,7 +1786,7 @@ public class WorkloadServiceTests
         var agents = new Mock<IAgentRepository>();
         var svc = Build(repo, agents: agents, connections: Online("ag2"));
 
-        // Build seeds every agent mock with an empty ListAsync, so the real one has to be set after it.
+        // Build seeds an empty ListAsync, so set the real one after
         agents.Setup(a => a.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(
         [
             new Agent { Id = "ag1", Name = "win-1" },
@@ -1828,7 +1815,7 @@ public class WorkloadServiceTests
             [new AccessGrant { SubjectId = "u1", Scope = AccessScope.Workload, TargetId = "w1", Level = AccessLevel.Operate }]);
         await Assert.ThrowsExactlyAsync<ForbiddenException>(() => operate.MoveTargetsAsync(new Caller("u1", false), "w1"));
 
-        // A workload they can't see at all stays unprobeable — 404, not 403.
+        // can't see it at all, so 404 not 403
         var stranger = Build(repo, grants: []);
         await Assert.ThrowsExactlyAsync<NotFoundException>(() => stranger.MoveTargetsAsync(new Caller("u2", false), "w1"));
     }

@@ -112,7 +112,7 @@ public class PlatformSettingsServiceTests
 
         await svc.UpdateAsync(new UpdatePlatformSettingsRequest { RootDomain = "fbsm.example.com", ManagerPrefix = "admin" });
 
-        // Deleting the old one here would take its certificate with it, from a settings save.
+        // deleting the old route would take its cert with it on a settings save
         Assert.AreEqual("admin.fbsm.example.com", created!.Hostname);
         routes.Verify(r => r.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -132,8 +132,7 @@ public class PlatformSettingsServiceTests
     {
         var (svc, _, _) = Build();
 
-        // Two labels fall outside a *.<root domain> wildcard — its own DNS record and its own
-        // certificate, which is not what picking a subdomain here implies.
+        // two labels fall outside the *.<root domain> wildcard and need their own dns and cert
         await Assert.ThrowsExactlyAsync<ValidationException>(() =>
             svc.UpdateAsync(new UpdatePlatformSettingsRequest { RootDomain = "fbsm.example.com", ManagerPrefix = "admin.internal" }));
     }

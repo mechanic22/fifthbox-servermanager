@@ -1,5 +1,3 @@
-@* One workload leaf in the tree: name link, what it runs, status chip, and lifecycle actions. *@
-
 <div class="flex items-center gap-3 py-1.5 pr-2 border-b" style="border-color: var(--md-sys-color-outline-variant); @IndentStyle">
     <span class="opacity-40 text-xs shrink-0">@(Workload.Target == WorkloadTarget.Agent ? "native" : "container")</span>
     <a href="workloads/@Workload.Id" class="hover:underline text-sm flex-1 min-w-0 truncate" style="color: var(--md-sys-color-primary)">@Workload.Name</a>
@@ -17,7 +15,7 @@
         }
     </span>
     <span class="inline-flex items-center shrink-0 w-8 justify-center">
-        @* With nothing but Open left the menu is pure ceremony — the name is already a link there. *@
+        @* just Open left means no menu, the name is already a link *@
         @if (HasMenu)
         {
             <MaterialIconButton Icon="@KebabIcon()" Style="MaterialIconButtonStyle.Standard" Size="MaterialSize.Small"
@@ -58,7 +56,6 @@
     private bool CanOperate => WorkloadPermissions.CanOperate(Workload);
     private bool HasMenu => CanDeploy || CanOperate || IsAdmin;
 
-    // 1.5rem per level, plus a base offset so leaves sit inside their group header.
     private string IndentStyle => $"padding-left: {1.5 + (Depth * 1.5)}rem";
 
     private async Task MenuDeploy()
@@ -98,13 +95,11 @@
         { State: WorkloadState.NotDeployed } when w.CurrentRevision is not null => "Undeployed",
         { State: WorkloadState.NotDeployed } => "Not deployed",
         { State: WorkloadState.Updating } => "Updating files",
-        // A replica count says the workload is down; the reason says whether that is worth acting on.
         { LastError: { Length: > 0 } error } => Brief(error),
         _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
     };
 
-    /// Docker errors run to a paragraph. The first clause carries the meaning; the title attribute keeps
-    /// the rest.
+    /// first clause of a docker error, the title attribute keeps the rest
     private static string Brief(string error)
     {
         var clause = error.Split(':', 2)[0].Split('(', 2)[0].Trim();

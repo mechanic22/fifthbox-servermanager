@@ -9,17 +9,15 @@ public interface INodeService
     Task<IReadOnlyList<NodeResponse>> ListAsync(CancellationToken ct = default);
     Task<NodeResponse> GetAsync(string id, CancellationToken ct = default);
 
-    /// Re-read every source and update the shared state. Answers whether anything actually changed, so
-    /// the caller can decide whether connected clients need telling.
+    /// returns whether anything changed, so callers know to tell clients
     Task<bool> RefreshAsync(CancellationToken ct = default);
 
-    /// Whether the scheduler may place work here. Drain also moves what's already running off.
+    /// drain also moves running work off
     Task<NodeResponse> SetAvailabilityAsync(string id, NodeAvailability availability, CancellationToken ct = default);
 
     Task<NodeResponse> SetRoleAsync(string id, NodeRole role, CancellationToken ct = default);
 
-    /// Drop a node out of the swarm. Only a node that's already down — evicting a live one leaves it
-    /// believing it's still a member.
+    /// only a node that's already down, a live one would still think it's a member
     Task RemoveAsync(string id, CancellationToken ct = default);
 }
 
@@ -31,8 +29,7 @@ public sealed class NodeService(
 {
     public async Task<IReadOnlyList<NodeResponse>> ListAsync(CancellationToken ct = default)
     {
-        // Cold start: nothing has observed the cluster yet, so pay for one fan-out rather than answering
-        // from an empty store. Every later read is memory.
+        // cold start, one fan-out rather than answering from an empty store
         if (!state.Hydrated)
         {
             await RefreshAsync(ct);
@@ -98,8 +95,7 @@ public sealed class NodeService(
 
     private async Task GuardDemotionAsync(NodeResponse node, CancellationToken ct)
     {
-        // Demoting the node whose Docker socket we hold takes the manager API away from ServerManager
-        // itself — the cluster keeps running and nothing here can touch it again.
+        // demoting our own node takes away the manager api we talk to
         if (node.Id == await LocalNodeIdAsync(ct))
         {
             throw new ConflictException(
@@ -121,14 +117,12 @@ public sealed class NodeService(
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
-            // Can't tell which node is ours, so the self-protection guards can't fire. Better to let the
-            // operator through than to block every node operation because one read failed.
+            // can't tell which node is ours, let it through rather than block everything
             return null;
         }
     }
 
-    /// Node operations are only meaningful on a swarm node — an agent has no schedulability, no role,
-    /// and is removed from the Agents list instead.
+    /// swarm nodes only, agents get removed from the Agents list
     private async Task<NodeResponse> SwarmNodeAsync(string id, CancellationToken ct)
     {
         var node = await GetAsync(id, ct);
@@ -143,10 +137,8 @@ public sealed class NodeService(
         return await GetAsync(id, ct);
     }
 
-    // Every backend that surfaces nodes (the swarm + the agent fleet) contributes to one combined list.
-    // A source that can't answer contributes nothing rather than emptying the list: before the cluster is
-    // bootstrapped the swarm source always fails, and that must not hide the agents, which don't need one.
-    // Whether the swarm itself is reachable is the Cluster page's job to report, not this list's.
+    // a failing source adds nothing rather than emptying the list
+    // pre-bootstrap the swarm source always fails and that mustn't hide the agents
     private async Task<IReadOnlyList<Node>> AllNodesAsync(CancellationToken ct)
     {
         var all = new List<Node>();

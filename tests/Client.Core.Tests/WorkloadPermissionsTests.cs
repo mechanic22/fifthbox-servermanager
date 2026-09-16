@@ -25,8 +25,7 @@ public class WorkloadPermissionsTests
     [TestMethod]
     public void CanDeploy_takes_the_servers_answer_rather_than_guessing_from_the_level()
     {
-        // The truth table itself is App's — DeployPermissionTests covers it. What matters here is that the
-        // client doesn't second-guess it: Configure with the flag off must still be refused.
+        // DeployPermissionTests owns the truth table, this just checks the client doesn't second-guess it
         Assert.IsFalse(WorkloadPermissions.CanDeploy(Workload(AccessLevel.Configure, canDeploy: false)));
         Assert.IsTrue(WorkloadPermissions.CanDeploy(Workload(AccessLevel.Operate, canDeploy: true)));
     }

@@ -25,65 +25,48 @@ public interface IWorkloadService
     Task<WorkloadRuntimeStatus> DeployAsync(Caller caller, string id, CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> ScaleAsync(Caller caller, string id, int replicas, CancellationToken ct = default);
 
-    /// Hands a native workload to another agent: stops it where it runs, then starts it on the target.
-    /// The running revision crosses untouched, so a move applies no unsaved edits and leaves no pending
-    /// change behind.
-    /// Agents this workload could move to. Needs Configure — the same level as the move itself, since
-    /// choosing a machine is meaningless without seeing which machines there are.
+    /// needs Configure, same as the move itself
     Task<IReadOnlyList<AgentResponse>> MoveTargetsAsync(Caller caller, string id, CancellationToken ct = default);
 
+    /// stops it on the old agent and starts the running revision on the new one, no unsaved edits ship
     Task<MoveWorkloadResponse> MoveAsync(Caller caller, string id, string agentId, CancellationToken ct = default);
 
-    /// Bounce the running instance on its current (last-deployed) config — no config change. Throws if it
-    /// was never deployed.
+    /// restarts on the last deployed config, throws if never deployed
     Task<WorkloadRuntimeStatus> RestartAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Send one line to the workload's console.
     Task SendConsoleAsync(Caller caller, string id, string text, CancellationToken ct = default);
 
-    /// Fetch the workload's files. Returns as soon as the acquire has started — it can run for a long
-    /// time, and progress arrives on the status and log channels.
+    /// returns once the acquire starts, progress comes on the status and log channels
     Task<WorkloadRuntimeStatus> UpdateAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Undo a Stop, on the config it was last running.
+    /// undoes a Stop on the last running config
     Task<WorkloadRuntimeStatus> StartAsync(Caller caller, string id, CancellationToken ct = default);
     Task StopAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Take it off the backend altogether, keeping the definition and its history. Admin-only: unlike
-    /// Stop it throws away the service and everything swarm was holding with it.
+    /// admin-only, unlike Stop it throws away the service and whatever swarm held
     Task UndeployAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Whether the running service still matches the revision it was deployed from — i.e. whether
-    /// somebody changed it outside ServerManager.
+    /// whether someone changed the service outside ServerManager
     Task<WorkloadDriftResponse> GetDriftAsync(Caller caller, string id, CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> GetStatusAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Status for every workload at once. Answers from observed state where it has it, and only pays the
-    /// backend for the ones nobody has seen yet — a list page shouldn't cost one round trip per row.
+    /// cached state first, only hits the backend for ones we haven't seen
     Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(Caller caller, CancellationToken ct = default);
 
-    /// Recent output from whichever backend runs it.
     Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(Caller caller, string id, int tail, CancellationToken ct = default);
 
-    /// Just this workload's routes. Managing routes is admin-only, but someone who can see a workload
-    /// should be able to see the address it answers on without being handed every route in the system.
+    /// just this workload's routes, so non-admins can see its address
     Task<IReadOnlyList<RouteResponse>> GetRoutesAsync(Caller caller, string id, CancellationToken ct = default);
 
     Task<IReadOnlyList<WorkloadRevisionResponse>> GetRevisionsAsync(Caller caller, string id, CancellationToken ct = default);
 
-    /// Reconcile the revision history against what the backend turned out to do with the last deploy.
-    /// Called from wherever a fresh status arrives; a no-op unless the rollout has settled.
-    /// True when this changed something worth telling clients about.
+    /// no-op until the rollout settles, true when clients need telling
     Task<bool> SettleRevisionAsync(string workloadId, WorkloadRuntimeStatus status, CancellationToken ct = default);
 
-    /// Loads an older revision's config back into the saved (desired) config. Does not deploy — the
-    /// caller redeploys to actually apply it.
+    /// loads it into the saved config only, doesn't deploy
     Task<WorkloadResponse> RevertAsync(Caller caller, string id, int revisionNumber, CancellationToken ct = default);
 }
 
-/// Manages workload definitions and drives their lifecycle. Workloads are polymorphic: Container
-/// (swarm) or Native (agent). Container lifecycle runs through <see cref="IWorkloadBackend"/> (the
-/// swarm today); native execution arrives with the agent backend (M6b).
 public sealed class WorkloadService(
     IWorkloadRepository repository,
     WorkloadLoader loader,
@@ -117,9 +100,7 @@ public sealed class WorkloadService(
             .ToList();
     }
 
-    // The single-workload read is what the config form loads, so it carries secrets in the clear — but
-    // only for someone who can edit the config and could read them off the running instance anyway. The
-    // list and revision history stay redacted so they don't ship every secret in the system on a visit.
+    // single read has secrets in the clear for the config form, list and history stay redacted
     public async Task<WorkloadResponse> GetAsync(Caller caller, string id, CancellationToken ct = default)
     {
         var (workload, level) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
@@ -148,8 +129,7 @@ public sealed class WorkloadService(
             WorkloadValidation.ValidatePorts(request.Ports);
             WorkloadValidation.ValidateResources(request.MemoryLimitMb, request.CpuLimit, request.MemoryReserveMb, request.CpuReserve);
             WorkloadValidation.ValidateMounts(request.Mounts);
-            // Both of these mean one node, and one node means one instance: a named volume is on exactly
-            // one machine, and a chosen node is a choice of one.
+            // named volume or picked node means one node, so one instance
             workload.Replicas = WorkloadValidation.SingleInstance(request.Placement, request.Mounts) ? 1 : request.Replicas;
             workload.Placement = request.Placement;
             workload.NodeId = await ValidatePlacementAsync(request.Placement, request.Mode, request.NodeId, ct);
@@ -174,8 +154,7 @@ public sealed class WorkloadService(
             workload.StopCommand = WorkloadValidation.Blank(request.StopCommand);
             workload.ManagedDirectory = request.ManagedDirectory;
             workload.Source = ValidateSource(request.Source, workload.Source, workload.ManagedDirectory);
-            // Normalize before validating — a native row carries no target port, so it would fail the
-            // 1..65535 check on a field the operator was never asked for.
+            // normalize first, native rows have no target port and would fail the 1..65535 check
             workload.Ports = WorkloadValidation.NativePorts(request.Ports);
             WorkloadValidation.ValidatePorts(workload.Ports);
             if (await FindPortClashAsync(workload, workload.AgentId, ct) is { } clash)
@@ -203,8 +182,7 @@ public sealed class WorkloadService(
             WorkloadValidation.ValidatePorts(request.Ports);
             WorkloadValidation.ValidateResources(request.MemoryLimitMb, request.CpuLimit, request.MemoryReserveMb, request.CpuReserve);
             WorkloadValidation.ValidateMounts(request.Mounts);
-            // Both of these mean one node, and one node means one instance: a named volume is on exactly
-            // one machine, and a chosen node is a choice of one.
+            // named volume or picked node means one node, so one instance
             workload.Replicas = WorkloadValidation.SingleInstance(request.Placement, request.Mounts) ? 1 : request.Replicas;
             workload.Placement = request.Placement;
             workload.NodeId = await ValidatePlacementAsync(request.Placement, request.Mode, request.NodeId, ct);
@@ -227,8 +205,7 @@ public sealed class WorkloadService(
             workload.StopCommand = WorkloadValidation.Blank(request.StopCommand);
             workload.ManagedDirectory = request.ManagedDirectory;
             workload.Source = ValidateSource(request.Source, workload.Source, workload.ManagedDirectory);
-            // Normalize before validating — a native row carries no target port, so it would fail the
-            // 1..65535 check on a field the operator was never asked for.
+            // normalize first, native rows have no target port and would fail the 1..65535 check
             workload.Ports = WorkloadValidation.NativePorts(request.Ports);
             WorkloadValidation.ValidatePorts(workload.Ports);
             if (await FindPortClashAsync(workload, workload.AgentId, ct) is { } clash)
@@ -250,15 +227,13 @@ public sealed class WorkloadService(
         WorkloadLoader.RequireAdmin(caller);
         var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.Configure, ct);
 
-        // Removing the record without this leaves the service running with nothing left that knows about
-        // it — an orphan only findable from the docker CLI.
+        // otherwise the service keeps running as an orphan only the docker cli can find
         await backends.Resolve(workload.Kind).UndeployAsync(deployments.ToDeployment(workload), ct);
 
         await repository.RemoveAsync(workload, ct);
         await accessGrants.RemoveForTargetAsync(AccessScope.Workload, id, ct);
 
-        // They're already invisible to nginx, but they keep their (hostname, path) — enough to make a
-        // workload recreated under the same name silently get no address.
+        // already out of nginx, but they keep (hostname, path) and would block a recreated workload's address
         foreach (var route in (await routes.ListAsync(ct)).Where(r => r.WorkloadId == id))
         {
             await routes.DeleteAsync(route.Id, ct);
@@ -294,8 +269,7 @@ public sealed class WorkloadService(
 
     public async Task<MoveWorkloadResponse> MoveAsync(Caller caller, string id, string agentId, CancellationToken ct = default)
     {
-        // Configure, not Operate: which machine something runs on is a placement decision with port
-        // clashes and offline agents behind it, and it writes to the saved config.
+        // Configure not Operate, it's a placement call and writes saved config
         var (workload, level) = await loader.LoadAsync(caller, id, AccessLevel.Configure, ct);
         if (workload.Kind != WorkloadKind.Native)
         {
@@ -318,7 +292,7 @@ public sealed class WorkloadService(
         var running = WorkloadRevisions.Running(workload);
         var backend = backends.Resolve(workload.Kind);
 
-        // Nothing deployed means there's nothing to hand over — the move is only a reassignment.
+        // nothing deployed means the move is just a reassignment
         var previousOffline = running is not null && previousAgentId is not null && !agentConnections.IsOnline(previousAgentId);
         if (running is not null && previousAgentId is not null && !previousOffline)
         {
@@ -445,11 +419,7 @@ public sealed class WorkloadService(
 
 
 
-    // Identity (name/kind/agent/network) from the workload; config from a specific revision.
-
-    /// Gives an HTTP container its own address under the platform's root domain. Best-effort by design:
-    /// a workload that saved fine must not fail because its address was already taken, and no root
-    /// domain configured simply means no automatic address.
+    /// best-effort, a saved workload shouldn't fail over a taken address or a missing root domain
     private async Task ProvisionDefaultRouteAsync(Workload workload, int? httpPort, CancellationToken ct)
     {
         if (workload.Kind != WorkloadKind.Container || httpPort is not { } port)
@@ -476,7 +446,7 @@ public sealed class WorkloadService(
         }
         catch (ConflictException)
         {
-            // Something already answers on that hostname — leave it be.
+            // something already answers on that hostname, leave it
         }
     }
 
@@ -535,7 +505,7 @@ public sealed class WorkloadService(
             return null;
         }
 
-        // Pinning to one node and Global running on all of them is asking for nothing coherent.
+        // pinned to one node plus Global makes no sense
         if (mode == WorkloadMode.Global)
         {
             throw new ValidationException(nameof(CreateWorkloadRequest.Placement),
@@ -554,8 +524,7 @@ public sealed class WorkloadService(
             throw new ValidationException(nameof(CreateWorkloadRequest.NodeId), "That node is not in the cluster.");
         }
 
-        // Pinning a container to an agent yields "no suitable node" forever: an agent runs processes,
-        // not containers, so no swarm node ever matches the constraint.
+        // an agent runs processes not containers, so pinning a container there never schedules
         if (node.Backend != NodeBackendKind.Swarm)
         {
             throw new ValidationException(nameof(CreateWorkloadRequest.NodeId),
@@ -566,9 +535,8 @@ public sealed class WorkloadService(
     }
 
 
-    /// Nothing else catches this: two processes on one machine can't share a port, and unlike swarm
-    /// there's no scheduler to refuse the second one — it just fails to bind at runtime. Takes the agent
-    /// separately from the workload so a move can ask about the agent it's headed for.
+    /// two processes can't share a port and there's no scheduler to refuse, it just fails to bind
+    /// agentId is separate so a move can check the agent it's headed for
     private async Task<string?> FindPortClashAsync(Workload workload, string? agentId, CancellationToken ct)
     {
         if (workload.Ports.Count == 0 || agentId is null)
@@ -593,11 +561,8 @@ public sealed class WorkloadService(
         return null;
     }
 
-    /// A source writes files, so it needs a directory the agent owns; and it needs somewhere to fetch
-    /// from. Both are refused up front rather than failing minutes into an acquire.
-    /// A source writes files, so it needs a directory the agent owns, and enough detail to fetch with.
-    /// Both are refused up front rather than failing minutes into an acquire. A blank Steam password
-    /// carries the stored ciphertext forward untouched, so editing anything else leaves it alone.
+    /// refused up front rather than minutes into an acquire
+    /// a blank steam password keeps the stored ciphertext
     private WorkloadSource ValidateSource(WorkloadSourceRequest? request, WorkloadSource current, bool managedDirectory)
     {
         var kind = request?.Kind ?? SourceKind.None;
@@ -642,7 +607,7 @@ public sealed class WorkloadService(
             throw new ValidationException(nameof(WorkloadSourceRequest.SteamAppId), "Enter the Steam app id of the dedicated server.");
         }
 
-        // A username with no password can never log in, and Steam's anonymous login ignores both.
+        // username without a password never logs in, anonymous ignores both
         if (source.SteamUsername is not null && string.IsNullOrEmpty(source.SteamPasswordEnc))
         {
             throw new ValidationException(nameof(WorkloadSourceRequest.SteamPassword), "Enter the password for that Steam account.");
@@ -671,13 +636,8 @@ public sealed class WorkloadService(
 
 
 
-    /// Turns incoming env into what gets stored: plain vars pass through, secret vars are encrypted, and
-    /// a secret that hasn't actually changed — arriving blank, or arriving as the same plaintext the
-    /// read handed out — keeps the ciphertext already on file.
-    ///
-    /// Carrying the old ciphertext through *byte for byte* is what keeps pending-changes honest. GCM uses
-    /// a fresh nonce per call, so re-encrypting an unchanged secret would produce different bytes, and
-    /// WorkloadConfigSignature would read that as a config change on every save.
+    /// blank or unchanged secrets keep the stored ciphertext byte for byte
+    /// GCM uses a fresh nonce, so re-encrypting would look like a config change on every save
     private List<EnvVar> ResolveEnv(IEnumerable<EnvVar> incoming, IReadOnlyList<EnvVar> existing)
     {
         var resolved = new List<EnvVar>();
@@ -763,8 +723,8 @@ public sealed class WorkloadService(
         };
     }
 
-    // Lifecycle lives in its own class; these forward to it so endpoints and clients keep one surface.
-    // The interface is still wide — splitting it too is a follow-up, and costs ~123 test call sites.
+    // forwards to lifecycle so endpoints keep one surface
+    // interface is still wide, splitting it is a follow-up (~123 test call sites)
 
     public Task<WorkloadRuntimeStatus> DeployAsync(Caller caller, string id, CancellationToken ct = default)
         => lifecycle.DeployAsync(caller, id, ct);

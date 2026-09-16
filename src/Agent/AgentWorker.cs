@@ -8,8 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Dials home to the Host: enrolls once (persisting its credential), connects to the agent hub over an
-/// outbound SignalR connection, heartbeats, and serves the workload commands the Host invokes on it.
 public sealed class AgentWorker(
     IOptions<AgentOptions> options,
     IHttpClientFactory httpFactory,
@@ -24,8 +22,7 @@ public sealed class AgentWorker(
     {
         var hostUrl = _options.HostUrl.TrimEnd('/');
 
-        // Before anything else: re-attach to workloads that outlived the previous agent process, so we
-        // report what's actually running rather than starting duplicates of it.
+        // before anything else, or we start duplicates of what's already running
         processes.Restore();
 
         var credentials = await EnsureEnrolledAsync(hostUrl, stoppingToken);
@@ -41,7 +38,6 @@ public sealed class AgentWorker(
             .WithAutomaticReconnect(new ForeverRetryPolicy())
             .Build();
 
-        // The Host invokes these on us (server→client) and awaits the status reply.
         connection.On<AgentWorkloadSpec, AgentWorkloadStatus>("Deploy", spec => Task.FromResult(processes.Deploy(spec)));
         connection.On<string, AgentWorkloadStatus>("Stop", name => Task.FromResult(processes.Stop(name)));
         connection.On<string, AgentWorkloadStatus>("GetStatus", name => Task.FromResult(processes.GetStatus(name)));
@@ -57,7 +53,7 @@ public sealed class AgentWorker(
             return Task.FromResult(true);
         });
 
-        // The Host only asks for a stream while someone has the Logs tab open.
+        // only while someone has the Logs tab open
         connection.On<string>("StartFollowingLogs", name => _following[name] = true);
         connection.On<string>("StopFollowingLogs", name =>
         {
@@ -96,8 +92,7 @@ public sealed class AgentWorker(
 
         connection.Reconnecting += error =>
         {
-            // Routine — a Host restart looks exactly like this. The reason is worth one line; the socket
-            // stack trace behind it tells nobody anything they can act on.
+            // routine, a Host restart looks like this. no stack trace, it's just noise
             logger.LogWarning("Connection lost ({Reason}); reconnecting.", Reason(error));
             return Task.CompletedTask;
         };
@@ -108,8 +103,7 @@ public sealed class AgentWorker(
             return ReconcileAsync(connection, stoppingToken);
         };
 
-        // Supervision transitions go up as they happen — a crash loop is visible in the UI without the
-        // Host having to ask. Fire-and-forget: reporting must never stall or fault the supervisor.
+        // fire and forget, reporting must never stall the supervisor
         processes.StatusChanged += status => _ = ReportAsync(connection, status, stoppingToken);
         processes.LogLine += QueueLine;
 
@@ -128,9 +122,7 @@ public sealed class AgentWorker(
             {
                 if (connection.State == HubConnectionState.Disconnected)
                 {
-                    // Automatic reconnect only covers a connection that dropped after starting. Anything
-                    // that leaves it closed outright lands here, and sitting idle forever is the one
-                    // outcome nobody notices.
+                    // auto reconnect only covers drops after a start, anything else would sit dead forever
                     logger.LogWarning("Connection is closed; starting it again.");
                     await ConnectWithRetryAsync(connection, stoppingToken);
                     await ReconcileAsync(connection, stoppingToken);
@@ -149,8 +141,7 @@ public sealed class AgentWorker(
             }
             catch (Exception ex)
             {
-                // A heartbeat that fails because the connection dropped is the same event the reconnect
-                // handler already reported. Only a failure on a live connection is news.
+                // a dropped connection already got logged by Reconnecting
                 if (connection.State == HubConnectionState.Connected)
                 {
                     logger.LogWarning(ex, "Heartbeat failed");
@@ -165,23 +156,20 @@ public sealed class AgentWorker(
         await flush;
     }
 
-    /// Set once the Host has refused this credential. Nothing it could do afterwards would work, so the
-    /// heartbeat loop stops rather than reconnecting against a wall.
+    /// Host refused our credential, stop trying
     private volatile bool _rejected;
 
     private readonly ConcurrentDictionary<string, bool> _following = new();
     private readonly ConcurrentDictionary<string, List<WorkloadLogLine>> _pending = new();
 
-    /// Nothing drains this queue while the connection is down, so a chatty workload would otherwise grow
-    /// it until the agent runs out of memory. Oldest goes first — for a log tail the newest lines are the
-    /// ones worth keeping.
+    /// nothing drains the queue while disconnected, so cap it and drop the oldest
     private const int MaxPendingLines = 2000;
 
     private void QueueLine(string workloadName, WorkloadLogLine line)
     {
         if (!_following.ContainsKey(workloadName))
         {
-            return; // nobody is watching, so it stays in the ring buffer only
+            return; // nobody watching, ring buffer only
         }
 
         var batch = _pending.GetOrAdd(workloadName, _ => []);
@@ -196,8 +184,7 @@ public sealed class AgentWorker(
         }
     }
 
-    /// One message per workload per tick rather than per line — a chatty process would otherwise flood
-    /// the hub with thousands of tiny invocations.
+    /// batched per tick, per-line would flood the hub
     private async Task FlushLogsLoopAsync(HubConnection connection, CancellationToken ct)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
@@ -252,8 +239,7 @@ public sealed class AgentWorker(
         }
     }
 
-    /// Separate from Heartbeat on purpose. There is no Host-agent version handshake yet, so a newer
-    /// agent has to keep working against a Host that has never heard of this call — hence the swallow.
+    /// swallowed on purpose, an older Host won't know this call (no version handshake yet)
     private async Task ReportMetricsAsync(HubConnection connection, CancellationToken ct)
     {
         try
@@ -270,7 +256,7 @@ public sealed class AgentWorker(
     {
         if (connection.State != HubConnectionState.Connected)
         {
-            return; // reconnecting; the next Reconcile re-syncs anyway
+            return; // next Reconcile re-syncs anyway
         }
 
         try
@@ -293,19 +279,17 @@ public sealed class AgentWorker(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Shutting down.
+            // shutting down
         }
         catch (Exception ex)
         {
             if (_rejected || connection.State != HubConnectionState.Connected)
             {
-                // Reconcile didn't fail on its own merits — the connection went away underneath it, and
-                // whatever closed it logs the real reason. Reporting both at Error buries the useful one.
+                // connection went away underneath it, whatever closed it logs the real reason
                 logger.LogDebug(ex, "Reconcile abandoned; the connection is {State}", connection.State);
                 return;
             }
 
-            // Whatever is already running keeps running; the next reconnect tries again.
             logger.LogError(ex, "Reconcile failed");
         }
     }
@@ -385,8 +369,7 @@ public sealed class AgentWorker(
 
     private string AgentName() => string.IsNullOrWhiteSpace(_options.Name) ? Environment.MachineName : _options.Name;
 
-    /// The innermost message is the one that says what actually happened; the outer layers are just the
-    /// transport stack restating it.
+    /// innermost message, the outer ones just restate it
     private static string Reason(Exception? error)
     {
         if (error is null)

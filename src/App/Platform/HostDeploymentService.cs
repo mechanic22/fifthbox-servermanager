@@ -3,11 +3,10 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.App.Platform;
 
-/// What the Host process can observe about itself. Implemented in the Host — only it knows its own
-/// environment. Named for the process, not the environment, to stay clear of Hosting.IHostEnvironment.
+/// named for the process to dodge Hosting.IHostEnvironment
 public interface IHostProcessInfo
 {
-    /// Set by swarm from a templated service-spec env var; null for anything not a service task.
+    /// set by swarm from a templated env var, null outside a service task
     string? SwarmServiceName { get; }
 
     bool IsContainer { get; }
@@ -41,8 +40,7 @@ public sealed class HostDeploymentService(
             RunMode = runMode,
             ServiceName = serviceName,
             ManagedServiceExists = managedExists,
-            // The dangerous state: a managed service is running and so are we, separately. Nothing else
-            // surfaces two Hosts sharing a Docker socket and a database.
+            // the dangerous one, a managed service and us both running on one socket and db
             SplitBrain = managedExists && runMode != HostRunMode.SwarmService,
             InstallCommand = InstallCommandRenderer.Render(_options, await LocalNodeIdAsync(ct)),
             EncryptionKeyEphemeral = encryption.Value.Ephemeral,
@@ -58,8 +56,7 @@ public sealed class HostDeploymentService(
         }
         catch (Exception)
         {
-            // No swarm yet is the normal case before bootstrap — the command falls back to a role
-            // constraint rather than failing the whole page.
+            // no swarm yet is normal pre-bootstrap, the command falls back to a role constraint
             return null;
         }
     }

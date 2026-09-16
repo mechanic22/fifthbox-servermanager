@@ -6,12 +6,7 @@ using FifthBox.Identity.Exceptions;
 
 namespace FifthBox.ServerManager.Host.Infrastructure;
 
-/// <summary>
-/// Seeds the first admin from config, breaking the chicken-and-egg where creating admins (<c>POST
-/// /api/users</c>) needs an admin. Credentials come from <c>Identity:DemoSeedAdmin</c> — dev values in
-/// appsettings.Development.json, prod via env/secret; blank or missing section = no seeding.
-/// Idempotent (a duplicate just means it already exists), so it's safe every startup.
-/// </summary>
+/// first admin, since creating admins needs an admin. blank config skips it, safe every startup
 internal static class DemoSeedAdmin
 {
     public static async Task SeedDemoSeedAdminAsync(this WebApplication app)
@@ -42,7 +37,7 @@ internal static class DemoSeedAdmin
         }
         catch (DuplicateUserNameException)
         {
-            // Account already exists — nothing to do.
+            // already seeded
         }
     }
 }

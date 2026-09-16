@@ -12,8 +12,7 @@ public class SwarmNamingTests
     [TestMethod]
     public void The_namespace_cannot_collide_with_a_platform_service()
     {
-        // A single dash would render these as fbsm-host and fbsm-nginx — the manager and the edge —
-        // and deploying would update *those* services instead of creating new ones.
+        // a single dash would give fbsm-host and fbsm-nginx, and deploy would update those instead
         Assert.AreNotEqual("fbsm-host", SwarmNaming.ServiceName("host"));
         Assert.AreNotEqual("fbsm-nginx", SwarmNaming.ServiceName("nginx"));
     }
@@ -28,8 +27,6 @@ public class SwarmNamingTests
     [TestMethod]
     public void Reading_back_rejects_anything_that_is_not_ours()
     {
-        // The platform's own services, a service someone made by hand on a shared daemon, the bare
-        // prefix, and nothing at all.
         Assert.IsFalse(SwarmNaming.TryWorkloadName("fbsm-nginx", out _));
         Assert.IsFalse(SwarmNaming.TryWorkloadName("fbsm-host", out _));
         Assert.IsFalse(SwarmNaming.TryWorkloadName("grafana", out _));

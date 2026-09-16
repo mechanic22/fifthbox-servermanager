@@ -8,8 +8,7 @@ namespace FifthBox.ServerManager.App.Tests;
 [TestClass]
 public class RegistryServiceTests
 {
-    // A reversible fake protector: "enc(<plain>)". Proves the service encrypts before storing and
-    // decrypts only when resolving.
+    // "enc(<plain>)" so you can see it encrypts on store and decrypts only on resolve
     private sealed class FakeProtector : ISecretProtector
     {
         public string Protect(string plaintext) => $"enc({plaintext})";
@@ -37,10 +36,10 @@ public class RegistryServiceTests
             Domain = "docker.example.com", Username = "tgilbert", Password = "s3cret", Prefix = "example/",
         });
 
-        Assert.AreEqual("enc(s3cret)", saved!.PasswordEnc);   // protector output, not the raw password
+        Assert.AreEqual("enc(s3cret)", saved!.PasswordEnc);
         Assert.AreEqual("docker.example.com", result.Domain);
         Assert.AreEqual("tgilbert", result.Username);
-        // RegistryResponse has no password member — nothing to leak.
+        // no password assert, RegistryResponse doesn't have one
     }
 
     [TestMethod]
@@ -60,7 +59,7 @@ public class RegistryServiceTests
 
         Assert.IsNotNull(auth);
         Assert.AreEqual("u", auth!.Username);
-        Assert.AreEqual("pw", auth.Password);   // decrypted just-in-time
+        Assert.AreEqual("pw", auth.Password);
         Assert.AreEqual("docker.example.com", auth.ServerAddress);
     }
 

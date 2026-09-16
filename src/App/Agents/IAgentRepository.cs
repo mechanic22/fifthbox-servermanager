@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.App.Agents;
 
-/// Persistence port for agents. Implemented by Storage (EF). Pure persistence — no rules.
 public interface IAgentRepository
 {
     Task<IReadOnlyList<Agent>> ListAsync(CancellationToken ct = default);
@@ -10,7 +9,7 @@ public interface IAgentRepository
     Task RemoveAsync(Agent agent, CancellationToken ct = default);
 }
 
-/// Stores the single active enrollment key's hash (revoked/rotated by replacing it).
+/// one active key hash, rotate by replacing it
 public interface IEnrollmentKeyStore
 {
     Task<string?> GetHashAsync(CancellationToken ct = default);

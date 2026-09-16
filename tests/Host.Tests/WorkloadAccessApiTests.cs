@@ -7,11 +7,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Host.Tests;
 
-/// <summary>
-/// Access control over real HTTP: cookie sign-in, the policy on the endpoint group, the App layer's
-/// level check, and the exception handler turning the result into a status code. The unit tests prove
-/// the rules; these prove the rules are actually wired to the wire.
-/// </summary>
 [TestClass]
 public class WorkloadAccessApiTests
 {
@@ -31,7 +26,7 @@ public class WorkloadAccessApiTests
     [TestMethod]
     public async Task A_workload_you_hold_nothing_on_is_a_404_not_a_403()
     {
-        // 403 would confirm the id exists to someone walking the id space.
+        // 403 would confirm the id exists to anyone walking ids
         var workload = await CreateWorkloadAsync("nothing-shared");
         var friend = await CreateUserAndSignInAsync("outsider");
 
@@ -54,7 +49,7 @@ public class WorkloadAccessApiTests
         using var restart = await client.PostAsync($"/api/workloads/{workload.Id}/restart", null);
         Assert.AreEqual(HttpStatusCode.Forbidden, restart.StatusCode);
 
-        // ForbiddenException had never been thrown in anger; this is the path the snackbar reads.
+        // first real ForbiddenException, and it's what the snackbar reads
         var problem = await restart.Content.ReadFromJsonAsync<ProblemBody>();
         Assert.IsNotNull(problem);
         StringAssert.Contains(problem.Detail ?? string.Empty, "permission");

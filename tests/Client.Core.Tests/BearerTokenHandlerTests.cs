@@ -29,7 +29,7 @@ public class BearerTokenHandlerTests
         var store = new InMemoryTokenStore(access: "old", refresh: "r1");
         var session = new Mock<IAuthSession>();
 
-        // The resource is 401 while the token is stale, 200 once the refresh has swapped in the new one.
+        // 401 while the token is stale, 200 once the refresh swaps in the new one
         var stub = new StubHandler(req => req.RequestUri!.AbsoluteUri.Contains("native/refresh")
             ? Json(new NativeAuthResponse { AccessToken = "new", RefreshToken = "r2", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) })
             : new HttpResponseMessage(store.Access == "new" ? HttpStatusCode.OK : HttpStatusCode.Unauthorized));
@@ -41,7 +41,6 @@ public class BearerTokenHandlerTests
         Assert.AreEqual("r2", store.Refresh);
         Assert.AreEqual(1, store.SaveCount);
 
-        // resource(401) → refresh → resource(200), and the replay carried the refreshed token.
         Assert.HasCount(3, stub.Seen);
         Assert.AreEqual("new", stub.Seen[2].Auth);
         session.Verify(s => s.SignOutAsync(), Times.Never);
@@ -52,7 +51,7 @@ public class BearerTokenHandlerTests
     {
         var store = new InMemoryTokenStore(access: "old", refresh: "r1");
         var session = new Mock<IAuthSession>();
-        // Every call 401 — including the refresh (the reuse/expiry signal).
+        // everything 401s, refresh too, which is the reuse/expiry signal
         var stub = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
 
         var response = await Send(store, session.Object, stub);

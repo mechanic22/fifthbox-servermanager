@@ -4,13 +4,10 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Reads and writes files inside the directory the agent owns for a workload. Every path an operator
-/// supplies is resolved through InstallPaths, which is what keeps this from becoming arbitrary access to
-/// the machine.
+/// every operator path goes through InstallPaths or this is open access to the machine
 public sealed class WorkloadFiles(IOptions<AgentOptions> options)
 {
-    /// Enough for any config file a game server has; small enough that reading one can't exhaust memory
-    /// or fill a SignalR frame.
+    /// big enough for any game config, small enough for a SignalR frame
     public const int MaxBytes = 512 * 1024;
 
     private readonly string _root = options.Value.ResolvedRootPath;
@@ -56,8 +53,7 @@ public sealed class WorkloadFiles(IOptions<AgentOptions> options)
 
         var bytes = File.ReadAllBytes(path);
 
-        // A NUL byte is the cheap, extension-independent way to spot a binary — a game server's configs
-        // come with every extension imaginable, so an allowlist would be wrong more often than not.
+        // NUL byte means binary. configs come with any extension so no allowlist
         if (Array.IndexOf(bytes, (byte)0) >= 0)
         {
             throw new InvalidOperationException($"'{relativePath}' looks like a binary file.");
@@ -84,7 +80,7 @@ public sealed class WorkloadFiles(IOptions<AgentOptions> options)
             throw new FileNotFoundException($"'{relativePath}' isn't there. This edits existing files; it doesn't create them.");
         }
 
-        // No BOM: a game server reading its own config rarely expects one, and it changes the first line.
+        // no BOM, it shows up as junk on the config's first line
         File.WriteAllText(path, text, new UTF8Encoding(false));
     }
 

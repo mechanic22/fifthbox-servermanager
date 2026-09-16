@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="ITeamRepository"/>. Thin adapter — no business rules.
 public class EfTeamRepository(AppDbContext db) : ITeamRepository
 {
     public async Task<IReadOnlyList<Team>> ListAsync(CancellationToken ct = default)
@@ -11,7 +10,7 @@ public class EfTeamRepository(AppDbContext db) : ITeamRepository
 
     public async Task<IReadOnlyList<Team>> ListForUserAsync(string userId, CancellationToken ct = default)
     {
-        // MemberIds is a JSON column, so the filter can't go to SQL.
+        // MemberIds is a json column, can't filter in sql
         var all = await db.Teams.AsNoTracking().OrderBy(t => t.Name).ToListAsync(ct);
         return [.. all.Where(t => t.MemberIds.Contains(userId, StringComparer.Ordinal))];
     }

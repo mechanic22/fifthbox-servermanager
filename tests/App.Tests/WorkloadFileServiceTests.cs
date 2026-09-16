@@ -50,7 +50,7 @@ public class WorkloadFileServiceTests
     [TestMethod]
     public async Task A_container_workload_has_no_files_here()
     {
-        // Its files live in a volume the manager can't reach from here — a different feature, not this one.
+        // its files are in a volume the manager can't reach, different feature
         var (service, _) = Build(new Workload { Id = "w1", Name = "web", Kind = WorkloadKind.Container, Image = "nginx" });
 
         await Assert.ThrowsExactlyAsync<ConflictException>(() => service.ListAsync(Admin, "w1", null));

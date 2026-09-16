@@ -13,8 +13,6 @@ using Moq;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// The list page asks for every status at once. Observed state answers for free; only what nobody has
-/// seen costs a backend call.
 [TestClass]
 public class WorkloadStatusesTests
 {

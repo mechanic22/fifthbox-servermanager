@@ -1,8 +1,6 @@
 @inject NavigationManager Nav
 
 @code {
-    // Sends an unauthenticated visitor to /login, preserving where they were headed so login can
-    // return them there.
     protected override void OnInitialized()
     {
         var returnUrl = Nav.ToBaseRelativePath(Nav.Uri);

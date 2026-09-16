@@ -4,8 +4,7 @@ namespace FifthBox.ServerManager.Integrations.Certificates;
 
 public static class AcmeDirectories
 {
-    /// Anything that isn't a recognised name has to be an absolute URL — a typo like "prod" must not
-    /// silently fall back to the production CA and burn the duplicate-certificate allowance.
+    /// unknown names must be absolute urls, a typo like "prod" can't fall back to production
     public static Uri Resolve(string? directory) => (directory ?? string.Empty).Trim().ToLowerInvariant() switch
     {
         "" or "staging" => WellKnownServers.LetsEncryptStagingV2,

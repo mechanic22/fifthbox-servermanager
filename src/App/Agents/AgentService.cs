@@ -9,17 +9,14 @@ public interface IAgentService
     Task<EnrollAgentResponse> EnrollAsync(EnrollAgentRequest request, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
 
-    /// Generates a new enrollment key, replacing any existing one. Returns the plaintext once.
+    /// replaces any existing key, plaintext comes back once
     Task<EnrollmentKeyResponse> GenerateEnrollmentKeyAsync(CancellationToken ct = default);
 
-    /// Validates an agent's connection credential (used by the hub on connect).
     Task<bool> AuthenticateAsync(string agentId, string secret, CancellationToken ct = default);
 
     Task MarkSeenAsync(string agentId, CancellationToken ct = default);
 }
 
-/// Agent lifecycle: enrollment (gated by the enrollment key), credential issuance/validation, and the
-/// joined view over persisted agents + live connection status. Secrets are hashed via AgentSecrets.
 public sealed class AgentService(
     IAgentRepository agents,
     IEnrollmentKeyStore enrollmentKeys,
@@ -34,7 +31,7 @@ public sealed class AgentService(
         var keyHash = await enrollmentKeys.GetHashAsync(ct);
         if (!AgentSecrets.Verify(request.EnrollmentKey ?? string.Empty, keyHash))
         {
-            // Identical response for wrong/absent key — no distinguishing "no key configured".
+            // same response for a wrong or missing key, don't leak "no key configured"
             throw new UnauthorizedException("Enrollment failed.");
         }
 

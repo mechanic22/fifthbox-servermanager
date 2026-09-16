@@ -3,12 +3,7 @@ using Microsoft.Maui.Storage;
 
 namespace FifthBox.ServerManager.Client.Mobile.Services;
 
-/// <summary>
-/// <see cref="ITokenStore"/> backed by the platform secure store (Keychain / Keystore). Thin adapter.
-/// On device (iOS/Android) SecureStorage always works. On an unsigned MacCatalyst dev build the
-/// keychain can be unavailable and SecureStorage throws, so we fall back to <see cref="Preferences"/>
-/// to keep the demo runnable — a dev-only compromise (plaintext), never hit on a real device.
-/// </summary>
+/// NOTE: plaintext Preferences fallback when the keychain's unavailable (unsigned MacCatalyst dev)
 public sealed class SecureStorageTokenStore : ITokenStore
 {
     private const string AccessKey = "fb_access_token";
@@ -46,7 +41,7 @@ public sealed class SecureStorageTokenStore : ITokenStore
         }
         catch
         {
-            // Fall through to Preferences.
+            // fall back to Preferences
         }
 
         return Preferences.Default.ContainsKey(key) ? Preferences.Default.Get<string?>(key, null) : null;

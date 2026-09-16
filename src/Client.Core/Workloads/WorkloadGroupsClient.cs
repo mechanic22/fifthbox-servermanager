@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>Typed HTTP client for workload groups.</summary>
 public interface IWorkloadGroupsClient
 {
     Task<IReadOnlyList<WorkloadGroupResponse>> ListAsync(CancellationToken ct = default);

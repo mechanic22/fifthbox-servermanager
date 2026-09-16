@@ -127,8 +127,7 @@
             _isAdmin = (await AuthStateTask).User.IsInRole(Roles.Admin);
         }
 
-        // Every tile is fetched on its own. One dead endpoint marks its own tile and leaves the rest of
-        // the page standing — a single sequential try/catch would blank everything after the first 403.
+        // each tile loads on its own so one 403 doesn't blank the page
         var loads = new List<Task> { LoadWorkloadsAsync() };
         if (_isAdmin)
         {
@@ -202,8 +201,7 @@
         }
         catch (ApiException)
         {
-            // The two least urgent panels on the page. Their absence reads as "not shown" rather than
-            // needing its own error state.
+            // least urgent panels, just leave them out
         }
     }
 
@@ -278,8 +276,7 @@
             return "Issuance failed";
         }
 
-        // Renewal runs daily from 30 days out, so anything still inside a fortnight has failed
-        // quietly more than once.
+        // renewal starts 30 days out, so inside a fortnight it's already failed more than once
         var soonest = _tls.Hosts
             .Where(h => h.Status == CertificateStatus.Valid && h.NotAfter is not null)
             .Min(h => h.NotAfter);

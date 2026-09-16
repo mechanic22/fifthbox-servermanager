@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="IRouteRepository"/>. Thin adapter — no business rules.
 public class EfRouteRepository(AppDbContext db) : IRouteRepository
 {
     public async Task<IReadOnlyList<Route>> ListAsync(CancellationToken ct = default)

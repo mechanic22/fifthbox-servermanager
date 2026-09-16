@@ -46,8 +46,6 @@
             </div>
         </EditForm>
 
-        @* Registration is a server-side policy. Offering it when the policy forbids it just produces
-           a 403 as the first thing a new user ever sees. *@
         @if (_registration.Allowed)
         {
             <div class="mt-6 text-sm text-center">

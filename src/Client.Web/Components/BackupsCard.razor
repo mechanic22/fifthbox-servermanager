@@ -1,4 +1,4 @@
-@* Database backups: list, take one now, download, delete. Restoring is a terminal procedure (README). *@
+@* no restore here, that's a terminal job (see README) *@
 @using FifthBox.ServerManager.Shared.Platform
 @inject ISystemClient SystemApi
 @inject IMaterialSnackbarService Snackbar
@@ -150,7 +150,7 @@
         }
     }
 
-    // Razor reads a leading '<' in a code block as the start of a tag, so no relational switch arms here.
+    // no relational switch arms, razor reads a leading '<' as a tag
     private static string Size(long bytes)
     {
         if (bytes >= 1024 * 1024)

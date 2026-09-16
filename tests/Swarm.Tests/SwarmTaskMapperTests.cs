@@ -4,8 +4,7 @@ using DockerModels = Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm.Tests;
 
-/// Docker's task list is the only thing that answers "why is it 0/1" — this is the projection that stops
-/// the status calls throwing it away.
+/// the task list is the only thing that answers "why is it 0/1"
 [TestClass]
 public class SwarmTaskMapperTests
 {
@@ -45,8 +44,7 @@ public class SwarmTaskMapperTests
     [TestMethod]
     public void Order_follows_the_timestamp_the_table_shows()
     {
-        // UpdatedAt and Status.Timestamp are different clocks. The table renders the latter, so ordering
-        // on the former listed rows out of order by the only date the reader can see.
+        // UpdatedAt and Status.Timestamp are different clocks, the table shows the latter
         var older = Task(DockerModels.TaskState.Failed, At(1));
         older.UpdatedAt = At(9);
         var newer = Task(DockerModels.TaskState.Failed, At(5));
@@ -66,7 +64,7 @@ public class SwarmTaskMapperTests
             Enumerable.Range(1, 40).Select(i => Task(DockerModels.TaskState.Failed, At(i))));
 
         Assert.HasCount(SwarmTaskMapper.MaxTasks, tasks);
-        // Capped from the newest end, not the oldest.
+        // capped from the newest end
         Assert.AreEqual(At(40), tasks[0].Since!.Value.UtcDateTime);
     }
 
@@ -100,8 +98,7 @@ public class SwarmTaskMapperTests
     [TestMethod]
     public void A_healthy_service_does_not_report_its_old_failures()
     {
-        // Swarm marks the superseded attempt desired-Shutdown. Reporting it would put a permanent error
-        // on a service that recovered.
+        // swarm marks the superseded attempt desired-Shutdown, reporting it leaves a permanent error on a recovered service
         var tasks = SwarmTaskMapper.ToTasks(
         [
             Task(DockerModels.TaskState.Failed, At(1), error: "crashed once", desired: DockerModels.TaskState.Shutdown),

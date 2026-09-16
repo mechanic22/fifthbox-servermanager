@@ -84,9 +84,8 @@ public class UserAdminServiceTests
     [TestMethod]
     public async Task The_last_administrator_survives_a_caller_whose_admin_claim_is_stale()
     {
-        // The guard only bites when the caller claims admin but no longer is one — demoted while holding
-        // a live cookie, whose claims outlive the row. Any genuine admin either is the last admin (and
-        // the self-check fires first) or leaves another one behind.
+        // only bites on a demoted admin with a live cookie, a real admin trips the self-check first
+        // or leaves another admin behind
         var stale = new Caller("ghost", IsAdmin: true);
         var (svc, _, _) = Build(
             new DirectoryUser("admin1", "boss", Admin),

@@ -5,32 +5,22 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 namespace FifthBox.ServerManager.Client.Web.Services;
 
-/// Owns the app's SignalR connections — one per hub, all in one place so no page or component ever
-/// builds its own. Same-origin, so the auth cookie rides along and the client never handles a token.
-/// Subscribers must unsubscribe on dispose or the handler outlives the page.
 public sealed class RealtimeService(NavigationManager nav) : IAsyncDisposable
 {
     private readonly Dictionary<string, HubConnection> _connections = [];
 
     public event Action<IReadOnlyList<NodeResponse>>? NodesChanged;
 
-    /// A workload's runtime state changed — swarm workloads via the docker event stream, native ones from
-    /// the agent's own supervision reports.
     public event Action<string, WorkloadRuntimeStatus>? WorkloadStatusChanged;
 
-    /// New output for a workload whose Logs tab is open. Only flows between FollowLogsAsync and
-    /// UnfollowLogsAsync — nothing streams when nobody is watching.
+    /// only fires between FollowLogsAsync and UnfollowLogsAsync
     public event Action<string, IReadOnlyList<WorkloadLogLine>>? WorkloadLogLines;
 
-    /// A dropped connection came back. Every change during the gap was missed and no event will ever
-    /// replay it, so subscribers re-read instead of waiting for the next one.
+    /// anything during the gap is gone and won't replay, so re-read on this
     public event Action? Reconnected;
 
-    /// Raised when any connection drops or comes back, so the shell can say the status on screen has
-    /// stopped updating. Without it a frozen chip keeps presenting its last value as current.
     public event Action? ConnectionStateChanged;
 
-    /// True while any hub this app opened is not connected.
     public bool Disconnected => _connections.Values.Any(c => c.State != HubConnectionState.Connected);
 
     public Task EnsureNodesConnectedAsync() =>

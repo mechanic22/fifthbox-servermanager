@@ -5,12 +5,8 @@ using FifthBox.ServerManager.Shared.Auth;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Agent management. Enrollment is anonymous (gated by the enrollment key in the body); listing,
-/// deleting, and minting keys are admin-only.
-///
-/// Enrolling and deleting change the machine list, and nothing else observes that — an agent produces no
-/// docker event — so these tell the writer directly rather than leaving it to the reconcile a minute later.
-/// The refresh is a no-op for clients when nothing actually changed.
+/// enroll is anonymous, the key in the body is the gate
+/// agents make no docker events, so enroll and delete refresh the machine list themselves
 public static class AgentEndpoints
 {
     public static IEndpointRouteBuilder MapAgentEndpoints(this IEndpointRouteBuilder app)

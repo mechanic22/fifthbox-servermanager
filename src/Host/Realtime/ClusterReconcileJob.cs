@@ -2,12 +2,7 @@ using FifthBox.ServerManager.App.Common;
 
 namespace FifthBox.ServerManager.Host.Realtime;
 
-/// The safety net under the docker event stream. Events are the signal; this catches what they can't see —
-/// an agent's last-seen time, a replica that died on another node, anything missed while the socket was
-/// down — and repairs it within a minute.
-///
-/// The whole sweep is three docker calls no matter how many workloads there are, which is what makes
-/// running it unconditionally affordable.
+/// catches what docker events miss. only 3 docker calls however many workloads, so run it always
 public sealed class ClusterReconcileJob(IClusterStateWriter writer) : IScheduledJob
 {
     public string Name => "cluster";

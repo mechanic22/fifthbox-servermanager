@@ -6,8 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Runs and supervises native workloads as local processes, keyed by workload name. A failed start is
-/// reported (Running=false + Detail) rather than thrown, so the Host gets a clean status back.
+/// a failed start comes back as Running=false + Detail, never thrown
 public sealed class AgentProcessManager(
     IOptions<AgentOptions> options,
     IEnumerable<ISourceProvider> sources,
@@ -17,11 +16,9 @@ public sealed class AgentProcessManager(
     private readonly string _statePath = options.Value.ResolvedStatePath;
     private readonly string _root = options.Value.ResolvedRootPath;
 
-    /// Raised for each captured line, so the worker can forward it while someone is watching.
     public event Action<string, WorkloadLogLine>? LogLine;
 
-    /// Raised whenever a workload's state changes — started, exited, restarting, given up. Always raised
-    /// outside the workload's lock: a handler that goes to the network must not stall supervision.
+    /// raised outside the workload lock so a slow handler can't stall supervision
     public event Action<AgentWorkloadStatus>? StatusChanged;
 
     private void Announce(AgentWorkloadStatus status)
@@ -36,8 +33,7 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Re-attach to workloads that outlived the last agent process. Call once, before connecting —
-    /// otherwise the first Deploy starts a second copy of something already running.
+    /// call once before connecting or the first Deploy starts a second copy
     public void Restore()
     {
         foreach (var tracked in AgentState.Load(_statePath).Workloads)
@@ -51,8 +47,7 @@ public sealed class AgentProcessManager(
             var workload = new SupervisedWorkload
             {
                 Spec = tracked.Spec,
-                // A file written before the hash existed still carries a full spec, so hashing it here
-                // gives the same value the newer format records.
+                // old state files have no hash but hashing the spec gives the same value
                 ConfigHash = tracked.ConfigHash ?? ProcessAdoption.HashOf(tracked.Spec),
                 Process = process,
                 StartedAt = tracked.StartedAtUtc,
@@ -69,8 +64,7 @@ public sealed class AgentProcessManager(
 
     public AgentWorkloadStatus Deploy(AgentWorkloadSpec spec)
     {
-        // An adopted process already on this exact config is left alone — bouncing a healthy game server
-        // just because the agent restarted is the thing adoption exists to prevent.
+        // adopted and on the same config, leave it alone. no bouncing a healthy server on agent restart
         if (_workloads.TryGetValue(spec.Name, out var existing))
         {
             lock (existing.Gate)
@@ -82,8 +76,7 @@ public sealed class AgentProcessManager(
 
                 if (existing.Adopted && existing.Process is { } running && IsAlive(running) && existing.ConfigHash == ProcessAdoption.HashOf(spec))
                 {
-                    // Same config, but this copy of it is the authoritative one — the restored spec is
-                    // missing the env, and a crash-restart would otherwise start the process without it.
+                    // restored spec has no env, take this one or a crash-restart loses it
                     existing.Spec = spec;
 
                     logger.LogInformation("'{Workload}' already running as PID {Pid} on this config — attached", spec.Name, running.Id);
@@ -94,7 +87,7 @@ public sealed class AgentProcessManager(
             }
         }
 
-        Stop(spec.Name); // replace any existing instance
+        Stop(spec.Name);
 
         var workload = new SupervisedWorkload { Spec = spec, ConfigHash = ProcessAdoption.HashOf(spec) };
         _workloads[spec.Name] = workload;
@@ -139,19 +132,15 @@ public sealed class AgentProcessManager(
         return stopped;
     }
 
-    /// Everything currently tracked, running or not.
     public IReadOnlyCollection<string> TrackedNames() => [.. _workloads.Keys];
 
-    /// Bring the host into line with what the Host says should be running: start (or attach to) anything
-    /// missing, stop anything we're running that's no longer wanted.
     public void Reconcile(IReadOnlyList<AgentWorkloadSpec> desired)
     {
         var wanted = desired.Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
 
         foreach (var name in TrackedNames().Where(n => !wanted.Contains(n)))
         {
-            // An acquire in flight owns the directory. Stopping here would drop the tracking entry while
-            // the download keeps writing into it, and the finished update would report against nothing.
+            // an update in flight owns the directory, stopping now orphans the download
             if (_workloads.TryGetValue(name, out var tracked) && tracked.Updating)
             {
                 logger.LogInformation("Reconcile: leaving '{Workload}' alone while its update runs", name);
@@ -164,7 +153,7 @@ public sealed class AgentProcessManager(
 
         foreach (var spec in desired)
         {
-            // Deploy already no-ops when an adopted process is on this exact config.
+            // no-ops if an adopted process is already on this config
             var status = Deploy(spec);
             if (!status.Running)
             {
@@ -173,8 +162,7 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Write a line to a running workload's stdin. The returned status is what the caller reports back:
-    /// a workload with nothing to write to comes back not-running with the reason.
+    /// comes back not-running with a reason if there's nothing to write to
     public AgentWorkloadStatus SendConsole(string name, string text)
     {
         if (!_workloads.TryGetValue(name, out var workload))
@@ -209,9 +197,7 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Start acquiring a workload's files. Returns as soon as the work is under way — an acquire can run
-    /// for many minutes, and the hub call that got us here must not sit open for it. Progress and the
-    /// finish both arrive on the status and log channels the supervisor already uses.
+    /// returns once the acquire is under way, progress and the finish come through StatusChanged and LogLine
     public AgentWorkloadStatus Update(AgentWorkloadSpec spec)
     {
         if (spec.Source is not { } config || sources.FirstOrDefault(s => s.Kind == config.Kind) is not { } source)
@@ -322,11 +308,9 @@ public sealed class AgentProcessManager(
                 FileName = fileName,
                 WorkingDirectory = workingDirectory,
                 UseShellExecute = false,
-                // Captured so the Logs tab has something to show. Draining matters: an unread pipe
-                // fills and blocks the child. The trade is that output no longer reaches our console.
+                // must be drained or a full pipe blocks the child
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                // Console commands (save, say, stop) go back the other way down this pipe.
                 RedirectStandardInput = true,
             };
 
@@ -344,7 +328,7 @@ public sealed class AgentProcessManager(
 
             workload.Process = process;
             workload.Input = process.StandardInput;
-            // The OS's own start time, not "now" — it's what Restore compares against later.
+            // os start time, not now. Restore compares against it
             workload.StartedAt = StartTimeOf(process);
             workload.StopRequested = false;
             workload.Adopted = false;
@@ -367,8 +351,6 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Where the process runs from and what to launch. A managed workload gets a directory the agent
-    /// owns and creates; anything else keeps the free-text working directory it was configured with.
     private (string FileName, string? WorkingDirectory) Locate(string name, AgentWorkloadSpec spec)
     {
         if (!spec.ManagedDirectory)
@@ -395,7 +377,7 @@ public sealed class AgentProcessManager(
     {
         if (text is null)
         {
-            return; // the stream closed
+            return; // stream closed
         }
 
         var line = new WorkloadLogLine { Text = text, Stream = stream, Timestamp = DateTimeOffset.UtcNow };
@@ -403,7 +385,6 @@ public sealed class AgentProcessManager(
         LogLine?.Invoke(workload.Spec.Name, line);
     }
 
-    /// The most recent lines an agent captured for a workload.
     public IReadOnlyList<WorkloadLogLine> GetLogs(string name, int tail) =>
         _workloads.TryGetValue(name, out var workload) ? workload.Logs.Tail(tail) : [];
 
@@ -440,8 +421,7 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Snapshot taken without the per-workload gates: a torn read costs at worst a stale PID, which the
-    /// start-time check rejects on the next Restore.
+    /// no gates on purpose, a torn read is just a stale pid and the start-time check rejects it
     private void Persist()
     {
         var state = new AgentState
@@ -474,7 +454,7 @@ public sealed class AgentProcessManager(
             var process = workload.Process;
             if (process is null)
             {
-                return; // Stop already claimed it.
+                return; // Stop already claimed it
             }
 
             workload.LastExitCode = ExitCodeOf(process);
@@ -482,8 +462,7 @@ public sealed class AgentProcessManager(
             workload.Input = null;
             process.Dispose();
 
-            // A run that stayed up long enough ends the previous crash run, so the attempt count and the
-            // backoff both start over. Otherwise the budget is spent across unrelated incidents.
+            // stayed up long enough, so reset the crash count and backoff
             if (RestartDecision.Recovered(DateTimeOffset.UtcNow - workload.StartedAt))
             {
                 workload.RestartCount = 0;
@@ -519,8 +498,7 @@ public sealed class AgentProcessManager(
             return;
         }
 
-        // Off the event thread deliberately — restarting inline would recurse through Exited and grow the
-        // stack for every crash in a loop.
+        // off the event thread, inline would recurse through Exited on a crash loop
         _ = Task.Run(async () =>
         {
             await Task.Delay(delay);
@@ -530,7 +508,7 @@ public sealed class AgentProcessManager(
             {
                 if (workload.StopRequested || !_workloads.TryGetValue(name, out var current) || !ReferenceEquals(current, workload))
                 {
-                    return; // stopped or superseded by a redeploy while we waited
+                    return; // stopped or redeployed while we waited
                 }
 
                 Start(name, workload);
@@ -542,10 +520,8 @@ public sealed class AgentProcessManager(
         });
     }
 
-    /// Ask first, kill only if it won't go. A game server that gets SIGKILL loses whatever it hadn't
-    /// flushed, so this ladder is the difference between a clean save and a corrupt one. Each polite
-    /// attempt gets the full grace, so a workload with both a stop command and a working signal can take
-    /// up to twice it before the kill.
+    /// ask nicely before killing, a SIGKILL'd game server loses unsaved data
+    /// each polite step gets the full grace, so worst case is 2x grace before the kill
     private static void Terminate(Process process, StreamWriter? input, AgentWorkloadSpec spec)
     {
         var grace = Math.Max(0, spec.StopGraceSeconds) * 1000;
@@ -585,7 +561,7 @@ public sealed class AgentProcessManager(
         }
         catch (Exception)
         {
-            // Already gone — nothing to do.
+            // already gone
         }
     }
 
@@ -599,7 +575,7 @@ public sealed class AgentProcessManager(
         }
         catch (Exception)
         {
-            return false; // the pipe is already closed — fall through to the next step
+            return false; // pipe closed, fall through to the next step
         }
     }
 
@@ -626,8 +602,7 @@ public sealed class AgentProcessManager(
         };
     }
 
-    /// Share of a single core since the last reading. The first call has nothing to compare against, so
-    /// it records the baseline and reports nothing.
+    /// % of one core since the last call. first call just sets the baseline and returns null
     private static double? CpuPercentOf(SupervisedWorkload workload, Process process)
     {
         try
@@ -668,8 +643,7 @@ public sealed class AgentProcessManager(
         }
     }
 
-    /// Probe every running workload's declared ports and announce anything that changed. Driven from the
-    /// worker's heartbeat, so it costs one short connect attempt per port per tick.
+    /// one short connect per declared port, announces only what changed
     public async Task ProbeAsync(CancellationToken ct)
     {
         foreach (var (name, workload) in _workloads.ToArray())

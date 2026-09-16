@@ -1,8 +1,6 @@
 namespace FifthBox.ServerManager.Client.Web.Pages.Workloads.Components;
 
-/// The values a workload's memory and CPU may take. Free text let people ask for 7 MB or 300 cores and
-/// find out from the server; a fixed scale can only produce numbers that mean something. 0 is "no
-/// limit" — the wire carries that as null.
+/// 0 means no limit, sent as null
 public static class ResourceScale
 {
     private const string NoLimit = "No limit";
@@ -13,7 +11,6 @@ public static class ResourceScale
         1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536,
     ];
 
-    // Tenths where the difference matters, coarser once a workload is asking for whole cores.
     public static readonly double[] CpuCores =
     [
         0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -34,17 +31,14 @@ public static class ResourceScale
         _ => $"{Trim(cores)} cores",
     };
 
-    /// The stops on offer. A ceiling above 0 caps them — a reservation can't exceed its limit, and the
-    /// server rejects one that does.
+    /// a ceiling above 0 caps the stops, a reservation can't go over its limit
     public static List<int> MemoryOptions(int current, int ceiling = 0) =>
         Splice([.. MemoryMb.Where(v => ceiling <= 0 || v <= ceiling)], current);
 
     public static List<double> CpuOptions(double current, double ceiling = 0) =>
         Splice([.. CpuCores.Where(v => ceiling <= 0 || v <= ceiling)], current);
 
-    /// A workload saved before this scale existed can hold a value that isn't on it. Rounding it to the
-    /// nearest stop would change the workload just by opening its Config tab, so it keeps its own value
-    /// until someone picks another.
+    /// keeps an off-scale saved value so just opening Config doesn't change the workload
     private static List<T> Splice<T>(List<T> options, T current) where T : struct, IComparable<T>
     {
         if (current.CompareTo(default) > 0 && !options.Contains(current))

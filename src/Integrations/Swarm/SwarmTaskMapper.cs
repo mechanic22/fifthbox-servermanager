@@ -3,12 +3,9 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Projects docker's task list into the replica history a workload shows. Pure, and the reason the
-/// status calls stopped throwing this away: a service stuck at 0/1 is only explicable from its tasks.
 public static class SwarmTaskMapper
 {
-    /// A crash-looping service accumulates task history without limit, and the whole status goes over
-    /// SignalR on every change.
+    /// crash loops pile up history and the whole status goes over SignalR on every change
     public const int MaxTasks = 10;
 
     public static IReadOnlyList<WorkloadTask> ToTasks(IEnumerable<TaskResponse> tasks) =>
@@ -19,17 +16,14 @@ public static class SwarmTaskMapper
             .Select(ToTask)
     ];
 
-    /// The newest error from a task swarm still wants running. Superseded attempts are marked desired
-    /// Shutdown, so a service that recovered stops reporting the failure it recovered from — which a
-    /// plain "newest error" would show forever.
+    /// only tasks swarm still wants running, so a recovered service stops showing its old failure
     public static string? LastError(IEnumerable<WorkloadTask> tasks) =>
         tasks.FirstOrDefault(t =>
             t.DesiredState == WorkloadTaskState.Running
             && t.State != WorkloadTaskState.Running
             && !string.IsNullOrWhiteSpace(t.Error))?.Error;
 
-    /// The table shows Status.Timestamp, so ordering on anything else (UpdatedAt is close but not equal)
-    /// lists rows out of order by the only date the reader can see.
+    /// Status.Timestamp because that's the date the table shows
     private static DateTime StatusTime(TaskResponse t) =>
         t.Status?.Timestamp is { } stamp && stamp != default ? stamp : t.UpdatedAt;
 

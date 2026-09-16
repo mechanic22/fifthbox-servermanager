@@ -82,8 +82,7 @@ public class ProcessAdoptionTests
     [TestMethod]
     public void The_hash_does_not_leak_the_environment_it_covers()
     {
-        // The state file records this hash precisely so it need not record env values, so the hash must
-        // not carry them either.
+        // the state file keeps this hash instead of env values, so the hash can't carry them either
         var hash = ProcessAdoption.HashOf(Spec(b => b.Env = [new EnvVar("RCON_PASSWORD", "hunter2")]));
 
         StringAssert.DoesNotMatch(hash, new System.Text.RegularExpressions.Regex("hunter2"));
@@ -93,9 +92,8 @@ public class ProcessAdoptionTests
     [TestMethod]
     public void Stripping_the_env_changes_the_hash_which_is_why_it_is_recorded_separately()
     {
-        // The state file stores the spec without its env and the hash of the spec *with* it. Recomputing
-        // from what was stored would not match, so adoption after an agent restart would stop and
-        // restart a healthy game server instead of attaching to it.
+        // state file has the spec minus env but the hash with env, so recomputing wouldn't match
+        // and an agent restart would bounce a healthy server instead of adopting it
         var full = Spec(b => b.Env = [new EnvVar("RCON_PASSWORD", "hunter2")]);
         var stripped = full with { Env = [] };
 
@@ -105,8 +103,7 @@ public class ProcessAdoptionTests
     [TestMethod]
     public void Taking_over_the_directory_is_a_config_change()
     {
-        // It changes where the process runs from and how its command resolves, so an adopted process on
-        // the old layout must not be treated as already correct.
+        // changes where it runs and how the command resolves, so an old-layout process isn't already right
         Assert.IsFalse(ProcessAdoption.SameConfig(Spec(), Spec(b => b.ManagedDirectory = true)));
     }
 

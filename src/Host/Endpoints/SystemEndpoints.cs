@@ -5,8 +5,6 @@ using FifthBox.ServerManager.Shared.Platform;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// ServerManager's own infrastructure: platform services (nginx, etc.) list + restart, and platform-wide
-/// settings. Admin-only. Translate + delegate only.
 public static class SystemEndpoints
 {
     public static IEndpointRouteBuilder MapSystemEndpoints(this IEndpointRouteBuilder app)

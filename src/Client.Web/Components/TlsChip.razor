@@ -1,6 +1,4 @@
-@* Read-only view of a hostname's TLS state. Managing it lives on the Hostnames page — certificates cover
-   a whole hostname, so acting on one from a page showing a single route or workload would reach further
-   than the page appears to. *@
+@* read-only on purpose, a cert covers the whole hostname so manage it on the Hostnames page *@
 
 <a href="hostnames" class="no-underline" title="@Tooltip()">
     <MaterialChip Text="@Text()" Size="MaterialChipSize.Small" Color="@Color()" />

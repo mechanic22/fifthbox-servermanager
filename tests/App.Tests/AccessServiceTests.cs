@@ -215,8 +215,7 @@ public class AccessServiceTests
     [TestMethod]
     public async Task A_team_grant_is_not_blocked_by_an_admin_member()
     {
-        // The admin rejection guards a *user* grant, which would sit dormant and come back on demotion.
-        // A roster is different: the team is the thing being granted to, and it outlives the promotion.
+        // the admin check guards user grants that'd come back on demotion, a team outlives the promotion
         var (svc, _) = Build();
 
         var grant = await svc.SetAsync(new SetAccessGrantRequest
@@ -249,8 +248,7 @@ public class AccessServiceTests
         Assert.AreEqual("ops", listed[0].SubjectName);
     }
 
-    // ListForTargetAsync answers "who can reach this thing", which is not the same question as
-    // "what grants name it" — a grant on a group above reaches here too, and must say so.
+    // who can reach it, not which grants name it, so a grant on a group above counts too
     private static (AccessService Svc, Mock<IAccessGrantRepository> Grants) BuildTree(params AccessGrant[] grants)
     {
         var users = new Mock<IUserDirectory>();
@@ -337,7 +335,6 @@ public class AccessServiceTests
     [TestMethod]
     public async Task A_grant_on_a_child_group_does_not_show_on_the_parent()
     {
-        // Inheritance only ever flows down; a grant below must not look like access to the parent.
         var (svc, _) = BuildTree(On(AccessScope.Group, "acme"));
 
         Assert.IsEmpty(await svc.ListForTargetAsync(AccessScope.Group, "clients"));

@@ -73,8 +73,7 @@ public class WorkloadHealthCheckTests
     [TestMethod]
     public void Without_a_health_check_a_failed_rollout_pauses_rather_than_rolling_back()
     {
-        // Nothing tells swarm the new task is bad, so "rollback" would never fire — pausing at least
-        // stops it replacing every remaining replica.
+        // nothing tells swarm the task is bad so rollback never fires, pause at least stops it replacing every replica
         Assert.AreEqual("pause", WorkloadSpecMapper.ToUpdateConfig(Deployment()).FailureAction);
     }
 
@@ -112,7 +111,7 @@ public class WorkloadHealthCheckTests
     [TestMethod]
     public void Anything_bound_to_a_host_port_must_stop_first(bool pinned, bool hostPort)
     {
-        // Two tasks can't hold the same host port, so start-first would fail to schedule.
+        // two tasks can't share a host port, so start-first wouldn't schedule
         var config = WorkloadSpecMapper.ToUpdateConfig(Deployment(b =>
         {
             b.PinToControlNode = pinned;
@@ -125,9 +124,7 @@ public class WorkloadHealthCheckTests
     [TestMethod]
     public void A_workload_with_a_mount_must_stop_first()
     {
-        // Removing the last port used to flip a database to start-first, and the second container came
-        // up on the same data directory and died on the lock file — which swarm reads as a failed
-        // rollout and pauses.
+        // regression: dropping the last port flipped a db to start-first and the second container died on the data dir lock
         var config = WorkloadSpecMapper.ToUpdateConfig(Deployment(b =>
         {
             b.Ports = [];
@@ -143,7 +140,7 @@ public class WorkloadHealthCheckTests
     [TestMethod]
     public void Restart_policy_reaches_the_task_spec(RestartPolicy policy, string expected)
     {
-        // Swarm defaults to restarting always, which silently contradicts a workload set to Never.
+        // swarm defaults to always restarting, which contradicts Never
         var spec = WorkloadSpecMapper.ToServiceSpec(Deployment(b => b.RestartPolicy = policy), networkId: null);
 
         Assert.AreEqual(expected, spec.TaskTemplate.RestartPolicy.Condition);

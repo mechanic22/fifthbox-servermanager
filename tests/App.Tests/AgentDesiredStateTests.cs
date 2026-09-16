@@ -29,9 +29,7 @@ public class AgentDesiredStateTests
     [TestMethod]
     public async Task Secret_env_reaches_the_agent_decrypted()
     {
-        // Reconcile used to hand over the stored ciphertext while every other path decrypted, so a
-        // workload with a secret got a password-shaped string that wasn't the password — but only after
-        // an agent reconnect, which is why it went unnoticed.
+        // regression: reconcile sent the stored ciphertext as the secret, only showed up after an agent reconnect
         var state = Build(Native("srcds", "a1", new WorkloadRevision
         {
             Number = 1, Command = "/srv/srcds",
@@ -137,7 +135,7 @@ public class AgentDesiredStateTests
         Assert.AreEqual("PORT", spec.Env.Single().Key);
     }
 
-    /// The reconcile path has to decrypt like every other path to a backend; this makes that visible.
+    /// makes a missed decrypt on the reconcile path visible
     private sealed class PassThroughProtector : ISecretProtector
     {
         public string Protect(string plaintext) => $"enc:{plaintext}";

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="IRegistryRepository"/>. Thin adapter — no business rules.
 public class EfRegistryRepository(AppDbContext db) : IRegistryRepository
 {
     public async Task<IReadOnlyList<Registry>> ListAsync(CancellationToken ct = default)

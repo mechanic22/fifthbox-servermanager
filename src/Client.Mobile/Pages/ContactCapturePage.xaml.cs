@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Contacts;
 
 namespace FifthBox.ServerManager.Client.Mobile.Pages;
 
-// The contact is passed as a navigation parameter from the list; MAUI sets it via the query property.
 [QueryProperty(nameof(Contact), "Contact")]
 public partial class ContactCapturePage : ContentPage
 {
@@ -74,8 +73,7 @@ public partial class ContactCapturePage : ContentPage
         SetBusy(true);
         try
         {
-            // Send the full contact so the update preserves its other fields; the server merges in the
-            // new coordinates. Once saved, every client (including the web app) can read them.
+            // send the whole contact or the update drops its other fields
             await _contacts.UpdateAsync(_contact.Id, new UpdateContactRequest
             {
                 Name = _contact.Name,

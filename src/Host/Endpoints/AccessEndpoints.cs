@@ -5,9 +5,6 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Access grants — who may do what to which group or workload. Managing them is the administrator's
-/// job, so the whole group is admin-only; the levels granted here are enforced in the App layer on
-/// every workload call.
 public static class AccessEndpoints
 {
     public static IEndpointRouteBuilder MapAccessEndpoints(this IEndpointRouteBuilder app)

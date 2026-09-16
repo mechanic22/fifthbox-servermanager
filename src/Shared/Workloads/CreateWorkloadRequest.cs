@@ -1,7 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Workloads;
 
-/// Target picks the kind: Swarm ⇒ container fields (Image/Replicas/Ports); Agent ⇒ native fields
-/// (Command/Args/WorkingDirectory) on the given AgentId. Env is shared.
+/// Target picks the kind, swarm uses the container fields and agent the native ones
 public record CreateWorkloadRequest
 {
     public string Name { get; init; } = string.Empty;
@@ -15,7 +14,7 @@ public record CreateWorkloadRequest
     public IReadOnlyList<PortMapping> Ports { get; init; } = [];
     public WorkloadPlacement Placement { get; init; } = WorkloadPlacement.Auto;
     public string? NodeId { get; init; }
-    /// Port this container serves HTTP on. Setting it provisions its automatic subdomain route.
+    /// setting it provisions the automatic subdomain route
     public int? HttpPort { get; init; }
     public int? MemoryLimitMb { get; init; }
     public double? CpuLimit { get; init; }
@@ -33,12 +32,10 @@ public record CreateWorkloadRequest
     public bool ManagedDirectory { get; init; }
     public WorkloadSourceRequest? Source { get; init; }
 
-    /// Minutes past local midnight for a daily restart, or null for never.
+    /// minutes past local midnight, null = never
     public int? RestartDailyAtMinutes { get; init; }
 
-    /// Container health probe, run inside the container as `CMD-SHELL`. Blank means no probe — and
-    /// without one swarm calls a deploy successful the moment the process starts, so a container that
-    /// starts and immediately crash-loops rolls forward instead of back.
+    /// runs as CMD-SHELL. blank = no probe, so swarm rolls a crash-looping deploy forward
     public string? HealthCommand { get; init; }
     public int HealthIntervalSeconds { get; init; } = 10;
     public int HealthTimeoutSeconds { get; init; } = 3;

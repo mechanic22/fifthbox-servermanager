@@ -2,8 +2,7 @@ using System.Text.Json;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// What the last successful acquire left in a workload's directory. Written only on success, so a
-/// half-finished acquire leaves no marker and the workload reports no version until it is run again.
+/// only written on success, a half-done acquire leaves no marker
 public sealed class SourceMarker
 {
     public const string FileName = ".fbsm-source.json";
@@ -35,7 +34,7 @@ public sealed class SourceMarker
         }
         catch (Exception)
         {
-            // The files are there either way; losing the marker costs the version display, not the install.
+            // only costs the version display
         }
     }
 }

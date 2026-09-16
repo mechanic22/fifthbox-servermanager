@@ -5,23 +5,19 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Cluster;
 
-/// What the backend currently believes about the cluster. Written by whatever observes a change — the
-/// docker event stream, an agent's push, the reconcile — and read by everything else, so a page load
-/// costs a dictionary lookup instead of a fan-out to the daemon.
+/// written by whatever sees a change, read by everything else so a page load skips the daemon
 public interface IClusterState
 {
-    /// False until the first write. An empty store and an empty cluster look identical otherwise, and
-    /// answering "no nodes" before we've ever looked is a lie.
+    /// false until the first write, so an empty store doesn't lie as "no nodes"
     bool Hydrated { get; }
 
     IReadOnlyList<NodeResponse> Nodes { get; }
 
     WorkloadRuntimeStatus? StatusFor(string workloadId);
 
-    /// Every status observed so far, keyed by workload id — one read for a page listing many workloads.
     IReadOnlyDictionary<string, WorkloadRuntimeStatus> Statuses { get; }
 
-    /// Each setter answers "did this change anything" so the caller knows whether to tell clients.
+    /// setters return whether anything changed, so callers know to tell clients
     bool SetNodes(IReadOnlyList<NodeResponse> nodes);
 
     bool SetWorkloadStatus(string workloadId, WorkloadRuntimeStatus status);
@@ -56,8 +52,7 @@ public sealed class ClusterState : IClusterState
     {
         lock (_gate)
         {
-            // Hydrated flips even when nothing differs: a cluster that genuinely has no nodes still
-            // counts as having been looked at.
+            // flips even when nothing differs, an empty cluster still got looked at
             var changed = !Hydrated || NodeSnapshot.Differs(_nodes, nodes);
             _nodes = nodes;
             Hydrated = true;
@@ -82,8 +77,7 @@ public sealed class ClusterState : IClusterState
 
     private static readonly IReadOnlyList<WorkloadTask> NoTasks = [];
 
-    /// The record's own equality compares Tasks by reference, so two identical readings would always
-    /// look different and every sweep would broadcast. Compare the rest by value and the list by sequence.
+    /// record equality compares Tasks by reference, so every sweep would broadcast without this
     private static bool Same(WorkloadRuntimeStatus a, WorkloadRuntimeStatus b)
         => a with { Tasks = NoTasks } == b with { Tasks = NoTasks } && a.Tasks.SequenceEqual(b.Tasks);
 

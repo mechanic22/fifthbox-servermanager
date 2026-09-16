@@ -3,15 +3,9 @@ using System.Net.Http.Json;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Turns a ProblemDetails body from a failed response into a single user-facing message. Shared by the
-/// typed HTTP clients so they all handle backend failures the same way — join validation errors, else
-/// detail/title, else a generic fallback based on the status. Public so heads outside this assembly
-/// (the web cookie client) can reuse the same translation.
-/// </summary>
 public static class HttpProblem
 {
-    /// The message plus the status, so a caller can tell "this doesn't exist" from "this broke".
+    /// keeps the status so callers can tell not-found from broken
     public static async Task<ApiException> ToExceptionAsync(HttpResponseMessage response, CancellationToken ct)
         => new(await ReadMessageAsync(response, ct), response.StatusCode);
 
@@ -37,7 +31,7 @@ public static class HttpProblem
         }
         catch
         {
-            // Fall through to the generic message below if the body isn't ProblemDetails.
+            // not ProblemDetails, fall through to the generic message
         }
 
         return response.StatusCode switch
@@ -48,7 +42,6 @@ public static class HttpProblem
         };
     }
 
-    /// <summary>Just enough to read a ProblemDetails body without pulling in MVC.</summary>
     private sealed class ProblemInfo
     {
         public string? Title { get; set; }
@@ -57,7 +50,7 @@ public static class HttpProblem
     }
 }
 
-/// <summary>A failed API call, carrying a message that's safe to show the user.</summary>
+/// message is safe to show the user
 public sealed class ApiException(string message, HttpStatusCode? statusCode = null) : Exception(message)
 {
     public HttpStatusCode? StatusCode { get; } = statusCode;

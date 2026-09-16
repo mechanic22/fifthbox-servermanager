@@ -4,11 +4,9 @@ using Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Turns a raw docker event into the subject it affects, or nothing. The tested core of the event source.
 public static class SwarmEventInterpreter
 {
-    /// Service events name the service plainly; container events carry it as a swarm label. Two keys for
-    /// the same fact because one is a swarm-scope object and the other is a local container.
+    /// service events use "name", container events carry it as a swarm label
     private const string ServiceNameAttribute = "name";
     private const string SwarmServiceNameAttribute = "com.docker.swarm.service.name";
 
@@ -26,8 +24,7 @@ public static class SwarmEventInterpreter
             _ => null,
         };
 
-        // Unprefixed means it isn't ours: the platform's own fbsm-nginx / fbsm-host (single dash), or
-        // anything else sharing the daemon.
+        // unprefixed isn't ours (fbsm-nginx, fbsm-host, or anything else on the daemon)
         return SwarmNaming.TryWorkloadName(serviceName, out _)
             ? new SwarmChange(SwarmChangeKind.Workload, serviceName)
             : null;

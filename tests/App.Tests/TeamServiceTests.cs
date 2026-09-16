@@ -143,7 +143,7 @@ public class TeamServiceTests
         [
             new AccessGrant { SubjectType = AccessSubject.Team, SubjectId = "t1", Scope = AccessScope.Workload, TargetId = "w1", Level = AccessLevel.View },
             new AccessGrant { SubjectType = AccessSubject.Team, SubjectId = "t1", Scope = AccessScope.Group, TargetId = "g1", Level = AccessLevel.Operate },
-            // A user grant that happens to share an id must not be counted as the team's.
+            // user grant with the same id must not count as the team's
             new AccessGrant { SubjectType = AccessSubject.User, SubjectId = "t1", Scope = AccessScope.Workload, TargetId = "w2", Level = AccessLevel.View },
         ]);
 

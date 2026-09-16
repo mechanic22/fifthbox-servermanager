@@ -154,8 +154,7 @@
                                         Style="MaterialButtonStyle.Outlined" OnClick="UpdateFilesAsync"
                                         Disabled="_busy || _status?.Updating == true || IsDeployed" />
                     }
-                    @* Placement is a config decision — it rewrites saved state and can strand the
-                       workload on an offline agent or a clashing port. *@
+                    @* placement rewrites saved config and can strand it on an offline agent or clashing port *@
                     @if (CanConfigure && _workload.Kind == WorkloadKind.Native)
                     {
                         <MaterialButton Text="Move to agent" Style="MaterialButtonStyle.Outlined" OnClick="OpenMoveAsync"
@@ -205,7 +204,7 @@
                     <WorkloadConfigForm Model="_form" Groups="_groups" Busy="_busy" AllowTargetChange="false"
                                         RootDomain="_rootDomain" VolumePrefix="@_volumePrefix" />
 
-                    @* Negative margins cancel the page's p-6 so the bar spans the content column. *@
+                    @* -mx-6 cancels the page's p-6 so the bar spans the column *@
                     <div class="sticky bottom-0 mt-6 -mx-6 px-6 py-4 flex items-center gap-3 border-t z-10"
                          style="background: var(--md-sys-color-surface); border-color: var(--md-sys-color-outline-variant)">
                         <MaterialButton Text="Save changes" Style="MaterialButtonStyle.Filled" OnClick="SaveConfigAsync"
@@ -221,8 +220,6 @@
             }
             else if (_tab == "routes")
             {
-                @* The deploy step used to live only on the Routes page, so a route added here looked
-                   finished and wasn't. *@
                 <ProxyDriftBanner State="_proxy" OnApplied="ReloadProxyStateAsync" />
 
                 <RoutesEditor WorkloadId="@Id" OnChanged="RoutesChangedAsync" ReadOnly="!_isAdmin"
@@ -440,8 +437,6 @@
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
 
-    /// In the URL so a log or a revision can be linked to, and so Back returns to the previous tab
-    /// instead of leaving the page.
     [Parameter] public string? Tab { get; set; }
 
     private WorkloadResponse? _workload;
@@ -459,8 +454,7 @@
     private IReadOnlyList<WorkloadLogLine>? _logs;
     private bool _logsLoading;
 
-    // Logs are fetched when the tab is first opened rather than on every page load — a chatty workload
-    // would otherwise cost 200 lines every time you look at Overview.
+    // logs load when the tab's first opened, not on every page load
     private string _tab
     {
         get => _tabValue;
@@ -473,10 +467,8 @@
                 return;
             }
 
-            // Overview is the bare /workloads/{id}, so the common address stays the short one.
             Nav.NavigateTo(value == "overview" ? $"workloads/{Id}" : $"workloads/{Id}/{value}", replace: true);
 
-            // Leaving logs always stops the stream, whichever tab you land on.
             if (was == "logs")
             {
                 _ = Realtime.UnfollowLogsAsync(Id);
@@ -494,24 +486,21 @@
     }
     private List<MaterialTab> _tabs = [];
 
-    // Routes only exist for container workloads — nginx proxies to a swarm service name.
+    // routes are container-only, nginx proxies to a swarm service name
     private static List<MaterialTab> TabsFor(WorkloadKind kind, bool canConfigure, bool managedDirectory, bool isAdmin) =>
     [
         new() { Value = "overview", Label = "Overview" },
-        // No Config tab below Configure: it's the editor, and it's what carries the decrypted env values.
+        // config needs Configure, it carries the decrypted env values
         .. canConfigure ? new[] { new MaterialTab { Value = "config", Label = "Config" } } : [],
         .. kind == WorkloadKind.Container ? new[] { new MaterialTab { Value = "routes", Label = "Routes" } } : [],
-        // Files exist only where the agent owns the directory; a hand-installed path isn't ours to browse.
         .. canConfigure && kind == WorkloadKind.Native && managedDirectory
             ? new[] { new MaterialTab { Value = "files", Label = "Files" } } : [],
         new() { Value = "history", Label = "History" },
         new() { Value = "logs", Label = "Logs" },
-        // Sharing a workload out is the administrator's job, so it isn't offered to anyone else.
         .. isAdmin ? new[] { new MaterialTab { Value = "access", Label = "Access" } } : [],
     ];
 
-    /// Global has no replica count, and anything tied to one node — a chosen one, or the one its volume
-    /// lives on — is deliberately one copy.
+    /// global has no count, and anything tied to one node is one copy on purpose
     private static bool IsScalable(WorkloadResponse w) =>
         w.Kind == WorkloadKind.Container
         && w.Mode != WorkloadMode.Global
@@ -528,10 +517,7 @@
     private bool CanConfigure => _workload is not null && WorkloadPermissions.CanConfigure(_workload);
     private bool CanDeploy => _workload is not null && WorkloadPermissions.CanDeploy(_workload);
 
-    /// A deploy we already sent is still rolling out — pressing it again only bounces the workload a
-    /// second time. Two states deliberately don't count, because neither ever settles and the button
-    /// would never come back: a stalled rollout, and a workload that isn't up (stopped, or removed from
-    /// the swarm) — for those the banner below and the deploy button are the way out.
+    /// ignores stalled and not-up workloads, those never settle so the button would never come back
     private bool Deploying => _workload is { IsDeploying: true }
         && _status is { Deployed: true, RolloutStalled: false };
 
@@ -540,7 +526,7 @@
 
     private bool IsStopped => _workload?.DesiredState == WorkloadDesiredState.Stopped;
 
-    // Undeploy leaves the revisions behind, so a workload can have config to run and no service running it.
+    // undeploy keeps revisions, so there can be config with nothing running it
     private bool IsDeployed => _status is { Deployed: true };
 
     [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
@@ -563,25 +549,19 @@
     private List<MaterialBreadcrumbItem> _crumbs = [];
     private WorkloadFormModel _form = new();
 
-    // Snapshot of the form as loaded. Editing used to be silently discarded on navigation with no
-    // warning that anything was lost.
     private string _formBaseline = string.Empty;
 
     private bool ConfigDirty => _form.Fingerprint() != _formBaseline;
 
-    // Subscribe once per component instance — OnParametersSetAsync also fires when the route id changes,
-    // which would stack duplicate handlers.
+    // subscribe here, OnParametersSetAsync refires on id change and would stack handlers
     protected override async Task OnInitializedAsync()
     {
-        // Resolved before the first LoadAsync (OnParametersSetAsync runs after this), because what the
-        // page is allowed to fetch depends on it.
+        // before the first load, what we can fetch depends on it
         if (AuthStateTask is not null)
         {
             _isAdmin = (await AuthStateTask).User.IsInRole(Roles.Admin);
         }
 
-        // Both backends report as they happen — the swarm through the docker event stream, agents by
-        // pushing — so a crash or a rescheduled replica updates itself here.
         Realtime.WorkloadStatusChanged += OnStatusChanged;
         Realtime.WorkloadLogLines += OnLogLines;
         Realtime.Reconnected += OnReconnected;
@@ -592,8 +572,7 @@
 
     private string? _loadedId;
 
-    // A tab click is now a navigation, so this fires on every one. Reloading here would cost eight
-    // requests per tab and — worse — rebuild _form, silently throwing away unsaved config edits.
+    // fires on every tab click, reloading here would wipe unsaved config edits
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedId != Id)
@@ -605,8 +584,7 @@
         ApplyRouteTab();
     }
 
-    /// The URL is the source of truth for which tab is open, but only once the workload is loaded —
-    /// which tabs exist depends on its kind and on what the caller may do.
+    /// only once the workload's loaded, which tabs exist depends on it
     private void ApplyRouteTab()
     {
         if (_workload is null || _tabs.Count == 0)
@@ -617,7 +595,7 @@
         var requested = Tab ?? "overview";
         var resolved = _tabs.Exists(t => t.Value == requested) ? requested : "overview";
 
-        // Through the setter, not the field: a link straight to /logs still has to start the fetch.
+        // setter not field, a direct link to /logs still has to start the fetch
         if (resolved != _tabValue)
         {
             _tab = resolved;
@@ -628,8 +606,6 @@
         ? string.Join(", ", fields)
         : string.Empty;
 
-    /// One extra call per page load, not per list row — reading a service back to compare it is only
-    /// worth it on the page that shows the config it disagrees with.
     private async Task LoadDriftAsync()
     {
         try
@@ -638,7 +614,7 @@
         }
         catch (ApiException)
         {
-            // Nothing to say rather than a scary banner: a drift read that fails is not drift.
+            // a failed drift read isn't drift
             _drift = null;
         }
     }
@@ -661,11 +637,8 @@
 
     private bool _refreshingBanners;
 
-    /// Pending changes and drift are the server's answer, not the status push's, and a container rollout
-    /// only settles a second or two after Deploy returns — so both banners are still up when the page
-    /// reloads right after a redeploy, and nothing else would ever take them down. Only while one is
-    /// showing, so a settled workload costs nothing. Deliberately not LoadAsync: that rebuilds _form and
-    /// would throw away unsaved config edits.
+    /// the status push doesn't clear the pending/drift banners, so re-read them while one's up
+    /// not LoadAsync, that rebuilds _form and loses unsaved edits
     private async Task RefreshBannersAsync()
     {
         if (_refreshingBanners)
@@ -683,7 +656,7 @@
         }
         catch (ApiException)
         {
-            // Silent: there is a drawn page behind this and the next status event tries again.
+            // next status event retries
         }
         finally
         {
@@ -710,10 +683,7 @@
             _workloadRoutes = [.. await WorkloadsApi.GetRoutesAsync(Id)];
             await LoadDriftAsync();
 
-            // Nodes, settings and TLS are all admin-only. Asking for them as anyone else doesn't just
-            // fail — the first 403 aborts the rest of the load and leaves the page half drawn. A
-            // non-admin loses some address detail (node names, non-default edge ports, the HTTPS chip)
-            // and nothing else.
+            // admin-only calls, a 403 here would abort the rest of the load
             if (_isAdmin)
             {
                 _nodes = await NodesApi.ListAsync();
@@ -746,8 +716,6 @@
         }
         catch (ApiException ex)
         {
-            // A refresh that fails behind an already-drawn page stays a snackbar; there's still
-            // something to read. A first load that fails has to say so where the page would be.
             if (_workload is null)
             {
                 _error = ex.Message;
@@ -766,16 +734,14 @@
         await ReloadProxyStateAsync();
     }
 
-    // The name is already the server's slug and never changes, so this lands on the same address
-    // DefaultHostname would have picked.
+    // name is already the server's slug, so this matches DefaultHostname
     private string? SuggestedHostname() => string.IsNullOrWhiteSpace(_rootDomain)
         ? null
         : $"{_workload!.Name}.{_rootDomain.Trim().Trim('.').ToLowerInvariant()}";
 
     private int? SuggestedPort() => _workloadRoutes is [{ TargetPort: var port }, ..] ? port : null;
 
-    // Admin-only endpoint: a granted non-admin can see this workload's routes but can't deploy the
-    // edge, so there's nothing to tell them about.
+    // admin-only, a non-admin can't deploy the edge anyway
     private async Task ReloadProxyStateAsync()
     {
         if (!_isAdmin)
@@ -972,7 +938,7 @@
         }
         catch (Exception)
         {
-            // Following is a bonus — the tail and Refresh still work without it.
+            // follow is a bonus, tail and Refresh still work
         }
     }
 
@@ -983,7 +949,7 @@
             return;
         }
 
-        // Newest-wins, matching the agent's ring buffer, so a long session can't grow without bound.
+        // capped like the agent's ring buffer
         _logs = [.. (_logs ?? []).Concat(lines).TakeLast(500)];
         InvokeAsync(StateHasChanged);
     }

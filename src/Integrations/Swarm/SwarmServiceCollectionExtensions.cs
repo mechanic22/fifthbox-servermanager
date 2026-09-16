@@ -10,9 +10,6 @@ namespace FifthBox.ServerManager.Integrations.Swarm;
 
 public static class SwarmServiceCollectionExtensions
 {
-    /// Wires the Docker Swarm integration: one shared DockerClient for the given Engine API endpoint,
-    /// plus the App ports it satisfies (node inventory, cluster lifecycle). The endpoint comes from the
-    /// composition root (Host reads config) — the component doesn't reach into configuration itself.
     public static IServiceCollection AddSwarm(this IServiceCollection services, string dockerEndpoint)
     {
         services.AddSingleton<IDockerClient>(_ =>

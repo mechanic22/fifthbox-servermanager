@@ -7,7 +7,7 @@ public record TeamResponse
     public string Description { get; init; } = string.Empty;
     public List<TeamMemberResponse> Members { get; init; } = [];
 
-    /// Access grants held by the team. Every member inherits all of them.
+    /// every member inherits these
     public int GrantCount { get; init; }
 }
 
@@ -16,7 +16,6 @@ public record TeamMemberResponse
     public required string Id { get; init; }
     public required string UserName { get; init; }
 
-    /// An admin member gains nothing from the team — the role already bypasses grants. Membership is
-    /// still kept, so demoting them restores exactly the access the roster says they should have.
+    /// admins gain nothing from a team, but we keep membership so a demote restores their access
     public bool IsAdmin { get; init; }
 }

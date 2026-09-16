@@ -3,10 +3,6 @@ using FifthBox.ServerManager.Shared.Certificates;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for per-hostname TLS. Reads ProblemDetails on failure and throws
-/// <see cref="ApiException"/>.
-/// </summary>
 public interface ITlsClient
 {
     Task<TlsOverviewResponse> GetAsync(CancellationToken ct = default);

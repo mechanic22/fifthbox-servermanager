@@ -3,15 +3,12 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Whether anything is actually accepting connections on a workload's declared ports. "The process
-/// exists" is a weak claim for a game server that has wedged with its socket closed.
+/// a wedged game server can be alive with its socket closed
 public static class PortProbe
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(400);
 
-    /// Null when there is nothing to probe. UDP can't be checked by connecting — an unanswered datagram
-    /// is indistinguishable from a healthy silent server — and plenty of game servers are UDP-only, so
-    /// saying nothing beats reporting a false negative.
+    /// null with no tcp ports. udp can't be probed, and saying nothing beats a false negative
     public static async Task<bool?> ReachableAsync(IReadOnlyList<PortMapping> ports, CancellationToken ct)
     {
         var tcp = ports.Where(p => p.Protocol is PortProtocol.Tcp or PortProtocol.Both).ToList();

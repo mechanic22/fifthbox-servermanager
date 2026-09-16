@@ -2,8 +2,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// A deterministic signature of a workload's deployable config, used to tell whether the saved (desired)
-/// config differs from a deployed revision — i.e. whether there are pending changes to redeploy.
 internal static class WorkloadConfigSignature
 {
     public static string Of(Workload w) =>
@@ -31,10 +29,9 @@ internal static class WorkloadConfigSignature
         var envPart = string.Join(",", env
             .OrderBy(e => e.Key, StringComparer.Ordinal)
             .Select(e => $"{e.Key}={e.Value}"));
-        var argsPart = string.Join("", args); // args are positional — keep order
+        var argsPart = string.Join("", args); // positional, keep order
 
-        // The stored ciphertext, not the secret: it stays byte-stable for an unchanged password, so
-        // editing anything else can't register as a config change.
+        // the ciphertext, not the secret, it's byte-stable for an unchanged password
         var sourcePart = $"{source.Kind}:{source.Url}:{source.SteamAppId}:{source.SteamBranch}:{source.SteamUsername}:{source.SteamPasswordEnc}";
 
         return $"img={image}|mode={mode}|rep={replicas}|ports={portsPart}|exp={exposure}|node={nodeId}|mem={memoryLimitMb}|cpu={cpuLimit}|memres={memoryReserveMb}|cpures={cpuReserve}|mounts={mountsPart}|cmd={command}|args={argsPart}|wd={workingDir}|restart={restartPolicy}|grace={stopGraceSeconds}|stopcmd={stopCommand}|managed={managedDirectory}|src={sourcePart}|env={envPart}|health={healthCommand}:{healthInterval}:{healthTimeout}:{healthRetries}:{healthStartPeriod}";

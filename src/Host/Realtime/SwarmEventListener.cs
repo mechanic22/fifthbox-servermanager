@@ -2,16 +2,13 @@ using FifthBox.ServerManager.App.Cluster;
 
 namespace FifthBox.ServerManager.Host.Realtime;
 
-/// Watches the docker event stream and turns what it sees into state refreshes. Events say only *which*
-/// subject moved, never what it moved to — the refresh re-reads the truth, so a duplicate event costs a
-/// wasted read and a missed one is caught by the reconcile.
+/// events only say what moved, so we re-read. dupes cost a read, misses get caught by reconcile
 public sealed class SwarmEventListener(
     ISwarmEvents events,
     IClusterStateWriter writer,
     ILogger<SwarmEventListener> logger) : BackgroundService
 {
-    // A single deploy fires create + start + health_status across every replica. Batching them means one
-    // refresh and one broadcast instead of a burst of each.
+    // one deploy fires a burst of events per replica, batch them into one refresh
     private static readonly TimeSpan CoalesceWindow = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
 
@@ -23,8 +20,7 @@ public sealed class SwarmEventListener(
         {
             try
             {
-                // Whatever happened while the stream was down is invisible to it, so start by re-reading
-                // rather than waiting for the next event to reveal we're stale.
+                // stream missed whatever happened while it was down, so re-read first
                 await writer.RefreshNodesAsync(stoppingToken);
                 await writer.RefreshWorkloadsAsync(stoppingToken);
                 await ConsumeAsync(stoppingToken);
@@ -36,8 +32,7 @@ public sealed class SwarmEventListener(
             }
             catch (Exception ex)
             {
-                // A daemon that isn't there fails this every few seconds forever; only the first of a
-                // repeating failure is worth a stack trace.
+                // no daemon fails this forever, only the first one gets a stack trace
                 if (lastFailure == ex.Message)
                 {
                     logger.LogDebug("Docker event stream still failing: {Reason}", ex.Message);
@@ -66,7 +61,7 @@ public sealed class SwarmEventListener(
         var pendingNodes = false;
         var pendingServices = new HashSet<string>(StringComparer.Ordinal);
 
-        // Held across iterations: a timed-out wait must resume the *same* pending read, not start another.
+        // held across loops, a timed-out wait has to resume the same read
         var next = stream.MoveNextAsync().AsTask();
 
         while (true)
@@ -116,8 +111,7 @@ public sealed class SwarmEventListener(
             await writer.RefreshNodesAsync(ct);
         }
 
-        // One service costs less to read on its own; past that the sweep is two docker calls for the
-        // lot, where the per-service path is three each.
+        // sweep is 2 docker calls total, per-service is 3 each
         if (services.Count > 1)
         {
             await writer.RefreshWorkloadsAsync(ct);

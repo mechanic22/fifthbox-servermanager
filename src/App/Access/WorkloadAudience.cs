@@ -4,15 +4,13 @@ using FifthBox.ServerManager.Shared.Exceptions;
 
 namespace FifthBox.ServerManager.App.Access;
 
-/// Who may hear about one workload. Separate from <see cref="IWorkloadAccess"/> because this asks about
-/// a workload rather than about a caller — it's what the hub and the status broadcaster need.
+/// asks about a workload not a caller, for the hub and status broadcaster
 public interface IWorkloadAudience
 {
-    /// Throws unless the caller can see this workload, without loading it for them.
+    /// throws unless the caller can see it, without loading it
     Task RequireViewAsync(Caller caller, string workloadId, CancellationToken ct = default);
 
-    /// Every admin, plus anyone whose grant — their own or one of their teams' — reaches this workload
-    /// directly or through a group.
+    /// admins plus anyone whose own or team grant reaches it, directly or via a group
     Task<IReadOnlyList<string>> ViewerIdsAsync(string workloadId, CancellationToken ct = default);
 }
 
@@ -50,8 +48,7 @@ public sealed class WorkloadAudience(
         var tree = await groups.ListAsync(ct);
         var rosters = await teams.ListAsync(ct);
 
-        // Resolved per user rather than matched on TargetId: most viewers hold no grant on the workload
-        // itself, only on a group somewhere above it — or on neither, through a team.
+        // per user, most viewers only hold a grant on a group above it, or get it through a team
         var granted = everyone
             .Where(u => !u.IsAdmin)
             .Where(u => AccessMap.Build(Held(u.Id, all, rosters), tree)

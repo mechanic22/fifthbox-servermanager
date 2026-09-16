@@ -3,9 +3,7 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized Context="authState">
-                    @* Anonymous → send to login. Authenticated but lacking the required role/policy
-                       (e.g. a non-admin hitting /admin) → an access-denied message, not a bounce
-                       back to login they're already past. *@
+                    @* signed in but not allowed gets access denied, not a bounce back to login *@
                     @if (authState.User.Identity?.IsAuthenticated == true)
                     {
                         <div class="max-w-2xl mx-auto p-6">

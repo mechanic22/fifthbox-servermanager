@@ -66,7 +66,7 @@ public class InstallPathsTests
     [TestMethod]
     public void An_absolute_path_is_refused_rather_than_silently_replacing_the_root()
     {
-        // Path.Combine would discard the root here, so this must be caught before containment is checked.
+        // Path.Combine drops the root here, so catch it before the containment check
         var absolute = OperatingSystem.IsWindows() ? @"C:\windows\system32\cmd.exe" : "/etc/passwd";
 
         Assert.IsFalse(InstallPaths.TryResolveWithin(InstallRoot, absolute, out _));
@@ -75,7 +75,7 @@ public class InstallPathsTests
     [TestMethod]
     public void A_sibling_directory_sharing_the_root_prefix_is_still_outside()
     {
-        // "…/csgo-evil" starts with "…/csgo" as a string but is not inside it.
+        // csgo-evil starts with csgo as a string but isn't inside it
         Assert.IsTrue(InstallPaths.TryRootFor(Root, "csgo-evil", out var sibling));
         Assert.IsFalse(sibling.StartsWith(InstallRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal));
         Assert.IsFalse(InstallPaths.TryResolveWithin(InstallRoot, "../csgo-evil/run.sh", out _));

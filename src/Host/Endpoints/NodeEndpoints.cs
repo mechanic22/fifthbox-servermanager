@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// The cluster's nodes, and the swarm operations on them. Admin-only: hostnames, addresses and swarm
-/// health are the operator's business, not something a user granted one workload has any reason to read.
 public static class NodeEndpoints
 {
     public static IEndpointRouteBuilder MapNodeEndpoints(this IEndpointRouteBuilder app)
@@ -16,7 +14,7 @@ public static class NodeEndpoints
             TypedResults.Ok(await svc.ListAsync(ct)));
 
         group.MapGet("/{id}", async (string id, INodeService svc, CancellationToken ct) =>
-            TypedResults.Ok(await svc.GetAsync(id, ct)));   // throws NotFoundException → middleware → 404
+            TypedResults.Ok(await svc.GetAsync(id, ct)));
 
         group.MapPut("/{id}/availability", async (string id, SetNodeAvailabilityRequest request, INodeService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.SetAvailabilityAsync(id, request.Availability, ct)));

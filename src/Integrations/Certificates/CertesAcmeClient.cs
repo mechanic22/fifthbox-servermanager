@@ -41,8 +41,7 @@ public sealed class CertesAcmeClient(
                 await challenge.Validate();
             }
 
-            // Ask them all to validate first, then wait: the CA fetches each in its own time, and
-            // serialising the waits would add a round of latency per hostname.
+            // kick off every validation, then wait, so it isn't a round of latency per hostname
             foreach (var authorization in await order.Authorizations())
             {
                 await AwaitValidationAsync(authorization, ct);
@@ -82,8 +81,7 @@ public sealed class CertesAcmeClient(
         var directory = AcmeDirectories.Resolve(options.Value.Directory);
         var stored = await accounts.GetAsync(ct);
 
-        // An account exists only at the CA that registered it, so a directory change means a new
-        // account — reusing a staging key against production fails as "account does not exist".
+        // accounts are per CA, a staging key against production fails "account does not exist"
         if (stored is not null && stored.Directory == directory.ToString())
         {
             return new AcmeContext(directory, KeyFactory.FromPem(protector.Unprotect(stored.EncryptedKeyPem)));

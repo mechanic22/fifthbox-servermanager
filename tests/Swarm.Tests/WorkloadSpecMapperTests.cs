@@ -39,8 +39,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void ForceUpdate_is_bumped_when_the_published_ports_change()
     {
-        // Ports live outside the task template, so without the bump swarm updates the spec and leaves the
-        // running container bound to the port it already had.
+        // ports live outside the task template, without the bump the container keeps its old port
         var live = Spec([new PortMapping(57017, 27017, PortProtocol.Tcp, PortPublishMode.Host)], forceUpdate: 4);
         var desired = Spec([new PortMapping(27017, 27017, PortProtocol.Tcp, PortPublishMode.Host)]);
 
@@ -58,8 +57,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void ForceUpdate_is_bumped_when_a_running_task_holds_a_port_the_spec_already_dropped()
     {
-        // How a workload gets stuck: the spec was changed before the bump existed, so it agrees with us
-        // while the container that has been up since then still answers on the old port.
+        // how it gets stuck: spec changed before the bump existed, so it agrees with us but the container's on the old port
         var ports = new[] { new PortMapping(27017, 27017, PortProtocol.Tcp, PortPublishMode.Host) };
         var stale = RunningTask(published: 57017, target: 27017);
 
@@ -100,8 +98,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void ForceUpdate_carries_forward_when_the_ports_are_unchanged()
     {
-        // Carried, not reset: dropping it back to zero is itself a task-template change, so every deploy
-        // after a Restart would recreate the tasks for no reason.
+        // carried, not reset, resetting is a template change so every deploy after a Restart would recreate tasks
         var ports = new[] { new PortMapping(8080, 80, PortProtocol.Tcp) };
         var live = Spec(ports, forceUpdate: 7);
 
@@ -149,8 +146,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void ToServiceSpec_sets_reservations_independently_of_limits()
     {
-        // A reservation with no limit is a normal thing to want: tell the scheduler what to set aside
-        // without capping the container.
+        // a reservation without a limit is normal, set space aside without capping
         var spec = WorkloadSpecMapper.ToServiceSpec(new WorkloadDeployment
         {
             Name = "web", Image = "nginx", Replicas = 1, MemoryReserveMb = 256, CpuReserve = 0.25,
@@ -191,8 +187,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void A_global_services_desired_count_is_the_tasks_swarm_still_wants()
     {
-        // Swarm reports no replica number for a global service, so reading Mode.Replicated would call
-        // a healthy three-node service "Stopped 0/0".
+        // swarm has no replica count for global services, reading Mode.Replicated shows Stopped 0/0
         var spec = new DockerModels.ServiceSpec { Mode = new DockerModels.ServiceMode { Global = new DockerModels.GlobalService() } };
         DockerModels.TaskResponse Task(DockerModels.TaskState desired) => new() { DesiredState = desired };
 
@@ -209,7 +204,7 @@ public class WorkloadSpecMapperTests
     [TestMethod]
     public void Every_workload_is_constrained_to_its_images_os()
     {
-        // Without this swarm places a linux image on a Windows node and lets it fail there.
+        // without this swarm puts a linux image on a windows node and lets it fail
         var spec = WorkloadSpecMapper.ToServiceSpec(new WorkloadDeployment
         {
             Name = "web", Image = "nginx", Replicas = 1,
@@ -368,7 +363,7 @@ public class WorkloadSpecMapperTests
         Assert.AreEqual("sec1", secret.SecretID);
         Assert.AreEqual("fbsm-nginx-key-app.example.com-abc123", secret.SecretName);
         Assert.AreEqual("key-app.example.com.pem", secret.File.Name);
-        // 0400 — anything in the container that can read the key is something that has the key.
+        // 0400, anything that can read the key has the key
         Assert.AreEqual(0b100_000_000u, secret.File.Mode);
     }
 
@@ -387,8 +382,7 @@ public class WorkloadSpecMapperTests
         var before = WorkloadSpecMapper.SecretObjectName("fbsm-nginx", "key-app.example.com", "old-key");
         var after = WorkloadSpecMapper.SecretObjectName("fbsm-nginx", "key-app.example.com", "new-key");
 
-        // Swarm secrets are immutable, so a renewed key has to arrive as a new object; identical content
-        // keeps the same name, which is what makes a redeploy with unchanged certificates a no-op.
+        // swarm secrets are immutable so a renewed key needs a new object, same content keeps the name so redeploys are no-ops
         Assert.AreNotEqual(before, after);
         Assert.AreEqual(before, WorkloadSpecMapper.SecretObjectName("fbsm-nginx", "key-app.example.com", "old-key"));
         StringAssert.StartsWith(before, "fbsm-nginx-key-app.example.com-");

@@ -5,15 +5,9 @@ using FifthBox.Identity.Abstractions;
 
 namespace FifthBox.ServerManager.Host.Infrastructure;
 
-/// <summary>
-/// Glue between the two halves of "a user": the identity account and the Storage-owned profile (app
-/// fields). The Host is where they meet — neither component reaches into the other. Endpoints stay
-/// thin by pushing the join here.
-/// </summary>
 internal static class UserProfileComposition
 {
-    /// <summary>Creates or updates the app profile for an account. Timestamps set here; the store keeps
-    /// the original <c>CreatedAt</c> on update.</summary>
+    /// store keeps the original CreatedAt on update
     public static Task UpsertProfileAsync(
         IUserProfileStore profiles, string userId, string email, string firstName, string lastName, CancellationToken ct)
     {
@@ -29,7 +23,6 @@ internal static class UserProfileComposition
         }, ct);
     }
 
-    /// <summary>Reads the identity account and app profile and builds the client-facing view.</summary>
     public static async Task<UserResponse> ComposeAsync(
         string userId, IIdentityService identity, IUserProfileStore profiles, CancellationToken ct)
     {

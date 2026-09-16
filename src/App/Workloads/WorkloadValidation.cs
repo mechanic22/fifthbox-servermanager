@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// The rules a workload's saved config has to satisfy, and the normalising that goes with them. Pure and
-/// dependency-free, which is why it lives apart from the service that applies it.
 internal static class WorkloadValidation
 {
     public static string ValidateName(string name)
@@ -74,7 +72,7 @@ internal static class WorkloadValidation
             throw new ValidationException(nameof(CreateWorkloadRequest.CpuReserve), "CPU reservation cannot be negative.");
         }
 
-        // Reserving more than the limit schedules space the container is then forbidden to use.
+        // reserving more than the limit schedules space the container can't use
         if (memoryReserveMb > memoryLimitMb)
         {
             throw new ValidationException(nameof(CreateWorkloadRequest.MemoryReserveMb),
@@ -116,23 +114,16 @@ internal static class WorkloadValidation
 
         return port;
     }
-    /// Internal means nothing is published — nginx reaches it over the overlay, and the route carries the
-    /// target port. Published means bound on the chosen node; there is no per-port choice.
-    /// Always host-bound, never the ingress mesh: the mesh SNATs, so the container would see the gateway
-    /// instead of the real client. Swarm treats a host port as a node resource and won't put two tasks of
-    /// one service on the same node, which is what spreads the replicas.
+    /// always host mode, the ingress mesh SNATs so the container would lose the client ip
     public static List<PortMapping> PublishedPorts(IReadOnlyList<PortMapping> ports) =>
         [.. ports.Select(p => new PortMapping(p.Published, p.Target, p.Protocol, PortPublishMode.Host))];
     public static bool HasNamedVolume(IEnumerable<VolumeMount> mounts) =>
         mounts.Any(m => m.Type == VolumeMountType.Volume);
     public static bool SingleInstance(WorkloadPlacement placement, IEnumerable<VolumeMount> mounts) =>
         placement == WorkloadPlacement.Node || HasNamedVolume(mounts);
-    /// The node the backend has to honour: the one an operator picked, or — for a workload whose volume
-    /// ties it down — the one we watched it land on. Revisions saved before placement existed carry a
-    /// node with no placement, and the coalesce is what still honours them on a rollback.
+    /// old revisions carry a node with no placement, the coalesce still honours them on rollback
     public static string? EffectiveNode(Workload w, string? nodeId) => nodeId ?? w.PlacedNodeId;
-    /// A native process binds a port on its host directly — there's no container to map into, so
-    /// published and target are the same number and it's always host-bound.
+    /// published and target are the same, a process binds the host port directly
     public static List<PortMapping> NativePorts(IReadOnlyList<PortMapping> ports) =>
         [.. ports.Select(p => new PortMapping(p.Published, p.Published, p.Protocol, PortPublishMode.Host))];
     public static void ApplyHealth(Workload w, string? command, int interval, int timeout, int retries, int startPeriod)
@@ -143,7 +134,7 @@ internal static class WorkloadValidation
             return;
         }
 
-        // Zeros would make swarm poll continuously and never let a container finish starting.
+        // zeros make swarm poll nonstop and a container never finishes starting
         w.HealthIntervalSeconds = Positive(interval, nameof(CreateWorkloadRequest.HealthIntervalSeconds));
         w.HealthTimeoutSeconds = Positive(timeout, nameof(CreateWorkloadRequest.HealthTimeoutSeconds));
         w.HealthRetries = Positive(retries, nameof(CreateWorkloadRequest.HealthRetries));
@@ -160,7 +151,7 @@ internal static class WorkloadValidation
         : throw new ValidationException(member, "Must be between 1 and 3600.");
     public static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    /// Minutes past midnight, so 0..1439. Null is "never", which is the default.
+    /// minutes past midnight (0..1439), null is never
     public static int? ValidateRestartTime(int? minutes)
     {
         if (minutes is null)

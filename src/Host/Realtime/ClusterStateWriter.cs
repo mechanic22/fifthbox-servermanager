@@ -14,17 +14,14 @@ public interface IClusterStateWriter
 {
     Task RefreshNodesAsync(CancellationToken ct = default);
 
-    /// Re-read one workload's runtime status, given the docker service name an event named.
+    /// takes the docker service name, not the workload name
     Task RefreshWorkloadAsync(string serviceName, CancellationToken ct = default);
 
-    /// Re-read every workload's status in one sweep: containers from docker, and native workloads only
-    /// far enough to notice their agent is gone.
+    /// natives only get checked for a dead agent
     Task RefreshWorkloadsAsync(CancellationToken ct = default);
 }
 
-/// The single place a change in cluster state turns into an event for connected clients. Everything that
-/// observes the cluster — the docker event stream, the reconcile — comes through here rather than
-/// publishing for itself, so the "only when it changed" rule is written once.
+/// everything watching the cluster publishes through here so "only when it changed" lives in one place
 public sealed class ClusterStateWriter(
     IServiceScopeFactory scopeFactory,
     IClusterState state,
@@ -47,7 +44,7 @@ public sealed class ClusterStateWriter(
             var workload = await scope.ServiceProvider.GetRequiredService<IWorkloadRepository>()
                 .FindByNameAsync(name, ct);
 
-            // A service we don't have a record for: someone else's, or one we just deleted.
+            // not ours, or we just deleted it
             if (workload is null)
             {
                 return;
@@ -56,9 +53,7 @@ public sealed class ClusterStateWriter(
             var workloads = scope.ServiceProvider.GetRequiredService<IWorkloadService>();
             var status = await workloads.GetStatusAsync(Caller.System, workload.Id, ct);
 
-            // Or, not just the status change: a rollout settling is often invisible in the status — the
-            // replicas were already running — and a client sitting on the workload page has no other way
-            // to learn its deploy finished.
+            // a settled rollout often doesn't change status, but the page still needs to hear it finished
             var settled = await workloads.SettleRevisionAsync(workload.Id, status, ct);
 
             if (state.SetWorkloadStatus(workload.Id, status) || settled)
@@ -85,13 +80,12 @@ public sealed class ClusterStateWriter(
             var workloads = await scope.ServiceProvider.GetRequiredService<IWorkloadRepository>().ListAsync(ct);
             var service = scope.ServiceProvider.GetRequiredService<IWorkloadService>();
 
-            // Nothing else ever revisits a native workload — the agent pushes its own changes, so an
-            // agent that dies leaves its last push standing as if it were still true.
+            // agents push their own changes, so a dead agent's last push would stand forever
             foreach (var workload in workloads.Where(w => w.Kind == WorkloadKind.Native))
             {
                 if (workload.AgentId is not null && agents.IsOnline(workload.AgentId))
                 {
-                    continue; // still connected, and its own reports are fresher than anything here
+                    continue; // still connected, its own reports are fresher
                 }
 
                 var offline = new WorkloadRuntimeStatus
@@ -112,7 +106,7 @@ public sealed class ClusterStateWriter(
             {
                 var serviceName = SwarmNaming.ServiceName(workload.Name);
 
-                // Absent from the sweep means the service isn't there — stopped, or never deployed.
+                // missing from the sweep means stopped or never deployed
                 var status = deployed.GetValueOrDefault(serviceName) ?? new WorkloadRuntimeStatus
                 {
                     Name = serviceName,
@@ -142,7 +136,7 @@ public sealed class ClusterStateWriter(
     {
         try
         {
-            // INodeService is scoped (its sources reach the database); this writer is not.
+            // INodeService is scoped, this writer isn't
             await using var scope = scopeFactory.CreateAsyncScope();
 
             if (await scope.ServiceProvider.GetRequiredService<INodeService>().RefreshAsync(ct))
@@ -158,8 +152,7 @@ public sealed class ClusterStateWriter(
         }
         catch (Exception ex)
         {
-            // An unbootstrapped host fails this every single time, forever, so only the first of a
-            // repeating failure gets a stack trace — otherwise it buries the real errors.
+            // an unbootstrapped host fails this forever, only the first one gets a stack trace
             if (_lastFailure == ex.Message)
             {
                 logger.LogDebug("Node refresh still failing: {Reason}", ex.Message);

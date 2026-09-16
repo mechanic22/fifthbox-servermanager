@@ -3,9 +3,7 @@ using FifthBox.ServerManager.Shared.Access;
 
 namespace FifthBox.ServerManager.App.Access;
 
-/// One user's resolved access, built once per request and asked many times. Group grants flow down
-/// the whole subtree and combine with a direct workload grant by max, so a grant can only ever raise
-/// what someone can do, never lower it.
+/// group grants flow down the subtree and max with direct ones, a grant never lowers access
 public sealed class AccessMap
 {
     private readonly Dictionary<string, AccessLevel> _groups;
@@ -19,7 +17,7 @@ public sealed class AccessMap
         _unrestricted = unrestricted;
     }
 
-    /// Admins hold no grants — this is the one place that turns the role into a level.
+    /// admins hold no grants, this is where the role turns into a level
     public static AccessMap Admin { get; } = new(
         new Dictionary<string, AccessLevel>(StringComparer.Ordinal),
         new Dictionary<string, AccessLevel>(StringComparer.Ordinal),

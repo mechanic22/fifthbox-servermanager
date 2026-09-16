@@ -1,16 +1,11 @@
 namespace FifthBox.ServerManager.Storage.Models;
 
-/// <summary>
-/// A user's app profile — the sidecar to the identity account. Owned by Storage, keyed by the
-/// identity id (<see cref="UserId"/> == <c>IdentityUser.Id</c>). Holds the app stuff Identity
-/// deliberately doesn't: contact email, display name. Identity never sees this.
-/// </summary>
 public class UserProfile
 {
-    /// <summary>The identity account id this profile belongs to. Primary key.</summary>
+    /// IdentityUser.Id, also the primary key
     public string UserId { get; set; } = string.Empty;
 
-    /// <summary>Contact email (separate from the login id, though often the same).</summary>
+    /// contact email, not the login id (though usually the same)
     public string Email { get; set; } = string.Empty;
 
     public string FirstName { get; set; } = string.Empty;

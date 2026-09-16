@@ -2,15 +2,13 @@ using System.Net;
 
 namespace FifthBox.ServerManager.App.Certificates;
 
-/// Names no public CA will ever issue for — reserved and special-use suffixes (RFC 6761, RFC 8375,
-/// ICANN's .internal), single-label names, and IP literals. Catching them here turns a wasted ACME
-/// order and a Failed row into an answer the operator gets straight away.
+/// names no public CA will issue (reserved suffixes, single labels, IPs), caught before wasting an order
 public static class IssuableHostname
 {
     public static readonly string[] ReservedSuffixes =
         ["local", "localhost", "test", "invalid", "example", "internal", "onion", "arpa"];
 
-    /// Null when a public CA could issue for this hostname; otherwise why it can't.
+    /// null when issuable, otherwise why not
     public static string? BlockedReason(string hostname, IEnumerable<string>? reservedSuffixes = null)
     {
         var host = (hostname ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
@@ -19,8 +17,7 @@ public static class IssuableHostname
             return "A valid hostname is required.";
         }
 
-        // Before the dot check — an IPv6 literal has no dots either, and "not an IP address" is the
-        // more useful answer.
+        // before the dot check, ipv6 has no dots either and "IP address" is the better answer
         if (IPAddress.TryParse(host, out _))
         {
             return "Certificates are issued for hostnames, not IP addresses.";

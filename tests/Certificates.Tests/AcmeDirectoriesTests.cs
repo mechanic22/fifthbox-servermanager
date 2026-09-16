@@ -24,8 +24,7 @@ public class AcmeDirectoriesTests
     [TestMethod]
     public void An_unrecognised_name_throws_rather_than_guessing()
     {
-        // Falling back to production on a typo would burn the five-per-week duplicate allowance;
-        // falling back to staging would silently issue certificates no browser trusts.
+        // falling back to prod burns the weekly duplicate limit, falling back to staging issues untrusted certs
         Assert.ThrowsExactly<ArgumentException>(() => AcmeDirectories.Resolve("prod"));
         Assert.ThrowsExactly<ArgumentException>(() => AcmeDirectories.Resolve("letsencrypt"));
     }

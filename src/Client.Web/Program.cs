@@ -11,13 +11,9 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Same-origin: the Host serves this app, so requests go back to it. Cookie auth rides along
-// automatically; the client never handles a token.
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 builder.Services.AddMaterialComponents();
 
-// Register the same named policies the Host enforces (from the shared constants) so AuthorizeView and
-// [Authorize(Policy = ...)] evaluate identically to the server side.
 builder.Services.AddAuthorizationCore(options =>
     options.AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireRole(Roles.Admin)));
 
@@ -35,11 +31,9 @@ builder.Services.AddScoped<ITlsClient, TlsClient>();
 builder.Services.AddScoped<ISystemClient, SystemClient>();
 builder.Services.AddScoped<IRegistriesClient, RegistriesClient>();
 
-// One HubConnection for the whole app, owned by this service.
 builder.Services.AddScoped<RealtimeService>();
 
-// One instance exposed under both the concrete type (for login/logout to notify) and the framework
-// abstraction.
+// one instance for both, login/logout notify through the concrete type
 builder.Services.AddScoped<CookieAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CookieAuthenticationStateProvider>());
 

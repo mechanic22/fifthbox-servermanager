@@ -1,7 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Workloads;
 
-/// Where a task is in its lifecycle. Docker's own set, which runs forward to Running and then on to one
-/// of the terminal states — a task never goes back.
+/// docker's set, only ever moves forward
 public enum WorkloadTaskState
 {
     Unknown,
@@ -22,27 +21,23 @@ public enum WorkloadTaskState
     Remove,
 }
 
-/// One replica attempt. Docker keeps these as history, so a service that has restarted twice has three —
-/// which is exactly what answers "why is it 0/1": the node it was placed on, how far it got, and what
-/// went wrong.
+/// one replica attempt, docker keeps history so two restarts = three tasks
 public record WorkloadTask
 {
     public required string Id { get; init; }
 
-    /// Which replica this is an attempt at. Repeated across a task's restarts.
+    /// same across a replica's restarts
     public int Slot { get; init; }
 
-    /// The swarm node it was placed on, or null while the scheduler hasn't placed it.
+    /// null until scheduled
     public string? NodeId { get; init; }
 
     public WorkloadTaskState State { get; init; }
     public WorkloadTaskState DesiredState { get; init; }
 
-    /// Docker's progress note ("started", "pending task scheduling").
     public string? Message { get; init; }
 
-    /// Why it isn't running — "no suitable node (insufficient resources)", "No such image". This is the
-    /// answer the UI came for.
+    /// why it isn't running ("no suitable node", "No such image")
     public string? Error { get; init; }
 
     public DateTimeOffset? Since { get; init; }

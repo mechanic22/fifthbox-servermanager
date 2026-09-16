@@ -5,9 +5,7 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Thin adapter for node updates. Every change is read-modify-write against the node's current spec at
-/// its current version, because docker rejects an update carrying a stale one. Test-exempt; the rules
-/// about which updates are allowed live in NodeService.
+/// read-modify-write at the node's current version, docker rejects a stale one
 public sealed class SwarmNodeControl(IDockerClient client) : INodeControl
 {
     public Task SetAvailabilityAsync(string nodeId, NodeAvailability availability, CancellationToken ct = default) =>
@@ -28,8 +26,7 @@ public sealed class SwarmNodeControl(IDockerClient client) : INodeControl
     {
         var node = await client.Swarm.InspectNodeAsync(nodeId, ct);
 
-        // Docker.DotNet types a node's Spec as NodeUpdateParameters, so the current spec is already the
-        // shape the update wants — carry it over and change the one field, or the untouched half resets.
+        // carry the current spec over and change one field, or the untouched half resets
         var spec = node.Spec ?? new NodeUpdateParameters();
         change(spec);
 

@@ -1,7 +1,7 @@
 namespace FifthBox.ServerManager.Shared.Agents;
 
-/// Returned once on successful enrollment. The agent persists both and presents "AgentId:Secret" as its
-/// connection token thereafter. The Host only stores the secret's hash — this is the only time it's seen.
+/// only time the secret is ever seen, we just keep the hash
+/// agent sends "AgentId:Secret" as its token from then on
 public record EnrollAgentResponse
 {
     public required string AgentId { get; init; }

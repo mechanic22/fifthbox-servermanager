@@ -5,8 +5,7 @@ namespace FifthBox.ServerManager.Eventing;
 
 public static class EventingServiceCollectionExtensions
 {
-    /// Wires Eventing. In-process publisher today; event handlers are registered by the components
-    /// that own the reaction (e.g. the Host registers the SignalR broadcaster).
+    /// handlers are registered by whoever owns the reaction, not here
     public static IServiceCollection AddEventing(this IServiceCollection services)
     {
         services.TryAddSingleton<IEventPublisher, InProcessEventPublisher>();

@@ -12,12 +12,12 @@ public record CreateRouteRequest
 
     public bool WebSockets { get; init; }
 
-    /// Null = nginx's 1 MB default; 0 = unlimited.
+    /// null = nginx's 1 MB default, 0 = unlimited
     public int? MaxBodySizeMb { get; init; }
 
     public bool BasicAuthEnabled { get; init; }
     public string? BasicAuthUsername { get; init; }
 
-    /// Plaintext, write-only — hashed server-side, never stored or returned.
+    /// plaintext in, hashed server-side, never returned
     public string? BasicAuthPassword { get; init; }
 }

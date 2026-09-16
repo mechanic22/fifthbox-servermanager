@@ -2,9 +2,7 @@ using FifthBox.ServerManager.App.Routes;
 
 namespace FifthBox.ServerManager.Host.Composition;
 
-/// Bridges the App's IBasicAuthHasher to BCrypt.Net. bcrypt is a vetted adaptive hash; nginx's crypt
-/// accepts the `$2y$` variant, so we normalize BCrypt.Net's `$2a$/$2b$` prefix to it for the htpasswd file.
-/// A single-class library bridge with no decision logic — an adapter for an intentionally-open interface.
+/// nginx wants $2y$, BCrypt.Net writes $2a$/$2b$, so the prefix gets swapped
 public sealed class BasicAuthHasher : IBasicAuthHasher
 {
     public string Hash(string password)

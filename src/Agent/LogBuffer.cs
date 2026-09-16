@@ -2,8 +2,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// A bounded, newest-wins ring of a workload's output. A chatty game server would otherwise grow the
-/// agent's memory without limit, and nobody reads the millionth line back anyway.
 public sealed class LogBuffer(int capacity)
 {
     private readonly Queue<WorkloadLogLine> _lines = new(capacity);
@@ -24,8 +22,7 @@ public sealed class LogBuffer(int capacity)
         }
     }
 
-    /// The most recent <paramref name="tail"/> lines, oldest first. A tail at or above what's buffered
-    /// returns everything.
+    /// oldest first
     public IReadOnlyList<WorkloadLogLine> Tail(int tail)
     {
         lock (_gate)

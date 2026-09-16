@@ -6,15 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FifthBox.ServerManager.Host.Tests;
 
-/// <summary>
-/// Reads the routing table the app actually built and checks every route is behind authorization.
-/// This is the one test that survives the endpoint someone adds in a hurry — nothing else notices a
-/// missing RequireAuthorization until it is being exploited.
-/// </summary>
 [TestClass]
 public class EndpointAuthorizationTests
 {
-    /// Routes that are deliberately open, with the reason each one has to be.
     private static AppFactory _factory = null!;
 
     [ClassInitialize]
@@ -42,8 +36,7 @@ public class EndpointAuthorizationTests
         ["/api/auth/native/revoke"] = "the refresh token is the credential",
 
         ["/api/agents/enroll"] = "the enrollment key is the credential; the agent has no account yet",
-        // AgentHub deliberately carries no [Authorize]: agents are not Identity users. It verifies
-        // "agentId:secret" itself in OnConnectedAsync and throws a HubException on a bad credential.
+        // AgentHub has no [Authorize], agents aren't Identity users and it checks agentId:secret in OnConnectedAsync
         ["/hubs/agents"] = "agents authenticate with their own credential inside the hub",
         ["/hubs/agents/negotiate"] = "agents authenticate with their own credential inside the hub",
     };
@@ -68,7 +61,7 @@ public class EndpointAuthorizationTests
     [TestMethod]
     public void The_open_list_has_no_entries_for_routes_that_no_longer_exist()
     {
-        // Otherwise a route could be renamed into being unprotected while its old name still excuses it.
+        // otherwise a renamed route stays excused by its old name
         var patterns = Routes().Select(r => r.Pattern).ToHashSet(StringComparer.Ordinal);
         var stale = AnonymousByDesign.Keys.Where(p => !patterns.Contains(p)).ToList();
 
@@ -78,8 +71,7 @@ public class EndpointAuthorizationTests
     [TestMethod]
     public void The_platform_surface_is_administrator_only()
     {
-        // Nodes, cluster, routes, TLS, registries, system, agents, teams and grants are all admin work.
-        // Only workloads, workload groups and /api/users are open to a granted non-admin.
+        // only workloads, workload groups and /api/users are open to granted non-admins
         string[] adminOnly = ["/api/nodes", "/api/cluster", "/api/routes", "/api/tls", "/api/registries",
                               "/api/system", "/api/teams", "/api/access"];
 
@@ -100,10 +92,8 @@ public class EndpointAuthorizationTests
         [
             .. source.Endpoints
                 .OfType<RouteEndpoint>()
-                // MapStaticAssets puts every wwwroot file in the routing table. They are the WASM app
-                // and its assets, which a signed-out browser has to be able to fetch to reach the login
-                // page at all — the same reason /{*path:nonfile} is on the open list. A thousand file
-                // names in that list would bury the entries that are actually decisions.
+                // static assets are the wasm app a signed-out browser needs to reach login,
+                // listing a thousand files here would bury the real decisions
                 .Where(e => !e.Metadata.OfType<StaticAssetDescriptor>().Any())
                 .Select(e => ("/" + e.RoutePattern.RawText!.TrimStart('/'), e))
         ];

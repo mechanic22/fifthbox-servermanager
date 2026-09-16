@@ -3,9 +3,6 @@ using FifthBox.ServerManager.Shared.Teams;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for the admin-only teams API.
-/// </summary>
 public interface ITeamsClient
 {
     Task<IReadOnlyList<TeamResponse>> ListAsync(CancellationToken ct = default);

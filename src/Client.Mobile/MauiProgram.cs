@@ -18,14 +18,11 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Platform capabilities behind Client.Core interfaces — the app code never branches on platform.
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton<ILocationProvider, GeolocationProvider>();
         builder.Services.AddSingleton<IAuthSession, AuthSession>();
 
-        // Bearer pipeline: every API call carries the stored token and auto-refreshes on 401. The
-        // typed clients get an HttpClient composed with BearerTokenHandler; the handler and the auth
-        // client share the same ITokenStore / IAuthSession singletons.
+        // handler and auth client have to share the same ITokenStore/IAuthSession singletons
         builder.Services.AddTransient<BearerTokenHandler>();
         builder.Services.AddHttpClient<IAuthClient, NativeAuthClient>(ConfigureApi).AddHttpMessageHandler<BearerTokenHandler>();
         builder.Services.AddHttpClient<IContactsClient, ContactsClient>(ConfigureApi).AddHttpMessageHandler<BearerTokenHandler>();

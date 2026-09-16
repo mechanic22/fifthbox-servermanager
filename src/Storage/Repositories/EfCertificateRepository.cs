@@ -3,11 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="ICertificateRepository"/>. Thin adapter — no business rules.
 public class EfCertificateRepository(AppDbContext db) : ICertificateRepository
 {
-    // Tracked, unlike the other list adapters: the renewal pass edits the rows it lists and saves them
-    // through UpdateAsync.
+    // tracked on purpose, renewal edits the listed rows and saves via UpdateAsync
     public async Task<IReadOnlyList<Certificate>> ListAsync(CancellationToken ct = default)
         => await db.Certificates.OrderBy(c => c.Hostname).ToListAsync(ct);
 

@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// What the platform thinks it deployed, against what the backend is really running.
 [TestClass]
 public class SpecDriftTests
 {
@@ -41,7 +40,7 @@ public class SpecDriftTests
     [TestMethod]
     public void The_resolved_digest_is_not_drift()
     {
-        // Swarm pins the tag it resolved, so every service reads back with a digest appended.
+        // swarm pins the resolved tag, so every service reads back with a digest
         Assert.IsEmpty(SpecDrift.Compare(
             Expected("nginx:1.27"),
             Live("nginx:1.27@sha256:0000000000000000000000000000000000000000000000000000000000000000")));
@@ -68,7 +67,7 @@ public class SpecDriftTests
     [TestMethod]
     public void An_added_environment_variable_is_drift()
     {
-        // `docker service update --env-add` — the change the platform used to be blind to.
+        // docker service update --env-add, which we used to miss
         var drift = SpecDrift.Compare(
             Expected(env: [new EnvVar("A", "1")]),
             Live(env: ["A=1", "DEBUG=true"]));
@@ -99,8 +98,8 @@ public class SpecDriftTests
     [TestMethod]
     public void A_container_still_bound_to_the_old_port_is_drift()
     {
-        // The spec agrees with us and the container doesn't: a host-mode port is published by the
-        // container, so a service can hold the new mapping while the running one never got it.
+        // host-mode ports are published by the container, so the service can hold the new mapping
+        // while the running one never got it
         var drift = SpecDrift.Compare(
             Expected(ports: [new PortMapping(27017, 27017, PortProtocol.Tcp, PortPublishMode.Host)]),
             Live(ports: ["27017:27017/tcp"], runningPorts: ["57017:27017/tcp"]));

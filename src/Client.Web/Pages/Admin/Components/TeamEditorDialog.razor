@@ -1,5 +1,4 @@
-@* Create or edit one team: its name, what it's for, and who's in it. Membership is a checkbox list
-   rather than a select — there are a handful of accounts and multi-select is not what MaterialSelect is. *@
+@* checkboxes for members, MaterialSelect doesn't do multi-select *@
 @using FifthBox.ServerManager.Shared.Teams
 @using FifthBox.ServerManager.Shared.Users
 @inject ITeamsClient TeamsApi
@@ -48,7 +47,6 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
 
-    /// Every account, so membership can be picked. Loaded by the page, not here.
     [Parameter] public IReadOnlyList<UserSummaryResponse>? Users { get; set; }
 
     [Parameter] public EventCallback OnSaved { get; set; }
@@ -60,7 +58,6 @@
     private List<string> _original = [];
     private bool _busy;
 
-    /// Called by the page before opening, so the dialog never has to guess which team it is showing.
     public void Load(TeamResponse? team)
     {
         _editId = team?.Id;
@@ -94,7 +91,7 @@
                 ? await TeamsApi.CreateAsync(request)
                 : await TeamsApi.UpdateAsync(_editId, request);
 
-            // Membership is its own endpoint; only call it when the roster actually moved.
+            // membership is its own endpoint, skip it if nothing changed
             if (!_members.SetEquals(_original))
             {
                 await TeamsApi.SetMembersAsync(team.Id, new SetTeamMembersRequest { UserIds = [.. _members] });

@@ -6,12 +6,6 @@ using FifthBox.ServerManager.Shared.Users;
 
 namespace FifthBox.ServerManager.Client.Web.Services;
 
-/// <summary>
-/// The browser (cookie) <see cref="IAuthClient"/>. Login/register sign a cookie the browser then
-/// carries automatically — the client never handles a token. The native bearer variant lives in
-/// Client.Core (<c>NativeAuthClient</c>); the shared typed clients and <see cref="ApiException"/> come
-/// from there too.
-/// </summary>
 public sealed class AuthClient(HttpClient http) : IAuthClient
 {
     public Task LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -22,7 +16,7 @@ public sealed class AuthClient(HttpClient http) : IAuthClient
 
     public async Task LogoutAsync(CancellationToken ct = default)
     {
-        // Best-effort: a 401 just means the session was already gone.
+        // best effort, a 401 just means the session was already gone
         using var response = await http.PostAsync("api/auth/logout", content: null, ct);
     }
 
@@ -30,8 +24,7 @@ public sealed class AuthClient(HttpClient http) : IAuthClient
     {
         using var response = await http.GetAsync("api/users/me", ct);
 
-        // No valid session → treat as signed out. 401: not authenticated. 404: authenticated by a
-        // cookie whose account no longer exists — a stale session, not a crash.
+        // 404 is a cookie for an account that no longer exists, treat as signed out
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound)
         {
             return null;
@@ -46,8 +39,7 @@ public sealed class AuthClient(HttpClient http) : IAuthClient
         using var response = await http.GetAsync("api/auth/registration", ct);
         if (!response.IsSuccessStatusCode)
         {
-            // An older server, or one that's down. Assume closed: offering a path that 403s is worse
-            // than hiding one that would have worked.
+            // old or down server, assume registration is closed
             return new RegistrationInfoResponse();
         }
 

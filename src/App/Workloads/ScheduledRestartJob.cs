@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// Bounces workloads that ask for a daily restart. Long-running game servers leak and fragment; a
-/// restart in the quiet hours is cheaper than one at peak.
 public sealed class ScheduledRestartJob(
     IWorkloadRepository repository,
     WorkloadLifecycleService lifecycle,
@@ -13,7 +11,7 @@ public sealed class ScheduledRestartJob(
 {
     public string Name => "workload-restarts";
 
-    /// Finer than the grace window, so a due restart is never missed between ticks.
+    /// finer than the grace window so a due restart is never missed
     public TimeSpan Interval => TimeSpan.FromMinutes(5);
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -30,8 +28,7 @@ public sealed class ScheduledRestartJob(
                 continue;
             }
 
-            // Recorded before the attempt, not after: a restart that throws must not be retried on every
-            // tick for the rest of the grace window.
+            // recorded before the attempt so a throwing restart isn't retried every tick
             workload.LastScheduledRestartAt = now;
             await repository.UpdateAsync(workload, ct);
 
@@ -45,8 +42,7 @@ public sealed class ScheduledRestartJob(
             }
             catch (Exception ex)
             {
-                // One wedged workload must not cost the others their restart. App has no logger, so the
-                // failures ride out to the job runner, which does.
+                // one wedged workload mustn't block the rest, App has no logger so failures go up to the runner
                 (failures ??= []).Add(new InvalidOperationException($"'{workload.Name}' did not restart.", ex));
             }
         }

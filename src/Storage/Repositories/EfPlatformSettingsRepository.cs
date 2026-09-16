@@ -3,10 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of the single-row PlatformSettings store. Thin adapter — no business rules.
-/// The copy below is field-by-field on purpose: AcmeAccountKeyEnc/AcmeAccountDirectory belong to
-/// AcmeAccountStore and must not be written from here. Adding a column to PlatformSettings means
-/// adding it here too, or it silently never persists.
+// field by field on purpose, the Acme* columns belong to AcmeAccountStore
+// NOTE: new PlatformSettings column? add it here too or it silently never saves
 public class EfPlatformSettingsRepository(AppDbContext db) : IPlatformSettingsRepository
 {
     public Task<PlatformSettings?> GetAsync(CancellationToken ct = default)

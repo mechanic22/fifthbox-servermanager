@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace FifthBox.ServerManager.Host.Hubs;
 
-/// The hub-side counterpart to the HTTP problem-details handler: canonical exceptions carry their
-/// message to the client, anything else is logged and reported as a generic failure.
 public sealed class CanonicalExceptionHubFilter(ILogger<CanonicalExceptionHubFilter> logger) : IHubFilter
 {
     public async ValueTask<object?> InvokeMethodAsync(

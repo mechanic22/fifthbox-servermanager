@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.App.Certificates;
 
-/// Persistence port for certificates. Implemented by Storage (EF). Pure persistence — no rules.
 public interface ICertificateRepository
 {
     Task<IReadOnlyList<Certificate>> ListAsync(CancellationToken ct = default);

@@ -6,13 +6,6 @@ using FifthBox.Identity.Claims;
 
 namespace FifthBox.ServerManager.Client.Web.Services;
 
-/// <summary>
-/// App auth-state provider. The caching, single-flight, never-throw plumbing and the claim name/role
-/// contract now live in <see cref="CookieAuthenticationStateProvider{TUser}"/> (FifthBox.Identity.Blazor).
-/// All that's left app-side: how to fetch the current user and how to map the app's
-/// <see cref="UserResponse"/> to claims — using <see cref="IdentityClaimTypes"/> so nothing has to
-/// reverse-engineer the Host's claim names.
-/// </summary>
 public sealed class CookieAuthenticationStateProvider(IAuthClient auth)
     : CookieAuthenticationStateProvider<UserResponse>
 {

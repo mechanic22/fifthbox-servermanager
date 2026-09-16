@@ -3,9 +3,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Turns a docker log payload into lines. With Timestamps=true docker prefixes each line with an
-/// RFC3339 stamp and a space; it is split off so the UI isn't showing raw text with a timestamp glued
-/// to the front. Pure so the framing rules are testable without a daemon.
+/// splits off the RFC3339 stamp docker prefixes when Timestamps=true
 public static class SwarmLogParser
 {
     public static IEnumerable<WorkloadLogLine> Parse(string payload, LogStream stream)

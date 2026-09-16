@@ -15,8 +15,6 @@ namespace FifthBox.ServerManager.App;
 
 public static class AppServiceCollectionExtensions
 {
-    /// Registers the App layer's domain services. Depends only on ports, which the composition
-    /// root satisfies with an infrastructure implementation.
     public static IServiceCollection AddApp(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
@@ -47,7 +45,7 @@ public static class AppServiceCollectionExtensions
         services.AddScoped<IScheduledJob, BackupJob>();
         services.AddScoped<IScheduledJob, ScheduledRestartJob>();
         services.AddScoped<IScheduledJob, CertificateRenewalJob>();
-        // One RegistryService instance satisfies both the CRUD surface and the image→auth resolver.
+        // one instance backs both the CRUD surface and the image auth resolver
         services.AddScoped<RegistryService>();
         services.AddScoped<IRegistryService>(sp => sp.GetRequiredService<RegistryService>());
         services.AddScoped<IRegistryAuthResolver>(sp => sp.GetRequiredService<RegistryService>());

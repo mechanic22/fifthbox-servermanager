@@ -1,6 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Agents;
 
-/// Sent by an agent (unauthenticated) to join the fleet. Gated by the enrollment key, not a user session.
+/// unauthenticated, gated by the enrollment key
 public record EnrollAgentRequest
 {
     public string EnrollmentKey { get; init; } = string.Empty;

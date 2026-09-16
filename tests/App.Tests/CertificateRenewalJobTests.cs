@@ -22,7 +22,7 @@ public class CertificateRenewalJobTests
 
         await job.RunAsync();
 
-        // A renewed certificate the edge isn't holding yet has changed nothing a visitor can see.
+        // a renewed cert the edge isn't holding yet changes nothing for visitors
         routes.Verify(r => r.ApplyAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -33,8 +33,7 @@ public class CertificateRenewalJobTests
 
         await job.RunAsync();
 
-        // This runs daily and most days there is nothing to do — redeploying the edge anyway would
-        // bounce every site on the platform for no reason.
+        // runs daily and usually has nothing to do, redeploying anyway bounces every site
         routes.Verify(r => r.ApplyAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 

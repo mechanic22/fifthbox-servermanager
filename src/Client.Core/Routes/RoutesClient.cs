@@ -4,9 +4,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for routes. Reads ProblemDetails on failure and throws <see cref="ApiException"/>.
-/// </summary>
 public interface IRoutesClient
 {
     Task<IReadOnlyList<RouteResponse>> ListAsync(CancellationToken ct = default);
@@ -18,7 +15,7 @@ public interface IRoutesClient
     Task<WorkloadRuntimeStatus> ApplyAsync(CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> GetProxyStatusAsync(CancellationToken ct = default);
 
-    /// Edge status plus whether saved routes and certificates have reached it.
+    /// edge status plus whether saved routes and certs have reached it
     Task<ProxyStateResponse> GetProxyStateAsync(CancellationToken ct = default);
 }
 

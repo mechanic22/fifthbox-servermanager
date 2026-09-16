@@ -1,7 +1,4 @@
-@* Swarm's task history, newest first. A slot accumulates a new task per restart, redeploy or crash and
-   keeps the dead ones, so several rows for one replica is normal — the "current" chip marks the live one.
-   "Partial 0/1" is the symptom and this is where the reason lives, which is why the dead attempts open
-   themselves when swarm wants a replica it hasn't got, and stay folded away when it has. *@
+@* several rows per replica is normal, dead attempts open up when swarm is short a replica *@
 
 <MaterialTable Variant="MaterialTableVariant.Dense">
     <thead>
@@ -45,8 +42,7 @@
 @code {
     [Parameter, EditorRequired] public required IReadOnlyList<WorkloadTask> Tasks { get; set; }
 
-    /// Null for a non-admin, who can't read /api/nodes — the short id is still enough to tell two
-    /// replicas apart.
+    /// null for non-admins, the short id is enough to tell replicas apart
     [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
 
     private bool _showEarlier;
@@ -60,8 +56,7 @@
     {
         var current = Tasks.Where(t => t.DesiredState == WorkloadTaskState.Running).ToList();
 
-        // A stopped or undeployed workload has nothing desired-running, and an empty table says less
-        // than the attempt it ended on.
+        // nothing desired-running, show the last attempt rather than an empty table
         _live = current.Count > 0 ? current : [.. Tasks.Take(1)];
         _earlier = [.. Tasks.Where(t => !_live.Contains(t))];
         _unhealthy = current.Any(t => t.State != WorkloadTaskState.Running);
@@ -84,8 +79,7 @@
     private static string WhenText(WorkloadTask t) =>
         t.Since is { } since ? since.LocalDateTime.ToString("g") : "—";
 
-    // Desired-Running but not running is the failure that matters; a task swarm has finished with is
-    // just history.
+    // desired Running but not running is the failure, finished tasks are just history
     private static MaterialChipColor StateColor(WorkloadTask t) => t.State switch
     {
         WorkloadTaskState.Running => MaterialChipColor.Primary,

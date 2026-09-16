@@ -2,24 +2,18 @@ namespace FifthBox.ServerManager.Agent;
 
 public enum StopStep
 {
-    /// Write the workload's configured stop command to its stdin.
     ConsoleCommand,
 
-    /// SIGTERM on Unix, close-the-window on Windows.
+    /// SIGTERM on unix, close-the-window on windows
     Signal,
 
     Kill,
 }
 
-/// Decides how to ask a process to go away, in order of politeness.
 public static class StopLadder
 {
-    /// A step that could not do anything is left out rather than attempted and ignored, because each
-    /// attempt that runs is allowed to spend the whole stop grace waiting.
-    ///
-    /// Signal always stays in: on Unix it's a real SIGTERM, and on Windows it fails immediately without
-    /// consuming any of the budget, which is exactly why a headless workload needs a stop command to
-    /// have any polite option at all.
+    /// useless steps are left out since each one can burn the full grace
+    /// Signal always stays, it fails instantly on windows so headless ones there need a stop command
     public static IReadOnlyList<StopStep> For(string? stopCommand, bool hasConsole)
     {
         var steps = new List<StopStep>(3);

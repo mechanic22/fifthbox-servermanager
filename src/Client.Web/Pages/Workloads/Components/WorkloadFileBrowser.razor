@@ -27,8 +27,7 @@
                 @foreach (var entry in _entries)
                 {
                     <div class="flex items-center gap-3 px-3 py-2">
-                        @* The library has no folder icon; a chevron reads as "go in" well enough.
-                           TODO: propose Folder for FifthBox.MaterialComponents.Blazor. *@
+                        @* no folder icon in the library. TODO: propose Folder for FifthBox.MaterialComponents.Blazor *@
                         <MaterialIcon Path="@(entry.IsDirectory ? MaterialIcons.ChevronRight : MaterialIcons.Description)"
                                       Size="IconSize.SM" />
                         <button class="text-sm text-left grow hover:underline" disabled="@_busy"

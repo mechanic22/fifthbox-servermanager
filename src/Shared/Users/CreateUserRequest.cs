@@ -2,11 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FifthBox.ServerManager.Shared.Users;
 
-/// <summary>
-/// Admin request to create a user. Bundles the identity bits (username, password, roles) and the
-/// profile bits (email, name); Host splits it into an identity account plus a stored profile.
-/// Works no matter the registration policy.
-/// </summary>
+/// works whatever the registration policy, host splits it into an identity account + profile
 public class CreateUserRequest
 {
     [Required]

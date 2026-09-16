@@ -1,7 +1,3 @@
-@* Where this workload can actually be reached, as links you can click. Routed hostnames get the scheme
-   their certificate earns them; a host-published workload gets its node's address. The overlay name is
-   the one address that always exists, and the one nobody can guess. *@
-
 @if (_links.Count == 0)
 {
     <p class="text-sm opacity-60">Not reachable from outside.</p>
@@ -53,17 +49,15 @@ else
 @code {
     [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
 
-    /// This workload's routes, already filtered by the page.
+    /// already filtered to this workload by the page
     [Parameter] public IReadOnlyList<RouteResponse>? Routes { get; set; }
 
     [Parameter] public IReadOnlyDictionary<string, TlsHostResponse>? Tls { get; set; }
     [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
 
-    /// The nodes its tasks are actually running on. A published port is bound where the task landed, so
-    /// this — not the definition — is what says where to knock.
+    /// where tasks are actually running, a published port binds where the task landed
     [Parameter] public IReadOnlyList<string>? RunningNodeIds { get; set; }
 
-    /// Ports the edge is published on — a link to a non-standard port has to say so or it won't open.
     [Parameter] public int EdgeHttpPort { get; set; } = 80;
     [Parameter] public int EdgeHttpsPort { get; set; } = 443;
 
@@ -75,7 +69,6 @@ else
 
     private TlsHostResponse? TlsFor(string hostname) => Tls?.GetValueOrDefault(hostname);
 
-    /// A browser implies :80 and :443; anything else has to be spelled out or the link doesn't open.
     private string PortSuffix(bool https)
     {
         var port = https ? EdgeHttpsPort : EdgeHttpPort;
@@ -88,8 +81,7 @@ else
             .OrderBy(r => r.Hostname, StringComparer.Ordinal).ThenBy(r => r.Path, StringComparer.Ordinal)
             .Select(r =>
             {
-                // A hostname with no valid certificate is still worth linking — plenty of internal apps
-                // live on plain HTTP quite happily.
+                // no valid cert still gets a link, just over http
                 var https = TlsFor(r.Hostname)?.Status == CertificateStatus.Valid;
                 return new Link(
                     $"{(https ? "https" : "http")}://{r.Hostname}{PortSuffix(https)}{r.Path}",
@@ -100,9 +92,8 @@ else
             })
             .ToList();
 
-        // A published port binds on the node its task landed on, with no nginx in the way — so every node
-        // running one is its own entry point. Before it runs there is nowhere to point at yet, unless it
-        // was pinned or has already settled onto a node.
+        // host-published ports bind where the task landed, so every running node is an entry point
+        // nothing to link before it runs unless it's pinned or already settled
         links.AddRange(
             from nodeId in PublishedOn()
             let address = NodeAddress(nodeId)

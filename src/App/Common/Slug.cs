@@ -2,8 +2,7 @@ using System.Text;
 
 namespace FifthBox.ServerManager.App.Common;
 
-/// URL/DNS-friendly slug generation. Lowercases, keeps letters/digits, collapses everything else to
-/// single dashes. Used for swarm service names (which must be DNS-label-ish).
+/// lowercases, keeps letters/digits, everything else becomes single dashes
 public static class Slug
 {
     public static string Make(string value)

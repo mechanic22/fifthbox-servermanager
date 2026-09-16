@@ -2,13 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FifthBox.ServerManager.Shared.Auth;
 
-/// <summary>
-/// Login request the browser client sends. (Identity has its own internal LoginRequest — the Host
-/// maps between them.)
-/// </summary>
+/// not Identity's LoginRequest, the host maps between them
 public class LoginRequest
 {
-    /// <summary>Login id — we use the email as the username.</summary>
+    /// the email, we use it as the username
     [Required]
     [EmailAddress]
     [MaxLength(256)]

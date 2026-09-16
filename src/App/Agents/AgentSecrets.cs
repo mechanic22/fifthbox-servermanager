@@ -3,9 +3,7 @@ using System.Text;
 
 namespace FifthBox.ServerManager.App.Agents;
 
-/// Enrollment keys and agent secrets are high-entropy random tokens (not user passwords), so they're
-/// hashed with SHA-256 and compared in fixed time — the standard for bearer-style secrets (bcrypt is for
-/// low-entropy passwords). Pure and testable.
+/// high-entropy tokens not passwords, so sha-256 + fixed-time compare (bcrypt is for passwords)
 public static class AgentSecrets
 {
     public static string Generate() => Base64Url(RandomNumberGenerator.GetBytes(32));

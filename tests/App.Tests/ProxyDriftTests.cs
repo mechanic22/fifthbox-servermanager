@@ -10,10 +10,7 @@ using Moq;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// <summary>
-/// Saved routes and certificates only reach traffic when the edge is redeployed. These cover the gap
-/// the UI now reports, so a disabled route can't keep being served while the screen says otherwise.
-/// </summary>
+/// saved routes and certs only reach traffic once the edge redeploys
 [TestClass]
 public class ProxyDriftTests
 {
@@ -26,8 +23,6 @@ public class ProxyDriftTests
         public required InMemoryPlatformSettings Settings { get; init; }
         public required List<CertificateMaterial> Certificates { get; init; }
 
-        /// The generator is stubbed to echo the routes it's given, so a change to the route set
-        /// changes the rendered config the way the real one would.
         public required Mock<IWorkloadBackend> Backend { get; init; }
     }
 
@@ -43,6 +38,7 @@ public class ProxyDriftTests
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload> { Web });
 
         var proxy = new Mock<IReverseProxy>();
+        // echoes the routes, so changing the route set changes the config like the real one
         proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
             .Returns((IReadOnlyList<RouteConfig> configs, IReadOnlyList<HostCertificate> certs) =>
                 string.Join(";", configs.Select(c => $"{c.Hostname}{c.Path}>{c.UpstreamService}:{c.UpstreamPort}"))
@@ -127,7 +123,7 @@ public class ProxyDriftTests
     [TestMethod]
     public async Task Disabling_a_route_after_applying_is_pending_again()
     {
-        // The case the UI got wrong: the row greys out immediately, but the site keeps being served.
+        // the case the UI got wrong: row greys out but the site keeps being served
         var harness = Build();
         harness.Routes.Add(Route());
         await harness.Service.ApplyAsync();
@@ -141,7 +137,7 @@ public class ProxyDriftTests
     [TestMethod]
     public async Task A_renewed_certificate_is_pending_even_though_the_config_is_identical()
     {
-        // The config references certificates by path, so hashing it alone would miss a renewal.
+        // config references certs by path, so hashing it alone would miss a renewal
         var harness = Build();
         harness.Routes.Add(Route());
         harness.Certificates.Add(new CertificateMaterial

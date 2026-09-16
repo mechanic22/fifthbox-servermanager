@@ -6,9 +6,8 @@ namespace FifthBox.ServerManager.Host.Infrastructure;
 
 internal static class MigrationBackup
 {
-    /// Snapshot the database before an upgrade applies migrations. A migration that goes wrong is the one
-    /// data-loss path that scheduled backups can miss entirely, since it happens seconds after startup.
-    /// Skipped on a fresh database (nothing to lose) and when there's nothing pending.
+    /// a bad migration happens seconds after startup, before any scheduled backup could catch it
+    /// skipped on a fresh db or with nothing pending
     public static async Task BackupBeforeMigrationsAsync(this IServiceProvider services, ILogger logger, CancellationToken ct = default)
     {
         await using var scope = services.CreateAsyncScope();
@@ -27,8 +26,7 @@ internal static class MigrationBackup
         }
         catch (Exception ex)
         {
-            // Never block startup on this. Losing the safety net is worse than nothing, but refusing to
-            // start because a backup directory isn't writable is worse still.
+            // never block startup over a backup
             logger.LogError(ex, "Pre-migration backup failed; continuing");
         }
     }

@@ -22,9 +22,7 @@ public class RouteConfiguration : IEntityTypeConfiguration<Route>
 
         builder.Property(r => r.BasicAuthUsername).HasMaxLength(200);
         builder.Property(r => r.BasicAuthPasswordHash).HasMaxLength(200);
-        // WebSockets / BasicAuthEnabled are bools — default column mapping.
 
-        // One route per host+path.
         builder.Property(r => r.Enabled).HasDefaultValue(true);
         builder.HasIndex(r => new { r.Hostname, r.Path }).IsUnique();
     }

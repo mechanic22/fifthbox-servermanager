@@ -4,18 +4,15 @@ using FifthBox.ServerManager.Shared.Access;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for the admin-only access grants API.
-/// </summary>
 public interface IAccessClient
 {
     Task<IReadOnlyList<AccessGrantResponse>> ListGrantsAsync(CancellationToken ct = default);
 
-    /// <summary>Who can reach one group or workload, including access inherited from a group above it.</summary>
+    /// includes access inherited from groups above
     Task<IReadOnlyList<AccessGrantResponse>> ListGrantsForTargetAsync(
         AccessScope scope, string targetId, CancellationToken ct = default);
 
-    /// <summary>Upserts a grant. Returns null when the request removed it (level None).</summary>
+    /// upsert, null back when level None removed it
     Task<AccessGrantResponse?> SetGrantAsync(SetAccessGrantRequest request, CancellationToken ct = default);
 
     Task RemoveGrantAsync(string id, CancellationToken ct = default);

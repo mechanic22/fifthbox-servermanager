@@ -4,7 +4,6 @@ namespace FifthBox.ServerManager.App.Access;
 
 public interface IWorkloadAccess
 {
-    /// One caller's resolved access, ready to be asked about any group or workload.
     Task<AccessMap> MapAsync(Caller caller, CancellationToken ct = default);
 }
 
@@ -24,11 +23,10 @@ public sealed class WorkloadAccess(
         List<GrantSubject> subjects =
             [GrantSubject.User(caller.UserId), .. memberships.Select(t => GrantSubject.Team(t.Id))];
 
-        // Their own grants and their teams' arrive as one flat list; AccessMap already keeps the
-        // highest level per target, so holding both a personal and a team grant needs no special case.
+        // personal and team grants come back flat, AccessMap keeps the max per target
         var held = await grants.ListForSubjectsAsync(subjects, ct);
 
-        // Nobody with no grants needs the group tree loaded to be told no.
+        // no grants, no need to load the group tree
         return held.Count == 0
             ? AccessMap.Build([], [])
             : AccessMap.Build(held, await groups.ListAsync(ct));

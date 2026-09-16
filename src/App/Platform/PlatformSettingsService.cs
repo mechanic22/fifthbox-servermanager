@@ -44,8 +44,7 @@ public sealed class PlatformSettingsService(
 
         await repository.SaveAsync(settings, ct);
 
-        // Only when the address actually changes. A previous one is left in place rather than deleted:
-        // removing a route here would silently take its certificate with it.
+        // only on an actual change, the old route stays since deleting it would take its cert too
         if (ManagerHostname(settings) is { } hostname && hostname != before)
         {
             await ProvisionManagerRouteAsync(hostname, ct);
@@ -54,8 +53,7 @@ public sealed class PlatformSettingsService(
         return Map(settings);
     }
 
-    /// Gives the manager itself a hostname under the root domain, so it can be reached over TLS like
-    /// anything else the platform serves rather than on its published port.
+    /// so the manager is reachable over tls like everything else, not just on its published port
     private async Task ProvisionManagerRouteAsync(string hostname, CancellationToken ct)
     {
         try
@@ -65,18 +63,15 @@ public sealed class PlatformSettingsService(
                 Hostname = hostname,
                 Path = "/",
                 Target = RouteTarget.External,
-                // The Host's own swarm service, resolved by Docker DNS over the overlay — the same way
-                // the ACME challenge location reaches it.
                 UpstreamHost = _host.ServiceName,
                 TargetPort = _host.ContainerPort,
-                // Three SignalR hubs ride this route; without the upgrade headers live status and log
-                // streaming stop working, and nothing about the page looks broken.
+                // three signalr hubs ride this route, without upgrade headers live status quietly dies
                 WebSockets = true,
             }, ct);
         }
         catch (ConflictException)
         {
-            // Something already answers on that hostname — leave it alone.
+            // something already answers on that hostname, leave it
         }
     }
 
@@ -93,8 +88,7 @@ public sealed class PlatformSettingsService(
             return null;
         }
 
-        // One label, so it stays inside a *.<root domain> wildcard — a dotted prefix would need its own
-        // certificate and its own DNS record.
+        // one label so it stays inside the *.<root domain> wildcard
         if (!value.All(c => char.IsAsciiLetterOrDigit(c) || c == '-'))
         {
             throw new ValidationException(nameof(UpdatePlatformSettingsRequest.ManagerPrefix),

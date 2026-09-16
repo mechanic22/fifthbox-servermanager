@@ -54,7 +54,7 @@ public class AgentStatusMapperTests
     [TestMethod]
     public void The_name_comes_from_the_caller_not_the_report()
     {
-        // The backend knows the workload it asked about; the agent's copy is only a label.
+        // the backend knows which workload it asked about, the agent's name is just a label
         var status = AgentStatusMapper.ToRuntimeStatus("expected", new AgentWorkloadStatus { Name = "whatever", Running = true });
 
         Assert.AreEqual("expected", status.Name);

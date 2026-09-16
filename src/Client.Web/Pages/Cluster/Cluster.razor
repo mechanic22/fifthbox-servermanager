@@ -236,8 +236,8 @@
     {
         Realtime.NodesChanged += OnNodesChanged;
         Realtime.Reconnected += OnReconnected;
-        await LoadAsync();                           // initial snapshot over HTTP
-        await Realtime.EnsureNodesConnectedAsync();  // then live updates over SignalR
+        await LoadAsync();
+        await Realtime.EnsureNodesConnectedAsync();
     }
 
     private void OnReconnected() => _ = InvokeAsync(LoadAsync);
@@ -248,8 +248,7 @@
         InvokeAsync(StateHasChanged);
     }
 
-    // A failed load stays on the page instead of flashing past in a snackbar — this is the one screen
-    // whose whole job is telling you whether the machines are up.
+    // failures stay on the page, this screen's whole job is saying if the machines are up
     private async Task LoadAsync()
     {
         _loading = true;
@@ -258,7 +257,7 @@
         {
             _status = await ClusterApi.GetStatusAsync();
             _nodes = await NodesApi.ListAsync();
-            // An agent node's id is the agent's id, so this joins straight onto the rows above.
+            // agent node id is the agent id, so this joins straight on
             _agentMetrics = (await AgentsApi.ListAsync())
                 .Where(a => a.Metrics is not null)
                 .ToDictionary(a => a.Id, a => a.Metrics!);
@@ -333,9 +332,7 @@
         _pendingDrain = node;
     }
 
-    /// nginx is pinned to the node ServerManager runs on, so draining that one takes every route down
-    /// until it's active again. Worth saying out loud rather than blocking — it's a legitimate thing to
-    /// do before a reboot.
+    /// nginx is pinned to the manager's node, so draining that one takes every route down
     private string DrainMessage()
     {
         var node = _pendingDrain;
@@ -392,8 +389,6 @@
         });
     }
 
-    /// Every node operation is the same shape: run it, reload, and surface a refusal from the server
-    /// rather than leaving the row looking like it worked.
     private async Task RunAsync(Func<Task> operation)
     {
         _busy = true;
@@ -423,7 +418,7 @@
         _confirmOpen = true;
     }
 
-    // An agent node's id is the agent's id — AgentNodeSource projects it straight through.
+    // agent node id is the agent id
     private async Task RemoveConfirmedAsync()
     {
         if (_pendingRemove is null)

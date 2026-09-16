@@ -5,6 +5,6 @@ public enum PortProtocol
     Tcp,
     Udp,
 
-    /// Publishes the port on both TCP and UDP (expanded into two swarm PortConfigs on deploy).
+    /// expands into two swarm port configs on deploy
     Both,
 }

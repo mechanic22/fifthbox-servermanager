@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Platform;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// Typed HTTP client for ServerManager's own infrastructure services (System view).
 public interface ISystemClient
 {
     Task<IReadOnlyList<PlatformServiceResponse>> ListServicesAsync(CancellationToken ct = default);

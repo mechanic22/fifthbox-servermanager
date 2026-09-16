@@ -9,6 +9,6 @@ public record AgentResponse
     public DateTimeOffset EnrolledAt { get; init; }
     public DateTimeOffset? LastSeenAt { get; init; }
 
-    /// Null until the agent has reported once since connecting.
+    /// null until the agent reports once after connecting
     public AgentMetrics? Metrics { get; init; }
 }

@@ -1,4 +1,4 @@
-@* Timestamps get their own column so a wrapped line continues under the text, not under the clock. *@
+@* timestamps get their own column so wrapped lines stay under the text *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
@@ -37,8 +37,7 @@
 
     protected override void OnParametersSet()
     {
-        // The parent rebuilds the list on every batch, so a new instance means new output. Following
-        // is decided here rather than in OnAfterRender, before the render has moved anything.
+        // new list instance = new output, decide follow before the render moves anything
         if (!ReferenceEquals(_shown, Lines))
         {
             _shown = Lines;
@@ -58,8 +57,7 @@
             }
             catch (JSException)
             {
-                // Without the module there is no follow and no jump button, but the lines still read.
-                // Losing the page to an exception would cost more than losing the tailing does.
+                // no module, no follow. the lines still read
             }
         }
 

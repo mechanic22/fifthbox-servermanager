@@ -9,9 +9,6 @@ using Microsoft.Extensions.Logging;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Runs workloads as Docker Swarm services. Thin adapter — the spec translation and state derivation
-/// live in WorkloadSpecMapper (tested); this wires the Docker calls (create/update/scale/remove/inspect,
-/// config objects, local node id, private-registry auth).
 public sealed class SwarmBackend(
     IDockerClient client,
     IRegistryAuthResolver registryAuth,
@@ -22,8 +19,7 @@ public sealed class SwarmBackend(
     public async Task DeployAsync(WorkloadDeployment deployment, CancellationToken ct = default)
     {
         var networkId = await ResolveNetworkIdAsync(deployment.Network, ct);
-        // PinToControlNode is for our own platform services (nginx); NodeId is an operator's choice on a
-        // host-exposed workload, whose port only answers on the node it lands on.
+        // PinToControlNode is for our platform services, NodeId is the operator's pick
         var pinnedNodeId = deployment.PinToControlNode ? await LocalNodeIdAsync(ct) : deployment.NodeId;
         var configs = await EnsureConfigsAsync(deployment, ct);
         var secrets = await EnsureSecretsAsync(deployment, ct);
@@ -60,7 +56,7 @@ public sealed class SwarmBackend(
         await PruneStaleSecretsAsync(deployment, secrets, ct);
     }
 
-    /// The registry auth for pulling a private image, or null when no configured registry matches.
+    /// null when no configured registry matches
     private async Task<AuthConfig?> ResolveAuthHeaderAsync(string image, CancellationToken ct)
     {
         var auth = await registryAuth.ResolveAsync(image, ct);
@@ -99,8 +95,7 @@ public sealed class SwarmBackend(
         var existing = await FindServiceAsync(deployment.Name, ct)
             ?? throw new NotFoundException($"Workload '{deployment.Name}' is not deployed.");
 
-        // Bump the force-update counter on the current spec — swarm recreates the tasks without a config
-        // change (this is the supported way to "restart" a service).
+        // force-update bump is the supported way to restart a service
         var inspected = await client.Swarm.InspectServiceAsync(existing.ID, ct);
         var spec = inspected.Spec;
         spec.TaskTemplate ??= new TaskSpec();
@@ -113,11 +108,8 @@ public sealed class SwarmBackend(
         }, ct);
     }
 
-    /// Scale to zero rather than remove. The service keeps its id, its published ports, its config
-    /// objects and the task history that explains why it stopped, and starting it again is one update.
-    ///
-    /// Except for a global service: swarm gives it no replica count to set to zero, so the only way to
-    /// stop one is to remove it. Deploy recreates it from the same revision.
+    /// scales to zero so the service keeps its id, ports, configs and task history
+    /// global services can't, so those get removed and deploy recreates them
     public async Task StopAsync(WorkloadDeployment deployment, CancellationToken ct = default)
     {
         if (await FindServiceAsync(deployment.Name, ct) is null)
@@ -136,8 +128,7 @@ public sealed class SwarmBackend(
 
     public async Task StartAsync(WorkloadDeployment deployment, CancellationToken ct = default)
     {
-        // Stop removes a global service outright — swarm gives it no replica count to hold at zero — so
-        // starting one is a create, not a scale.
+        // stop removes a global service, so starting one is a create
         if (await FindServiceAsync(deployment.Name, ct) is null)
         {
             await DeployAsync(deployment, ct);
@@ -194,12 +185,10 @@ public sealed class SwarmBackend(
         };
     }
 
-    /// Pulling the image *is* the update for a container, and that happens on deploy. There is nothing
-    /// separate to fetch.
+    /// no-op, pulling the image on deploy is the update
     public Task UpdateAsync(WorkloadDeployment deployment, CancellationToken ct = default) => Task.CompletedTask;
 
-    /// A swarm task has no stdin the manager can reach — `docker exec` against whichever node happens to
-    /// hold the container is a different feature, so refuse rather than silently doing nothing.
+    /// throws, a swarm task has no stdin the manager can reach
     public Task SendConsoleAsync(WorkloadDeployment deployment, string text, CancellationToken ct = default)
         => throw new ConflictException("Console input is only available for workloads that run on an agent.");
 
@@ -219,8 +208,7 @@ public sealed class SwarmBackend(
             Tail = tail.ToString(),
         };
 
-        // Whether the payload carries the 8-byte stdout/stderr framing depends on how the service was
-        // created, so ask rather than assume — guessing wrong throws "unknown stream type".
+        // ask about TTY, guessing the framing wrong throws "unknown stream type"
         var tty = service.Spec?.TaskTemplate?.ContainerSpec?.TTY ?? false;
 
         string stdout, stderr;
@@ -231,8 +219,7 @@ public sealed class SwarmBackend(
         }
         catch (Exception ex) when (ex is IOException or DockerApiException)
         {
-            // A service with no running task has nothing to frame. "No logs yet" is the honest answer —
-            // failing the request would make the whole Logs tab look broken.
+            // no running task just means no logs yet, don't fail the Logs tab
             logger.LogDebug(ex, "No readable logs for service '{Service}'", deployment.Name);
             return [];
         }
@@ -245,8 +232,7 @@ public sealed class SwarmBackend(
     private async Task<string> LocalNodeIdAsync(CancellationToken ct)
         => (await client.System.GetSystemInfoAsync(ct)).Swarm.NodeID;
 
-    /// Ensure a swarm config object exists for each requested file (idempotent by content hash) and
-    /// return the references to mount.
+    /// idempotent by content hash
     private async Task<IReadOnlyList<ResolvedConfig>> EnsureConfigsAsync(WorkloadDeployment deployment, CancellationToken ct)
     {
         if (deployment.Configs.Count == 0)
@@ -319,14 +305,13 @@ public sealed class SwarmBackend(
                 }
                 catch (DockerApiException)
                 {
-                    // Still held by a draining task; it'll be collectable on the next apply.
+                    // still held by a draining task, next apply gets it
                 }
             }
         }
     }
 
-    /// Remove superseded config objects (same service+name prefix, different hash) once the service has
-    /// been updated off them. A still-referenced one throws — it gets pruned on the next apply.
+    /// still-referenced ones are left for the next apply
     private async Task PruneStaleConfigsAsync(WorkloadDeployment deployment, IReadOnlyList<ResolvedConfig> current, CancellationToken ct)
     {
         if (deployment.Configs.Count == 0)
@@ -348,7 +333,7 @@ public sealed class SwarmBackend(
                 }
                 catch (DockerApiException)
                 {
-                    // Still held by a draining task; it'll be collectable on the next apply.
+                    // still held by a draining task, next apply gets it
                 }
             }
         }
@@ -356,8 +341,7 @@ public sealed class SwarmBackend(
 
     private async Task<SwarmService?> FindServiceAsync(string name, CancellationToken ct)
     {
-        // Filtered at the daemon: this runs on every deploy, scale, restart and status read, and the
-        // name filter is a prefix match, so the exact-name check still has to happen here.
+        // daemon name filter is a prefix match, so still check the exact name
         var services = await client.Swarm.ListServicesAsync(new ServicesListParameters
         {
             Filters = new ServiceFilter { Name = [name] },

@@ -1,6 +1,3 @@
-@* One thing worth knowing, as a link to the page that does something about it. Tiles fill in
-   independently — a tile whose endpoint failed says so instead of taking the page down with it. *@
-
 <a href="@Href" class="block rounded-lg border p-4 transition-colors hover:border-(--md-sys-color-primary)"
    style="border-color: var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container-low)">
     <div class="flex items-center justify-between gap-2 mb-2">
@@ -40,7 +37,7 @@
     [Parameter] public string? Value { get; set; }
     [Parameter] public string? Detail { get; set; }
 
-    /// Something the reader should act on — shown even while the rest is still loading.
+    /// shows even while the rest is loading
     [Parameter] public string? Warning { get; set; }
 
     [Parameter] public string? Chip { get; set; }

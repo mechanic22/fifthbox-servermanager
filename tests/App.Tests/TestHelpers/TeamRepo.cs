@@ -3,10 +3,7 @@ using Moq;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// <summary>
-/// <see cref="ITeamRepository"/> doubles. Most access tests are about grants rather than rosters, so
-/// they take <see cref="None"/> and the team path resolves to nothing.
-/// </summary>
+/// most access tests are about grants, not rosters, so they just use None()
 internal static class TeamRepo
 {
     public static ITeamRepository None() => Of();

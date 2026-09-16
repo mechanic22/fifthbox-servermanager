@@ -4,9 +4,6 @@ using FifthBox.ServerManager.App.Cluster;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Thin adapter over the Docker Engine API for cluster lifecycle. Each method is a single Docker call;
-/// the idempotent orchestration lives in the App's ClusterService. Test-exempt (the mapping it uses is
-/// tested via SwarmStateMapper).
 public sealed class SwarmLifecycle(IDockerClient client) : ISwarmLifecycle
 {
     public async Task<SwarmState> GetStateAsync(CancellationToken ct = default)

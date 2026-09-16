@@ -4,8 +4,7 @@ using DockerModels = Docker.DotNet.Models;
 
 namespace FifthBox.ServerManager.Integrations.Swarm.Tests;
 
-/// Event shapes here are copied from a live daemon capture (docker 29.1.3), not invented — service
-/// events name the service under "name", container events under the swarm label.
+/// shapes copied from a live docker 29.1.3 capture, services use "name", containers the swarm label
 [TestClass]
 public class SwarmEventInterpreterTests
 {
@@ -61,7 +60,7 @@ public class SwarmEventInterpreterTests
         Assert.IsNull(SwarmEventInterpreter.Interpret(Event("container", "die", ("name", "some-local-container"))));
     }
 
-    // fbsm-nginx / fbsm-host are the platform's own services and use a single dash; only fbsm-- is a workload.
+    // fbsm-nginx/fbsm-host use a single dash, only fbsm-- is a workload
     [TestMethod]
     public void Platform_services_are_ignored()
     {

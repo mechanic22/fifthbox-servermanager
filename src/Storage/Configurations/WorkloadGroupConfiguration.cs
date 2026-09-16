@@ -13,9 +13,8 @@ public class WorkloadGroupConfiguration : IEntityTypeConfiguration<WorkloadGroup
         builder.Property(g => g.Id).HasMaxLength(64);
         builder.Property(g => g.Name).IsRequired().HasMaxLength(100);
         builder.Property(g => g.ParentId).HasMaxLength(64);
-        // Sibling-uniqueness is enforced in WorkloadGroupService — a DB unique index can't cover it
-        // (SQLite treats NULL ParentId rows as distinct, so top-level dupes would slip through). This
-        // index just speeds up child lookups.
+        // not unique on purpose, sqlite treats NULL ParentId as distinct so top-level dupes slip through
+        // WorkloadGroupService enforces sibling names instead
         builder.HasIndex(g => g.ParentId);
     }
 }

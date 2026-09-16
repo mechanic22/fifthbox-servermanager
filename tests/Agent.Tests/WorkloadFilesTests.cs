@@ -29,7 +29,7 @@ public class WorkloadFilesTests
         }
         catch (Exception)
         {
-            // A leftover temp directory isn't worth failing a test over.
+            // leftover temp dir isn't worth failing over
         }
     }
 
@@ -80,7 +80,7 @@ public class WorkloadFilesTests
     [TestMethod]
     public void Writing_will_not_create_a_file_that_is_not_there()
     {
-        // Editing config is the job; creating arbitrary files on the box is not.
+        // editing config is fine, creating random files on the box isn't
         Assert.ThrowsExactly<FileNotFoundException>(() => _files.Write("srcds", "cfg/new.cfg", "x"));
     }
 }

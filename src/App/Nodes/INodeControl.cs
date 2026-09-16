@@ -2,8 +2,7 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.App.Nodes;
 
-/// Port: changing a swarm node rather than reading one. Separate from INodeSource because reading is
-/// something every backend does and writing is not — an agent node has no schedulability or role to set.
+/// split from INodeSource since agent nodes have nothing to set
 public interface INodeControl
 {
     Task SetAvailabilityAsync(string nodeId, NodeAvailability availability, CancellationToken ct = default);

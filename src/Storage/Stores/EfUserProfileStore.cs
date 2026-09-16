@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Stores;
 
-/// <summary>EF-backed profile store. Thin adapter — the only nuance is upsert keeping CreatedAt.</summary>
 public class EfUserProfileStore(AppDbContext db) : IUserProfileStore
 {
     public Task<UserProfile?> FindByUserIdAsync(string userId, CancellationToken ct = default)
@@ -25,7 +24,7 @@ public class EfUserProfileStore(AppDbContext db) : IUserProfileStore
         }
         else
         {
-            // Update in place; an update leaves the original CreatedAt untouched (INSERT ... ON CONFLICT).
+            // leave CreatedAt alone
             existing.Email = profile.Email;
             existing.FirstName = profile.FirstName;
             existing.LastName = profile.LastName;

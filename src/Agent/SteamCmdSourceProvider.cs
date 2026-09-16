@@ -7,8 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Installs and updates a Steam dedicated server with SteamCMD. Bootstraps the tool once into a shared
-/// folder under the agent root, then runs it against the workload's own install directory.
+/// steamcmd itself gets bootstrapped once into a shared folder under the agent root
 public sealed partial class SteamCmdSourceProvider(IOptions<AgentOptions> options, IHttpClientFactory httpFactory) : ISourceProvider
 {
     public SourceKind Kind => SourceKind.SteamCmd;
@@ -48,7 +47,7 @@ public sealed partial class SteamCmdSourceProvider(IOptions<AgentOptions> option
         return buildId is null ? $"app {appId}" : $"app {appId} build {buildId}";
     }
 
-    /// SteamCMD reports the installed build as it works; the last one it names is what ended up on disk.
+    /// returns the last build id steamcmd printed, that's what ended up on disk
     private static async Task<string?> RunAsync(string steamCmd, List<string> arguments, Action<string> log, CancellationToken ct)
     {
         var info = new ProcessStartInfo
@@ -76,8 +75,7 @@ public sealed partial class SteamCmdSourceProvider(IOptions<AgentOptions> option
                 return;
             }
 
-            // The password is in ArgumentList, never in the output — but a failed login echoes the
-            // account name, so nothing here is re-logged beyond what steamcmd already prints.
+            // a failed login echoes the account name, so don't log anything beyond what steamcmd prints
             log(e.Data);
 
             if (BuildId().Match(e.Data) is { Success: true } match)
@@ -98,7 +96,7 @@ public sealed partial class SteamCmdSourceProvider(IOptions<AgentOptions> option
         process.BeginErrorReadLine();
         await process.WaitForExitAsync(ct);
 
-        // 7 is "already up to date" on some versions and not a failure; anything else non-zero is.
+        // 7 means already up to date on some versions
         if (process.ExitCode is not (0 or 7))
         {
             throw new InvalidOperationException($"steamcmd exited with {process.ExitCode}.");

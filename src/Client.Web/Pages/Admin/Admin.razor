@@ -50,8 +50,7 @@
     private string _tabValue = "users";
     private string? _currentUserId;
 
-    // The setter stays synchronous and fires the load off: MaterialTabs awaits ActiveTabChanged inside
-    // its own click handler, so anything slow (or throwing) in here stalls the rest of the click.
+    // fire and forget, MaterialTabs awaits this inside its click handler so anything slow stalls the click
     private string _tab
     {
         get => _tabValue;
@@ -67,9 +66,7 @@
         }
     }
 
-    /// The account list the Teams and Access pickers need. The Users tab doesn't use it — UserList
-    /// fetches its own — so it stays null until a tab that needs it is opened, and is dropped whenever
-    /// a tab reports the roster changed.
+    /// only loaded by tabs that need it (not Users), dropped when the roster changes
     private IReadOnlyList<UserSummaryResponse>? _directory;
 
     protected override async Task OnInitializedAsync()
@@ -96,15 +93,13 @@
         }
         catch (ApiException)
         {
-            // The tables surface their own failure; the pickers just show nothing to pick.
+            // tables show their own error, pickers just come up empty
             _directory = null;
         }
 
-        // Fire-and-forget from the setter, so nothing else will redraw for us.
+        // fired from the setter, nothing else will redraw
         StateHasChanged();
     }
 
-    /// The Users tab changed the roster. Just drop the cached copy — the tab that needs it refetches
-    /// on the way in, and nothing on screen right now is using it.
     private void InvalidateDirectory() => _directory = null;
 }

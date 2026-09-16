@@ -1,5 +1,3 @@
-@* Gives one subject one level on one group or workload. Opened either from the admin Access tab
-   (pick everything) or from a workload/group's own access panel (target already decided). *@
 @using FifthBox.ServerManager.Shared.Access
 @using FifthBox.ServerManager.Shared.Teams
 @using FifthBox.ServerManager.Shared.Users
@@ -94,7 +92,7 @@
     [Parameter] public IReadOnlyList<WorkloadResponse>? Workloads { get; set; }
     [Parameter] public IReadOnlyList<WorkloadGroupResponse>? Groups { get; set; }
 
-    /// Set together when the dialog is opened from a workload or group, so it grants on that one thing.
+    /// set when opened from a workload or group, grants on just that
     [Parameter] public AccessScope? LockedScope { get; set; }
     [Parameter] public string? LockedTargetId { get; set; }
     [Parameter] public string? LockedTargetName { get; set; }
@@ -114,8 +112,7 @@
 
     private bool CanSave => _subjectId.Length > 0 && (LockedTargetId ?? _targetId).Length > 0;
 
-    /// Called by the parent before opening. Null starts a new grant; an existing one is level-only,
-    /// because changing who or what would be a different grant, not an edit of this one.
+    /// call before opening. null = new grant, an existing one only edits the level
     public void Load(AccessGrantResponse? grant)
     {
         _isEdit = grant is not null;
@@ -139,7 +136,7 @@
         _targetId = string.Empty;
     }
 
-    // An admin bypasses grants, so the server refuses one — don't offer them as a choice.
+    // admins bypass grants and the server refuses one, so don't offer them
     private List<string> SubjectOptions() => _subjectType == AccessSubject.Team
         ? [string.Empty, .. (Teams ?? []).Select(t => t.Id)]
         : [string.Empty, .. (Users ?? []).Where(u => !u.Roles.Contains(Roles.Admin)).Select(u => u.Id)];

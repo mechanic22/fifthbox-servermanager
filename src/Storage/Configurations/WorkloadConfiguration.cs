@@ -16,7 +16,7 @@ public class WorkloadConfiguration : IEntityTypeConfiguration<Workload>
         builder.HasKey(w => w.Id);
         builder.Property(w => w.Id).HasMaxLength(64);
 
-        // Service name — unique across the app (it's the swarm service name).
+        // it's the swarm service name, so unique app-wide
         builder.Property(w => w.Name).IsRequired().HasMaxLength(100);
         builder.HasIndex(w => w.Name).IsUnique();
 
@@ -28,14 +28,11 @@ public class WorkloadConfiguration : IEntityTypeConfiguration<Workload>
         builder.Property(w => w.AgentId).HasMaxLength(64);
         builder.HasIndex(w => w.AgentId);
 
-        // Container (swarm) config.
         builder.Property(w => w.Image).HasMaxLength(500);
         builder.Property(w => w.Placement).HasConversion<string>().HasMaxLength(16)
             .HasDefaultValue(WorkloadPlacement.Auto);
         builder.Property(w => w.NodeId).HasMaxLength(64);
-        // MemoryLimitMb / CpuLimit are nullable scalars — default column mapping is fine.
 
-        // Native (agent) config.
         builder.Property(w => w.Command).HasMaxLength(1000);
         builder.Property(w => w.WorkingDirectory).HasMaxLength(500);
         builder.Property(w => w.StopCommand).HasMaxLength(200);
@@ -43,13 +40,11 @@ public class WorkloadConfiguration : IEntityTypeConfiguration<Workload>
         builder.Property(w => w.ManagedDirectory).HasDefaultValue(false);
 
 
-        // Defaults matter here: existing rows predate these columns and must land on the same values a
-        // newly created workload gets.
+        // old rows predate these columns, defaults have to match what a new workload gets
         builder.Property(w => w.RestartPolicy).HasConversion<string>().HasMaxLength(16)
             .HasDefaultValue(RestartPolicy.OnFailure);
         builder.Property(w => w.StopGraceSeconds).HasDefaultValue(10);
 
-        // Env, Ports and Args are config blobs, stored as JSON columns rather than child tables.
         builder.Property(w => w.Env).HasConversion(JsonConverter<EnvVar>(), JsonComparer<EnvVar>());
         builder.Property(w => w.Ports).HasConversion(JsonConverter<PortMapping>(), JsonComparer<PortMapping>());
         builder.Property(w => w.Args).HasConversion(JsonConverter<string>(), JsonComparer<string>());
@@ -64,10 +59,8 @@ public class WorkloadConfiguration : IEntityTypeConfiguration<Workload>
             ? new List<T>()
             : JsonSerializer.Deserialize<List<T>>(v, (JsonSerializerOptions?)null) ?? new List<T>());
 
-    /// The snapshot is a round-trip, not a ToList(): a shallow copy shares the item instances, so a
-    /// change made in place — settling a revision, re-encrypting a secret — mutates the snapshot too and
-    /// SaveChanges finds nothing to write. Comparing the serialized form for the same reason: a revision
-    /// is a mutable class with no value equality of its own.
+    // snapshot round-trips instead of ToList(), a shallow copy shares items so in-place edits never save
+    // compares serialized too, revisions are mutable with no value equality
     private static ValueComparer<List<T>> JsonComparer<T>() => new(
         (a, b) => Serialized(a) == Serialized(b),
         v => Serialized(v).GetHashCode(StringComparison.Ordinal),
@@ -76,7 +69,6 @@ public class WorkloadConfiguration : IEntityTypeConfiguration<Workload>
     private static string Serialized<T>(List<T>? value)
         => JsonSerializer.Serialize(value ?? new List<T>(), (JsonSerializerOptions?)null);
 
-    /// Same reasoning as the list versions, for a single owned object.
     private static ValueConverter<T, string> JsonObjectConverter<T>() where T : class, new() => new(
         v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
         v => string.IsNullOrWhiteSpace(v)

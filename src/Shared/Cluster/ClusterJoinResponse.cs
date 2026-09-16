@@ -1,7 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Cluster;
 
-/// How to add a Linux node to the swarm. Only populated when this host is a manager (otherwise it has
-/// no join tokens to hand out). A Windows / non-swarm box joins via the agent instead (M6).
+/// only filled in on a manager, windows / non-swarm boxes join via the agent
 public record ClusterJoinResponse
 {
     public bool Available { get; init; }

@@ -7,11 +7,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace FifthBox.ServerManager.Host.Tests;
 
-/// <summary>
-/// Boots the real pipeline — real auth scheme, real policies, real endpoints, real exception handler —
-/// against a throwaway SQLite file. Two things have to be taken out or the host reaches for hardware
-/// no test has: the Docker event listener and the scheduled-job runner.
-/// </summary>
 public sealed class AppFactory : WebApplicationFactory<Program>
 {
     public const string AdminUserName = "admin@test.local";
@@ -26,11 +21,12 @@ public sealed class AppFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:AppDb", $"Data Source={_dbPath}");
         builder.UseSetting("Identity:DemoSeedAdmin:UserName", AdminUserName);
         builder.UseSetting("Identity:DemoSeedAdmin:Password", AdminPassword);
-        // The cookie is Secure by default and the test client speaks http, so it would be dropped.
+        // cookie is Secure by default and the test client talks http
         builder.UseSetting("Identity:AllowInsecureCookies", "true");
 
         builder.ConfigureServices(services =>
         {
+            // drops the docker event listener and job runner, no test has a daemon
             foreach (var hosted in services.Where(d => d.ServiceType == typeof(IHostedService)).ToList())
             {
                 services.Remove(hosted);
@@ -38,7 +34,7 @@ public sealed class AppFactory : WebApplicationFactory<Program>
         });
     }
 
-    /// A client already carrying the seeded administrator's session cookie.
+    /// already signed in as the seeded admin
     public async Task<HttpClient> AdminClientAsync()
         => await SignInAsync(AdminUserName, AdminPassword);
 
@@ -57,7 +53,7 @@ public sealed class AppFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (disposing)
         {
-            // SQLite pools connections per file; without this the delete loses to a live handle.
+            // sqlite pools connections per file, without this the delete loses to a live handle
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             TryDelete(_dbPath);
             TryDelete(_dbPath + "-wal");
@@ -73,7 +69,7 @@ public sealed class AppFactory : WebApplicationFactory<Program>
         }
         catch (IOException)
         {
-            // A leftover temp file is not worth failing a test run over.
+            // leftover temp file isn't worth failing a run over
         }
     }
 }

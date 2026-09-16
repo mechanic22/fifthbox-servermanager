@@ -38,7 +38,7 @@ public sealed class UserAdminService(IUserDirectory users, IAccessGrantRepositor
         var user = await FindAsync(userId, ct);
         var wanted = Normalize(roles);
 
-        // Changing your own roles takes effect on the next request and there may be nobody left who can undo it.
+        // your own role change lands next request and nobody may be left to undo it
         if (string.Equals(user.Id, caller.UserId, StringComparison.Ordinal))
         {
             throw new ConflictException("You can't change your own roles.");
@@ -57,8 +57,7 @@ public sealed class UserAdminService(IUserDirectory users, IAccessGrantRepositor
 
         await users.SetRolesAsync(user.Id, wanted, ct);
 
-        // Admin makes any grants they held redundant — the role bypasses them, and leaving the rows behind
-        // would silently restore that access on a later demotion.
+        // admin makes old grants redundant, leftover rows would quietly come back on demotion
         if (becomesAdmin)
         {
             await grants.RemoveForSubjectAsync(GrantSubject.User(user.Id), ct);
@@ -100,7 +99,7 @@ public sealed class UserAdminService(IUserDirectory users, IAccessGrantRepositor
                 $"Unknown role: {string.Join(", ", unknown)}. Known roles: {string.Join(", ", RoleNames.All)}.");
         }
 
-        // Store the canonical spelling, so a role that arrived as "Admin" still matches the policy.
+        // store the canonical spelling so "Admin" still matches the policy
         return [.. cleaned.Select(r => RoleNames.All.First(known => string.Equals(known, r, StringComparison.OrdinalIgnoreCase)))];
     }
 

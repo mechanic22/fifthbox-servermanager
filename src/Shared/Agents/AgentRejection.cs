@@ -1,10 +1,7 @@
 namespace FifthBox.ServerManager.Shared.Agents;
 
-/// How the Host tells an agent its credential is no good, and how the agent recognises that answer.
-///
-/// A rejection is terminal in a way an ordinary disconnect isn't: retrying with the same credential can
-/// never succeed, so the agent has to stop rather than reconnect forever. Matching on a stable prefix
-/// keeps that decision out of exception-message guesswork.
+/// terminal, the same credential never works so the agent stops instead of reconnecting forever
+/// matched on a stable prefix so we're not guessing at exception messages
 public static class AgentRejection
 {
     public const string Prefix = "agent-credential-rejected:";

@@ -1,14 +1,11 @@
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// Whether a workload's daily restart is due right now. Pure, because the interesting part is entirely
-/// about clocks and it is the part worth being sure of.
 public static class ScheduledRestart
 {
-    /// How late a restart may run. Without a limit, a Host that was down overnight would come back and
-    /// bounce every scheduled workload at once, in the middle of the day — the opposite of the point.
+    /// without a cap a Host that was down overnight would bounce everything mid-day
     public static readonly TimeSpan Grace = TimeSpan.FromHours(1);
 
-    /// <param name="localNow">Local time, because an operator picks "05:00" meaning their morning.</param>
+    /// localNow is local time, "05:00" means the operator's morning
     public static bool IsDue(int? dailyAtMinutes, DateTimeOffset localNow, DateTimeOffset? lastRunAt)
     {
         if (dailyAtMinutes is not { } minutes)
@@ -16,9 +13,7 @@ public static class ScheduledRestart
             return false;
         }
 
-        // Everything stays offset-aware. Comparing a bare DateTime against DateTimeOffset.LocalDateTime
-        // re-converts the timezone, and on any host that isn't UTC the dedupe below then fails — which
-        // means restarting every tick for the whole grace window.
+        // stay offset-aware, a bare DateTime vs LocalDateTime reconverts the zone and breaks the dedupe off UTC
         var scheduled = new DateTimeOffset(localNow.Date.AddMinutes(minutes), localNow.Offset);
         var elapsed = localNow - scheduled;
 
@@ -27,7 +22,7 @@ public static class ScheduledRestart
             return false;
         }
 
-        // Once per occurrence: a five-minute tick would otherwise restart it repeatedly for an hour.
+        // once per occurrence, or a 5 minute tick restarts it for an hour
         return lastRunAt is not { } last || last < scheduled;
     }
 }

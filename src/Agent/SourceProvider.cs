@@ -4,14 +4,11 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// Fetches a workload's files into the directory the agent owns for it. One implementation per
-/// SourceKind; the manager picks by kind and never knows how any of them work.
 public interface ISourceProvider
 {
     SourceKind Kind { get; }
 
-    /// Returns the version marker to record on success. Progress goes to <paramref name="log"/> so it
-    /// reaches the operator's Logs tab while it runs.
+    /// returns the version marker. log lines show up in the Logs tab while it runs
     Task<string> AcquireAsync(AgentWorkloadSpec spec, string installRoot, Action<string> log, CancellationToken ct);
 }
 
@@ -41,8 +38,7 @@ public sealed class ZipSourceProvider(IHttpClientFactory httpFactory) : ISourceP
             var size = new FileInfo(temp).Length;
             log($"Downloaded {size / (1024 * 1024)} MB; extracting into {installRoot}");
 
-            // ExtractToDirectory refuses entries that resolve outside the destination, which is the whole
-            // zip-slip defence here — don't replace this with a hand-rolled loop without carrying it over.
+            // ExtractToDirectory is our only zip-slip defence, keep that if you hand-roll this
             ZipFile.ExtractToDirectory(temp, installRoot, overwriteFiles: true);
 
             log("Extracted.");
@@ -65,7 +61,7 @@ public sealed class ZipSourceProvider(IHttpClientFactory httpFactory) : ISourceP
         }
         catch (Exception)
         {
-            // A leftover temp file is the OS's problem, not a reason to fail an acquire that worked.
+            // leftover temp file isn't worth failing a good acquire
         }
     }
 }

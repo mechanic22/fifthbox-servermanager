@@ -11,19 +11,13 @@ using FifthBox.Identity.Contracts;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// <summary>
-/// User management — the joined view over the identity account and its app profile. Each endpoint
-/// calls the identity service and the profile store and stitches them together with
-/// <see cref="UserProfileComposition"/>; no logic here.
-/// </summary>
 public static class UserEndpoints
 {
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/users").RequireAuthorization();
 
-        // Admin provisioning. Creates the identity account, then its profile. The profile email set
-        // here is what later lets the user attach a Google login (the external resolver matches on it).
+        // profile email is what a later google login matches on
         group.MapPost("/", async (CreateUserRequest request, IIdentityService identity, IUserProfileStore profiles, CancellationToken ct) =>
         {
             var account = await identity.AdminCreateUserAsync(
@@ -34,18 +28,14 @@ public static class UserEndpoints
             return TypedResults.Ok(await UserProfileComposition.ComposeAsync(account.UserId, identity, profiles, ct));
         }).RequireAuthorization(AuthPolicies.AdminOnly);
 
-        // The current user as one object: identity spine + app profile.
         group.MapGet("/me", async (ClaimsPrincipal user, IIdentityService identity, IUserProfileStore profiles, CancellationToken ct) =>
         {
-            // Authenticated but no subject claim = a malformed/stale session cookie; 401, don't 500.
+            // no sub claim means a stale cookie, 401 not 500
             var userId = user.FindFirstValue(IdentityClaimTypes.Subject)
                 ?? throw new UnauthorizedException("Unauthorized.");
             return TypedResults.Ok(await UserProfileComposition.ComposeAsync(userId, identity, profiles, ct));
         }).RequireAuthorization();
 
-        // Admin user management. The list, the role write and delete all carry rules (you can't change
-        // your own roles or delete yourself, and the last administrator stays), so they live behind
-        // IUserAdminService.
         group.MapGet("/", async (ClaimsPrincipal user, IUserAdminService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.ListAsync(user.ToCaller(), ct)))
             .RequireAuthorization(AuthPolicies.AdminOnly);

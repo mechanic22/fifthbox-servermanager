@@ -3,14 +3,8 @@ using FifthBox.ServerManager.Shared.Users;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for admin-only user management. On failure it reads ProblemDetails and throws
-/// <see cref="ApiException"/> — so a non-admin's 403 (Host enforcing the AdminOnly policy) shows up as
-/// a friendly message, not a raw <see cref="HttpRequestException"/>.
-/// </summary>
 public interface IAdminClient
 {
-    /// <summary>Creates a user via <c>POST /api/users</c> (needs the admin role server-side).</summary>
     Task CreateUserAsync(CreateUserRequest request, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSummaryResponse>> ListUsersAsync(CancellationToken ct = default);

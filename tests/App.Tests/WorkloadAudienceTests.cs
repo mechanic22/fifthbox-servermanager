@@ -9,8 +9,6 @@ using RoleNames = FifthBox.ServerManager.Shared.Auth.Roles;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// Who a server→client push is addressed to. Getting this wrong either leaks the inventory to everyone
-/// or silently stops updates reaching someone who can see the workload.
 [TestClass]
 public class WorkloadAudienceTests
 {
@@ -72,7 +70,7 @@ public class WorkloadAudienceTests
     [TestMethod]
     public async Task A_grant_on_an_ancestor_group_puts_you_in_the_audience()
     {
-        // The case that matters: u1 holds nothing on w1 itself, only on a group two levels above it.
+        // u1 holds nothing on w1, only on a group two levels up
         var groups = new List<WorkloadGroup>
         {
             new() { Id = "clients", Name = "clients" },
@@ -185,8 +183,7 @@ public class WorkloadAudienceTests
     [TestMethod]
     public async Task A_team_id_that_collides_with_a_user_id_does_not_cross_over()
     {
-        // Nothing generates colliding ids, but the subject discriminator is the only thing keeping
-        // these apart now that both live in one column.
+        // nothing makes colliding ids, but the subject type is all that keeps these apart in one column
         var audience = Build(
             Workload(),
             [new DirectoryUser("t1", "impostor@x", NoRoles)],

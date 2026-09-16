@@ -48,7 +48,7 @@
         new() { Label = "New application" },
     ];
 
-    // Set when arriving from a group's "Add workload" action, to pre-scope the new workload.
+    // from a group's "Add workload" action
     [SupplyParameterFromQuery(Name = "group")] public string? GroupParam { get; set; }
 
     private IReadOnlyList<WorkloadGroupResponse>? _groups;
@@ -57,7 +57,7 @@
     private bool _busy;
     private readonly WorkloadFormModel _form = new();
 
-    // Held explicitly so "Create only", which isn't a form submit, can still run validation.
+    // held so "Create only" (not a submit) can still validate
     private EditContext? _editContext;
     private string? _rootDomain;
     private string _volumePrefix = string.Empty;
@@ -88,7 +88,6 @@
 
     private Task CreateAsync() => SubmitAsync(deploy: true);
 
-    // Bypasses the form's submit, so validation is re-run explicitly rather than skipped.
     private Task CreateOnlyAsync() =>
         _editContext?.Validate() == false ? Task.CompletedTask : SubmitAsync(deploy: false);
 
@@ -101,8 +100,6 @@
 
             if (deploy)
             {
-                // Creating used to leave you on a page reading "Not deployed" with no hint that a
-                // second step existed.
                 await WorkloadsApi.DeployAsync(created.Id);
                 Snackbar.Show($"Created and deployed {created.Name}.");
             }

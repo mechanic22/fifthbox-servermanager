@@ -5,13 +5,12 @@ public record WorkloadRevisionResponse
     public required int Number { get; init; }
     public DateTimeOffset DeployedAt { get; init; }
 
-    /// True for the newest revision — the config the running instance is on.
+    /// newest revision, what's running
     public bool IsCurrent { get; init; }
 
-    /// Short human summary, e.g. "nginx:1.27 ×2" or "dotnet run".
+    /// like "nginx:1.27 ×2" or "dotnet run"
     public string Summary { get; init; } = string.Empty;
 
-    // The captured config, for a read-only view of a past revision.
     public string? Image { get; init; }
     public WorkloadMode Mode { get; init; }
     public int Replicas { get; init; }
@@ -33,9 +32,7 @@ public record WorkloadRevisionResponse
     public bool ManagedDirectory { get; init; }
     public WorkloadSourceResponse? Source { get; init; }
 
-    /// Container health probe, run inside the container as `CMD-SHELL`. Blank means no probe — and
-    /// without one swarm calls a deploy successful the moment the process starts, so a container that
-    /// starts and immediately crash-loops rolls forward instead of back.
+    /// runs as CMD-SHELL. blank = no probe, so swarm rolls a crash-looping deploy forward
     public string? HealthCommand { get; init; }
     public int HealthIntervalSeconds { get; init; } = 10;
     public int HealthTimeoutSeconds { get; init; } = 3;

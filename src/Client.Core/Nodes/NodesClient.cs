@@ -3,11 +3,6 @@ using FifthBox.ServerManager.Shared.Nodes;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for the nodes API. Reads ProblemDetails on failure and throws
-/// <see cref="ApiException"/> with a user-safe message. Transport-neutral — auth is applied by the
-/// HttpClient pipeline (cookie on web, bearer on mobile), so it's shared by every head.
-/// </summary>
 public interface INodesClient
 {
     Task<IReadOnlyList<NodeResponse>> ListAsync(CancellationToken ct = default);

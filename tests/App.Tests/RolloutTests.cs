@@ -3,7 +3,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// Reading a runtime status for what the backend did with the spec we sent it.
 [TestClass]
 public class RolloutTests
 {
@@ -13,8 +12,7 @@ public class RolloutTests
     [TestMethod]
     public void A_freshly_created_service_counts_as_applied()
     {
-        // Swarm writes no UpdateStatus until something updates the service, so a first deploy would
-        // otherwise never settle.
+        // swarm writes no UpdateStatus until something updates the service, so a first deploy would never settle
         Assert.AreEqual(RolloutOutcome.Applied, Rollout.Of(Status(null)));
     }
 

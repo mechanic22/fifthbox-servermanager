@@ -4,8 +4,7 @@ using FifthBox.ServerManager.Shared.Registries;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Private Docker registry credentials — admin-only CRUD. Passwords are write-only; the API never
-/// returns them. Translate + delegate only.
+/// passwords are write-only, the api never returns them
 public static class RegistryEndpoints
 {
     public static IEndpointRouteBuilder MapRegistryEndpoints(this IEndpointRouteBuilder app)

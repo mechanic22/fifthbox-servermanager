@@ -3,27 +3,21 @@ using FifthBox.ServerManager.Shared.Agents;
 
 namespace FifthBox.ServerManager.Agent;
 
-/// One workload the agent had running when it last wrote its state file.
 public sealed class TrackedWorkload
 {
     public string Name { get; set; } = string.Empty;
     public int Pid { get; set; }
 
-    /// The process's own start time — checked on adoption, because the OS reuses PIDs.
+    /// checked on adoption because the os reuses pids
     public DateTimeOffset StartedAtUtc { get; set; }
 
-    /// The spec, minus its environment — env values are secrets and this file is plaintext on disk.
-    /// Enough survives to keep supervising (restart policy, stop grace, stop command) until the Host
-    /// hands back the authoritative spec on the next reconcile.
+    /// no env, it's secrets and this file is plaintext. enough to supervise until the next reconcile
     public AgentWorkloadSpec? Spec { get; set; }
 
-    /// Hash of the *full* spec as it was when the process started, including the env this file drops.
-    /// Adoption compares this, so a stripped spec still recognises its own process.
+    /// hash of the full spec incl env, so a stripped spec still matches its process
     public string? ConfigHash { get; set; }
 }
 
-/// The agent's process table, persisted so a restarted agent can re-attach to workloads that are still
-/// running instead of orphaning them and starting duplicates.
 public sealed class AgentState
 {
     public List<TrackedWorkload> Workloads { get; set; } = [];
@@ -58,7 +52,7 @@ public sealed class AgentState
         }
         catch (Exception)
         {
-            // Losing the table costs adoption on the next start, not correctness now.
+            // losing it just costs adoption on next start
         }
     }
 }

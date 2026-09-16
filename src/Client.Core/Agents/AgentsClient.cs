@@ -3,10 +3,6 @@ using FifthBox.ServerManager.Shared.Agents;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// Typed HTTP client for agent management. Reads ProblemDetails on failure and throws
-/// <see cref="ApiException"/>.
-/// </summary>
 public interface IAgentsClient
 {
     Task<IReadOnlyList<AgentResponse>> ListAsync(CancellationToken ct = default);

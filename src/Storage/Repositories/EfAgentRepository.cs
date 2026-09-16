@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementations of the agent ports. Thin adapters — no business rules.
 public class EfAgentRepository(AppDbContext db) : IAgentRepository
 {
     public async Task<IReadOnlyList<Agent>> ListAsync(CancellationToken ct = default)

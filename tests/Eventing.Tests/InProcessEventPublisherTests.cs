@@ -55,7 +55,7 @@ public class InProcessEventPublisherTests
             services.AddSingleton<IEventHandler<TestEvent>>(good);
         });
 
-        await publisher.PublishAsync(new TestEvent("y"));   // must not throw
+        await publisher.PublishAsync(new TestEvent("y"));
 
         Assert.AreEqual(1, good.Calls);
     }
@@ -64,7 +64,7 @@ public class InProcessEventPublisherTests
     public async Task No_handlers_is_a_no_op()
     {
         var publisher = BuildPublisher(_ => { });
-        await publisher.PublishAsync(new TestEvent("z"));   // must not throw
+        await publisher.PublishAsync(new TestEvent("z"));
     }
 
     private static IEventPublisher BuildPublisher(Action<IServiceCollection> register)

@@ -1,11 +1,8 @@
-@* Runtime state, first thing on the page — "is it up" is the question you came here with. *@
-
 <div class="flex flex-col gap-2">
     <div class="flex items-center gap-2 flex-wrap">
         @if (Status is null)
         {
-            @* No reading yet rather than a bad one — after a Host restart every workload sits here for
-               a moment, and "Unknown" reads like a fault. *@
+            @* not "Unknown", every workload sits here for a moment after a Host restart *@
             <MaterialChip Text="Checking…" />
         }
         else
@@ -30,7 +27,7 @@
         {
             <span class="text-sm opacity-70">· @version</span>
         }
-        @* Null means there was nothing to probe — a UDP-only server, say — so it says nothing at all. *@
+        @* null = nothing to probe (udp-only, say), so say nothing *@
         @if (Status?.Reachable is false)
         {
             <MaterialChip Text="not answering" Size="MaterialChipSize.Small" Color="MaterialChipColor.Error" />
@@ -95,8 +92,7 @@
     [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
     [Parameter] public WorkloadRuntimeStatus? Status { get; set; }
 
-    /// Nothing deployed, nothing running, and nobody asked for that — which is a different situation
-    /// from a workload that has never been deployed or one somebody stopped.
+    /// gone without anyone stopping it, not the same as never deployed or stopped
     private static bool IsMissing(WorkloadResponse w, WorkloadRuntimeStatus? s) =>
         s is { State: WorkloadState.NotDeployed }
         && w.CurrentRevision is not null
@@ -131,8 +127,7 @@
     private static MaterialChipColor RolloutColor(string? updateState) =>
         updateState == "updating" ? MaterialChipColor.Tertiary : MaterialChipColor.Error;
 
-    /// Tag plus a short digest. The digest is what answers "did my redeploy of :latest actually pick up
-    /// the new build" — the tag alone never changes, so it can't.
+    /// the digest shows whether a :latest redeploy actually picked up the new build
     private static string ImageText(string image)
     {
         var parts = image.Split('@', 2);

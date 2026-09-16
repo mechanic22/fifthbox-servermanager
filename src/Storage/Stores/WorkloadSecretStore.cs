@@ -4,8 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Stores;
 
-/// Secret env vars live in two places on a workload — its desired config and every retained revision —
-/// and both have to move together or reverting and restarting break after a rotation.
+/// secrets live on the workload and every revision, rotate both or revert breaks
 public sealed class WorkloadSecretStore(AppDbContext db) : IProtectedSecretStore
 {
     public string Name => "workload environment";

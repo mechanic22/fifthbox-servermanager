@@ -1,8 +1,4 @@
-@* Grouped workload config fields, shared by the create page and the detail Config tab. Renders only the
-   fields (no <EditForm>, no Name, no submit) — the host page owns those. Sections group what's used
-   together. Target/agent are editable only on create (AllowTargetChange). Instance count and choosing a
-   node aren't offered at all: together they were more confusing than useful. Both still round-trip, so an
-   existing workload keeps its count and its node, and instances are changed by scaling from its own page. *@
+@* fields only, the page owns the EditForm. instance count and node aren't shown but still round-trip *@
 
 <div class="flex flex-col gap-4">
     <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 flex flex-col gap-4">
@@ -213,19 +209,15 @@
     [Parameter] public IReadOnlyList<AgentResponse>? Agents { get; set; }
     [Parameter] public bool Busy { get; set; }
 
-    /// True on create (target + agent are chosen); false on edit (they're fixed).
     [Parameter] public bool AllowTargetChange { get; set; }
     [Parameter] public bool AllowWebAddress { get; set; }
 
-    /// The platform's root domain, so the form can show the address a web app would earn.
     [Parameter] public string? RootDomain { get; set; }
 
-    /// What the platform prefixes a workload's docker objects with, from platform settings — the editor
-    /// composes it with the workload name to show a volume's real name on the host.
+    /// from platform settings, used to show a volume's real name on the host
     [Parameter] public string VolumePrefix { get; set; } = string.Empty;
 
-    /// Empty for a non-admin, who can't read platform settings: no name beats a wrong one. The
-    /// placeholder covers the new-workload form, where the name is still being typed.
+    /// empty for non-admins, they can't read platform settings
     private string VolumeNamePrefix => string.IsNullOrEmpty(VolumePrefix)
         ? string.Empty
         : $"{VolumePrefix}{(string.IsNullOrWhiteSpace(Model.Name) ? "<name>" : Model.Name)}--";
@@ -254,7 +246,7 @@
         _ => "Leave it stopped",
     };
 
-    // "" is the root choice; the rest are group ids in hierarchy order.
+    // "" is the root
     private List<string> GroupOptions() =>
         GroupHierarchy.Flatten(Groups ?? []).Select(x => x.Group.Id).Prepend(string.Empty).ToList();
 

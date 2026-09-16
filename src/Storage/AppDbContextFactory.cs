@@ -3,10 +3,7 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace FifthBox.ServerManager.Storage;
 
-/// <summary>
-/// Lets `dotnet ef` build the context at design time without the Host. The connection string here is
-/// tooling-only — the running app supplies its own via AddStorage(connectionString).
-/// </summary>
+/// dotnet ef only, the real connection string comes from AddStorage
 public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)

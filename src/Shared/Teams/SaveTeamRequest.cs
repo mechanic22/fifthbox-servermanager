@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FifthBox.ServerManager.Shared.Teams;
 
-/// Creates a team, or updates an existing one's name and description. Membership is set separately.
+/// create or update, membership is set separately
 public class SaveTeamRequest
 {
     [Required]

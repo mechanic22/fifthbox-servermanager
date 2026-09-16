@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.App.Registries;
 
-/// Persistence for registry credentials. Implemented by Storage (EF). Pure persistence.
 public interface IRegistryRepository
 {
     Task<IReadOnlyList<Registry>> ListAsync(CancellationToken ct = default);

@@ -9,7 +9,6 @@ public record WorkloadResponse
     public string? GroupId { get; init; }
     public string? GroupName { get; init; }
 
-    /// What was last asked for. With the runtime status it distinguishes "stopped" from "gone".
     public WorkloadDesiredState DesiredState { get; init; }
 
     public WorkloadTarget Target { get; init; }
@@ -17,7 +16,6 @@ public record WorkloadResponse
     public string? AgentId { get; init; }
     public string? AgentName { get; init; }
 
-    // Container (swarm) config.
     public string? Image { get; init; }
     public WorkloadMode Mode { get; init; }
     public int Replicas { get; init; }
@@ -25,11 +23,10 @@ public record WorkloadResponse
     public WorkloadPlacement Placement { get; init; }
     public string? NodeId { get; init; }
 
-    /// Where the scheduler actually put it, learned from a running task. Only meaningful for a workload
-    /// with a named volume, whose data is on that node and nowhere else.
+    /// learned from a running task, only matters with a named volume
     public string? PlacedNodeId { get; init; }
 
-    /// What other workloads dial on the overlay. Null for native workloads, which aren't on it.
+    /// what other workloads dial on the overlay, null for native
     public string? ServiceName { get; init; }
 
     public int? MemoryLimitMb { get; init; }
@@ -39,7 +36,6 @@ public record WorkloadResponse
     public double? CpuReserve { get; init; }
     public IReadOnlyList<VolumeMount> Mounts { get; init; } = [];
 
-    // Native (agent) config.
     public string? Command { get; init; }
     public IReadOnlyList<string> Args { get; init; } = [];
     public string? WorkingDirectory { get; init; }
@@ -49,12 +45,10 @@ public record WorkloadResponse
     public bool ManagedDirectory { get; init; }
     public WorkloadSourceResponse? Source { get; init; }
 
-    /// Minutes past local midnight for a daily restart, or null for never.
+    /// minutes past local midnight, null = never
     public int? RestartDailyAtMinutes { get; init; }
 
-    /// Container health probe, run inside the container as `CMD-SHELL`. Blank means no probe — and
-    /// without one swarm calls a deploy successful the moment the process starts, so a container that
-    /// starts and immediately crash-loops rolls forward instead of back.
+    /// runs as CMD-SHELL. blank = no probe, so swarm rolls a crash-looping deploy forward
     public string? HealthCommand { get; init; }
     public int HealthIntervalSeconds { get; init; } = 10;
     public int HealthTimeoutSeconds { get; init; } = 3;
@@ -63,22 +57,18 @@ public record WorkloadResponse
 
     public IReadOnlyList<EnvVar> Env { get; init; } = [];
 
-    /// The saved config differs from the running (newest) revision — a redeploy would apply it.
+    /// saved config differs from the running revision
     public bool HasPendingChanges { get; init; }
 
-    /// The running revision number, or null if never deployed.
     public int? CurrentRevision { get; init; }
 
-    /// A revision has been sent to the backend and hasn't settled yet. The deploy is still happening —
-    /// pressing Deploy again during this window only bounces the workload a second time.
+    /// sent but not settled, deploying again now just bounces it twice
     public bool IsDeploying { get; init; }
 
-    /// What the caller who asked may do with this. Server-computed per request — the client gates its
-    /// controls on the same number the server enforces.
+    /// computed per request so the ui gates on what the server enforces
     public AccessLevel Access { get; init; }
 
-    /// Whether this caller may deploy right now. Server-computed because it isn't a plain level
-    /// comparison — Operate may only bounce a workload that's already running exactly what's saved.
+    /// not a plain level check, Operate can only bounce what's already running the saved config
     public bool CanDeploy { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }

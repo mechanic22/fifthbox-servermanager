@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FifthBox.ServerManager.Storage.Repositories;
 
-/// EF implementation of <see cref="IWorkloadRepository"/>. Thin adapter — no business rules.
 public class EfWorkloadRepository(AppDbContext db) : IWorkloadRepository
 {
     public async Task<IReadOnlyList<Workload>> ListAsync(CancellationToken ct = default)
@@ -27,7 +26,7 @@ public class EfWorkloadRepository(AppDbContext db) : IWorkloadRepository
         await db.SaveChangesAsync(ct);
     }
 
-    // workload is already tracked (loaded via FindByIdAsync); saving flushes the mutations.
+    // already tracked from FindByIdAsync, just flush
     public Task UpdateAsync(Workload workload, CancellationToken ct = default)
         => db.SaveChangesAsync(ct);
 

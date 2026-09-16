@@ -17,9 +17,9 @@ public class AccessGrantConfiguration : IEntityTypeConfiguration<AccessGrant>
         builder.Property(g => g.Scope).HasConversion<string>().HasMaxLength(20);
         builder.Property(g => g.Level).HasConversion<string>().HasMaxLength(20);
 
-        // One grant per subject per target — a re-grant is an update.
+        // one grant per subject per target, a re-grant is an update
         builder.HasIndex(g => new { g.SubjectType, g.SubjectId, g.Scope, g.TargetId }).IsUnique();
-        // Reverse lookup: who can reach this group/workload, and cleanup when it's deleted.
+        // who can reach this target, and cleanup on delete
         builder.HasIndex(g => new { g.Scope, g.TargetId });
     }
 }

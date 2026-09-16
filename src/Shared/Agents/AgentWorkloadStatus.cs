@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.Shared.Agents;
 
-/// An agent's report of a native workload's runtime state.
 public record AgentWorkloadStatus
 {
     public required string Name { get; init; }
@@ -10,31 +9,26 @@ public record AgentWorkloadStatus
     public int? Pid { get; init; }
     public DateTimeOffset? StartedAt { get; init; }
 
-    /// Automatic restarts in the current crash run — a run that stays up long enough clears it, as does
-    /// an operator deploy. A climbing count is the signal that something is crash-looping now.
+    /// auto restarts in the current crash run, reset by staying up or a deploy. climbing = crash loop
     public int RestartCount { get; init; }
 
-    /// Exit code of the last run that ended on its own (null while it has never exited).
+    /// last run that ended on its own, null if it never has
     public int? ExitCode { get; init; }
 
-    /// The agent attached to an already-running process instead of starting a new one.
+    /// attached to a process that was already running instead of starting one
     public bool Adopted { get; init; }
 
-    /// An acquire is in progress. Nothing will run until it finishes — the two are mutually exclusive
-    /// because rewriting binaries under a live process corrupts the install.
+    /// acquire in progress, nothing runs until it's done or we'd rewrite binaries under a live process
     public bool Updating { get; init; }
 
-    /// What the last successful acquire put on disk. Null when nothing has been acquired, including
-    /// after an acquire that failed part-way.
+    /// from the last good acquire, null after a half-failed one too
     public string? InstalledVersion { get; init; }
 
     public long? MemoryBytes { get; init; }
 
-    /// Share of one core since the last report, so 100 means one core saturated.
+    /// share of one core since the last report, 100 = one core pegged
     public double? CpuPercent { get; init; }
 
-    /// Whether something is actually accepting connections on the declared TCP ports. Null when there is
-    /// nothing to probe — a UDP-only game server can't be checked this way, and reporting false for one
-    /// would be worse than saying nothing.
+    /// something's listening on the declared tcp ports. null when there's nothing to probe (udp only)
     public bool? Reachable { get; init; }
 }

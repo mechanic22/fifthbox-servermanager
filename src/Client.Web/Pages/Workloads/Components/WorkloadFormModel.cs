@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Web.Pages.Workloads.Components;
 
-/// The editable state behind WorkloadConfigForm, shared by the create page and the detail Config tab.
-/// Owns the mapping to/from the API DTOs.
 public sealed class WorkloadFormModel : IValidatableObject
 {
     [Required(ErrorMessage = "Name is required.")]
@@ -21,12 +19,11 @@ public sealed class WorkloadFormModel : IValidatableObject
     public WorkloadPlacement Placement { get; set; } = WorkloadPlacement.Auto;
     public string NodeId { get; set; } = string.Empty;
     public List<PortRow> Ports { get; set; } = [];
-    /// Whether to ask for an automatic address at create. Form-only, and create-only: afterwards the
-    /// address is a route, and the route carries the port.
+    /// create only, afterwards the address is a route
     public bool WebApp { get; set; }
 
     public string HttpPort { get; set; } = string.Empty;
-    // 0 is "no limit", which the wire carries as null. Values come from ResourceScale, not free text.
+    // 0 is "no limit", sent as null
     public int MemoryLimitMb { get; set; }
     public double CpuLimit { get; set; }
     public int MemoryReserveMb { get; set; }
@@ -41,7 +38,7 @@ public sealed class WorkloadFormModel : IValidatableObject
     public string StopCommand { get; set; } = string.Empty;
     public bool ManagedDirectory { get; set; }
 
-    /// Blank for never; otherwise "HH:mm" local time.
+    /// blank for never, else "HH:mm" local
     public string RestartDailyAt { get; set; } = string.Empty;
     public SourceKind SourceKind { get; set; }
     public string SourceUrl { get; set; } = string.Empty;
@@ -49,7 +46,7 @@ public sealed class WorkloadFormModel : IValidatableObject
     public string SteamBranch { get; set; } = string.Empty;
     public string SteamUsername { get; set; } = string.Empty;
 
-    /// Blank leaves the stored one alone, so editing anything else never round-trips the secret.
+    /// blank keeps the stored one
     public string SteamPassword { get; set; } = string.Empty;
     public bool HasSteamPassword { get; set; }
 
@@ -61,16 +58,14 @@ public sealed class WorkloadFormModel : IValidatableObject
 
     public List<KeyValueItem> Env { get; set; } = [];
 
-    /// A row left at zero is dropped on the way out, so it needs saying — but as guidance, not an error,
-    /// since that's how every row starts. These also drive the messages under the port editor.
+    /// zero rows get dropped on save, shown as guidance not an error
     public bool HasBlankPortRow() => Ports.Any(p => p.Published == 0);
 
     public bool HasOutOfRangePortRow() => Ports.Any(p => p.Published != 0 && p.Published is < 1 or > 65535);
 
     public bool PortRowsInvalid() => HasBlankPortRow() || HasOutOfRangePortRow();
 
-    /// Lowering a limit past its reservation would set aside more than the container is then allowed to
-    /// use, which the server rejects — so the reservation comes down with it.
+    /// drags the reservation down too, the server rejects one above the limit
     public void SetMemoryLimit(int mb)
     {
         MemoryLimitMb = mb;
@@ -89,12 +84,9 @@ public sealed class WorkloadFormModel : IValidatableObject
         }
     }
 
-    /// Cheap value-equality for "has anything been edited?". Serialising the whole model keeps this
-    /// honest when a field is added — a hand-written comparison would quietly stop covering it.
+    /// serialises the whole model so new fields are covered automatically
     public string Fingerprint() => System.Text.Json.JsonSerializer.Serialize(this);
 
-    /// What's required depends on where it runs, which a per-property attribute can't see. Without
-    /// this the omissions came back from the server as a snackbar on an eight-card form.
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (Target == WorkloadTarget.Swarm)
@@ -104,8 +96,7 @@ public sealed class WorkloadFormModel : IValidatableObject
                 yield return new ValidationResult("An image is required, e.g. nginx:1.27.", [nameof(Image)]);
             }
 
-            // Left unchecked these fail silently rather than loudly: a port that won't parse means "not a
-            // web app", and a port row at zero is dropped on the way out.
+            // these fail silently otherwise: a bad port means "not a web app", a zero row gets dropped
             if (WebApp && !IsPort(HttpPort))
             {
                 yield return new ValidationResult(
@@ -242,9 +233,8 @@ public sealed class WorkloadFormModel : IValidatableObject
         Env = EnvVars(),
     };
 
-    // A container publishes a port onto a container port, which may differ. A native process binds one
-    // port, so the single number it was given serves as both. Always host-bound; the server re-derives
-    // the mode anyway, so sending anything else is a lie.
+    // native binds one port, so it's both published and target
+    // always host mode, the server re-derives it anyway
     private List<PortMapping> PortMappings() =>
         Ports
             .Where(p => p.Published > 0)
@@ -272,7 +262,6 @@ public sealed class WorkloadFormModel : IValidatableObject
 
     private static bool IsPort(string value) => int.TryParse(value, out var p) && p is >= 1 and <= 65535;
 
-    // 0 is the scale's "no limit" stop; the wire says that with null.
     private static int? Unset(int value) => value <= 0 ? null : value;
 
     private static double? Unset(double value) => value <= 0 ? null : value;
@@ -287,8 +276,7 @@ public sealed class WorkloadFormModel : IValidatableObject
         SteamPassword = SteamPassword,
     };
 
-    /// Anything that isn't a readable time means "never" — the field is optional, and a half-typed
-    /// "0" shouldn't schedule a restart for midnight.
+    /// anything unparseable is "never", so a half-typed "0" doesn't schedule midnight
     private int? RestartMinutes() =>
         TimeOnly.TryParse(RestartDailyAt, out var time) ? (time.Hour * 60) + time.Minute : null;
 }

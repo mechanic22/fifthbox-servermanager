@@ -4,17 +4,13 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Folds a full service list and a full task list into one status per service. The tested core of the
-/// bulk sweep; the adapter around it only makes the two calls.
 public static class SwarmStatusMapper
 {
     public static IReadOnlyDictionary<string, WorkloadRuntimeStatus> Derive(
         IEnumerable<SwarmService> services,
         IEnumerable<TaskResponse> tasks)
     {
-        // Docker keeps shut-down tasks around as history — a service with one replica that has restarted
-        // twice has three tasks, and only one of them counts toward "running". The rest are what explain
-        // a service that never got there.
+        // docker keeps shut-down tasks as history, only one per slot counts as running
         var byService = tasks
             .Where(t => t.ServiceID is not null)
             .GroupBy(t => t.ServiceID, StringComparer.Ordinal)

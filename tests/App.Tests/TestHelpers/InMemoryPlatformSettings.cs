@@ -2,11 +2,7 @@ using FifthBox.ServerManager.App.Platform;
 
 namespace FifthBox.ServerManager.App.Tests;
 
-/// <summary>
-/// Stateful <see cref="IPlatformSettingsRepository"/> fake. Drift detection writes a fingerprint and
-/// reads it back on the next call, which a constant Moq return can't model. Hand-written per the
-/// testing rules for stateful doubles.
-/// </summary>
+/// stateful on purpose, drift detection writes a fingerprint and reads it back next call
 internal sealed class InMemoryPlatformSettings : IPlatformSettingsRepository
 {
     public PlatformSettings? Row;

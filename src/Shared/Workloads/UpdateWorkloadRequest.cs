@@ -1,7 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Workloads;
 
-/// Name and target are immutable after creation; everything else can change. The service applies only
-/// the fields relevant to the workload's kind.
+/// name and target can't change after create, only fields for the workload's kind get applied
 public record UpdateWorkloadRequest
 {
     public string? GroupId { get; init; }
@@ -28,12 +27,10 @@ public record UpdateWorkloadRequest
     public bool ManagedDirectory { get; init; }
     public WorkloadSourceRequest? Source { get; init; }
 
-    /// Minutes past local midnight for a daily restart, or null for never.
+    /// minutes past local midnight, null = never
     public int? RestartDailyAtMinutes { get; init; }
 
-    /// Container health probe, run inside the container as `CMD-SHELL`. Blank means no probe — and
-    /// without one swarm calls a deploy successful the moment the process starts, so a container that
-    /// starts and immediately crash-loops rolls forward instead of back.
+    /// runs as CMD-SHELL. blank = no probe, so swarm rolls a crash-looping deploy forward
     public string? HealthCommand { get; init; }
     public int HealthIntervalSeconds { get; init; } = 10;
     public int HealthTimeoutSeconds { get; init; } = 3;

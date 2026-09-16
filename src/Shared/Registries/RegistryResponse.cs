@@ -1,6 +1,5 @@
 namespace FifthBox.ServerManager.Shared.Registries;
 
-/// A registry's non-secret details. The password is never returned.
 public record RegistryResponse
 {
     public required string Id { get; init; }

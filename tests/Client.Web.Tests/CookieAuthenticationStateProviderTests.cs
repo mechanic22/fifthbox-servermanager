@@ -44,8 +44,7 @@ public class CookieAuthenticationStateProviderTests
     [TestMethod]
     public async Task GetAuthenticationState_WhenClientThrows_DegradesToAnonymous()
     {
-        // A stale-session 404 surfaces past GetCurrentUserAsync as null, but any other failure
-        // (e.g. the backend momentarily unreachable) must not crash auth-state resolution.
+        // a stale-session 404 comes back as null, anything else (backend down) mustn't crash auth state
         var auth = new Mock<IAuthClient>();
         auth.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("boom"));
 
@@ -66,7 +65,7 @@ public class CookieAuthenticationStateProviderTests
         var state1 = await provider.GetAuthenticationStateAsync();
         Assert.IsTrue(state1.User.Identity?.IsAuthenticated);
 
-        // Second call returns cached (within the 5-minute window) — client never called again.
+        // still inside the 5 minute cache window
         var state2 = await provider.GetAuthenticationStateAsync();
         Assert.IsTrue(state2.User.Identity?.IsAuthenticated);
 
@@ -83,7 +82,6 @@ public class CookieAuthenticationStateProviderTests
         var provider = CreateProvider(auth);
         await provider.GetAuthenticationStateAsync();
 
-        // Simulate login/logout — cache should be cleared and the next read fetches fresh.
         auth.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UserResponse { UserId = "u-2", UserName = "updated", Email = "new@test.com", Roles = [] });
         provider.NotifyStateChanged();

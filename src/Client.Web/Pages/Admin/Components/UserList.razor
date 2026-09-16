@@ -1,5 +1,3 @@
-@* Accounts, their role and how much they reach. The guards behind these actions live on the server;
-   the ones repeated here only stop you offering a button that is certain to fail. *@
 @using FifthBox.ServerManager.Shared.Users
 @inject IAdminClient Admin
 @inject IMaterialSnackbarService Snackbar
@@ -68,7 +66,6 @@
 @code {
     [Parameter] public string? CurrentUserId { get; set; }
 
-    /// Raised whenever the roster changes, so a sibling tab showing grants can refresh.
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private IReadOnlyList<UserSummaryResponse>? _users;
@@ -138,7 +135,7 @@
         finally
         {
             _busy = false;
-            // Reload either way: on success the grant count moved, on failure the switch needs putting back.
+            // reload either way, the count moved or the switch needs putting back
             await LoadAsync();
         }
     }

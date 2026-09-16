@@ -9,26 +9,21 @@ namespace FifthBox.ServerManager.App.Certificates;
 
 public interface ICertificateService
 {
-    /// Every routed hostname plus every certificate row, merged — the page that manages HTTPS needs the
-    /// hostnames that don't have it yet just as much as the ones that do.
+    /// includes routed hostnames without a cert yet
     Task<TlsOverviewResponse> OverviewAsync(CancellationToken ct = default);
 
-    /// Opts a hostname into HTTPS and requests its certificate straight away, so the operator sees the
-    /// outcome in seconds rather than at tomorrow's renewal tick.
+    /// issues straight away so the operator sees the result now, not at the next tick
     Task<CertificateResponse> EnableAsync(string hostname, CancellationToken ct = default);
 
-    /// Back to plain HTTP: the row goes, and the private key with it.
+    /// deletes the row and the private key with it
     Task DisableAsync(string hostname, CancellationToken ct = default);
 
-    /// Try one hostname again now, rather than waiting for tomorrow's pass.
     Task<CertificateResponse> RetryAsync(string hostname, CancellationToken ct = default);
 
-    /// Requests every row that needs one — never creates rows, so nothing is ever issued that wasn't
-    /// asked for. Returns how many certificates actually changed, i.e. whether nginx needs reapplying.
+    /// never creates rows, returns how many changed (nonzero means reapply nginx)
     Task<int> IssueDueAsync(CancellationToken ct = default);
 
-    /// What the edge can actually install right now: valid, unexpired, and decryptable. Internal —
-    /// private keys in the clear never belong on an API shape.
+    /// valid, unexpired and decryptable. keys are in the clear so keep this off the API
     Task<IReadOnlyList<CertificateMaterial>> InstallableAsync(CancellationToken ct = default);
 }
 
@@ -155,8 +150,7 @@ public sealed class CertificateService(
             if (certificate.Status != CertificateStatus.Valid
                 || certificate.PemChain is not { Length: > 0 } chain
                 || certificate.PrivateKeyEnc is not { Length: > 0 } key
-                // Expired but not yet retried (the Host was off, say). Plain HTTP beats handing every
-                // visitor a certificate error.
+                // expired but not retried yet, plain http beats a cert error
                 || certificate.NotAfter <= now)
             {
                 continue;
@@ -169,8 +163,7 @@ public sealed class CertificateService(
             }
             catch (Exception ex) when (ex is CryptographicException or FormatException)
             {
-                // Restored database, different encryption key. Skipping keeps the edge serving HTTP for
-                // this hostname instead of failing the whole apply; renewal re-issues it.
+                // restored db with a different key, skip so the apply still works, renewal reissues
                 continue;
             }
 
@@ -201,10 +194,7 @@ public sealed class CertificateService(
         }
         catch (CertificateIssuanceException ex)
         {
-            // A renewal that fails while the current certificate is still good leaves it in place and
-            // serving — there are ~30 days of retries left, and dropping the site to HTTP for a
-            // transient CA failure would be the worse outcome. Once it expires it isn't valid any more,
-            // and a hostname that never had one was never serving HTTPS to begin with.
+            // a failed renewal keeps a still-valid cert serving, dropping to http over a blip is worse
             certificate.Status = certificate.PemChain is not null && certificate.NotAfter > now
                 ? CertificateStatus.Valid
                 : CertificateStatus.Failed;

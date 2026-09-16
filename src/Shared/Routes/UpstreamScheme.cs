@@ -1,6 +1,6 @@
 namespace FifthBox.ServerManager.Shared.Routes;
 
-/// The scheme nginx uses to reach the upstream. Unrelated to how clients reach nginx.
+/// how nginx reaches the upstream, not how clients reach nginx
 public enum UpstreamScheme
 {
     Http,

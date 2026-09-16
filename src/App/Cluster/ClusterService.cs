@@ -40,9 +40,7 @@ public sealed class ClusterService(ISwarmLifecycle lifecycle, IOptions<ClusterOp
         };
     }
 
-    /// Idempotent bootstrap — the explicit opt-in, never run at startup. Makes this host a manager if
-    /// it isn't in a swarm (adopts the existing one if it is), then ensures the managed overlay network
-    /// exists. Safe to run repeatedly.
+    /// explicit opt-in, never at startup. inits or adopts the swarm, ensures the overlay, safe to rerun
     public async Task<ClusterStatusResponse> BootstrapAsync(CancellationToken ct = default)
     {
         var state = await lifecycle.GetStateAsync(ct);

@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FifthBox.ServerManager.Shared.Access;
 
-/// Grants one user or team one level on one group or workload. Idempotent: setting a level a second
-/// time updates the existing grant, and <see cref="AccessLevel.None"/> removes it.
+/// idempotent, setting again updates the grant and None removes it
 public class SetAccessGrantRequest
 {
     public AccessSubject SubjectType { get; set; }

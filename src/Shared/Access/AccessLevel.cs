@@ -1,18 +1,17 @@
 namespace FifthBox.ServerManager.Shared.Access;
 
-/// What a user may do with a workload. Ordered — each level includes the ones below it, so
-/// enforcement is a comparison. Admins bypass this entirely and never hold a grant.
-/// Values are spaced so a level can be slotted in between two existing ones later.
+/// ordered so checks are a comparison, admins skip this and never hold a grant
+/// values are spaced so a new level can slot in between
 public enum AccessLevel
 {
     None = 0,
 
-    /// See it: details, status, logs, deployment history, its routes.
+    /// details, status, logs, history, routes
     View = 10,
 
-    /// Day-to-day running: restart, stop, scale. Deploy only when there's nothing unpublished.
+    /// restart, stop, scale, and deploy only when nothing's unpublished
     Operate = 20,
 
-    /// Edit the saved config, revert to an old revision, move it, deploy whenever.
+    /// edit config, revert, move, deploy whenever
     Configure = 30,
 }

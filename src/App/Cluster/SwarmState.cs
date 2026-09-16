@@ -2,7 +2,6 @@ using FifthBox.ServerManager.Shared.Cluster;
 
 namespace FifthBox.ServerManager.App.Cluster;
 
-/// This host's view of the swarm it belongs to (or doesn't). Read live from the backend.
 public record SwarmState
 {
     public SwarmMembership Membership { get; init; }
@@ -15,5 +14,4 @@ public record SwarmState
     public string? Error { get; init; }
 }
 
-/// The tokens a manager hands out so other machines can join, plus the manager's advertise address.
 public record SwarmJoinTokens(string Worker, string Manager, string? ManagerAddress);

@@ -6,9 +6,7 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
-/// Workload definitions (desired state). Open to any signed-in user — what they can actually see or do
-/// is decided per workload by their granted access level. Creating and deleting also carry AdminOnly at
-/// the route, so the two layers have to agree before a request gets through.
+/// access is checked per workload, create and delete also need AdminOnly at the route
 public static class WorkloadEndpoints
 {
     public static IEndpointRouteBuilder MapWorkloadEndpoints(this IEndpointRouteBuilder app)
@@ -34,11 +32,10 @@ public static class WorkloadEndpoints
             return TypedResults.NoContent();
         }).RequireAuthorization(AuthPolicies.AdminOnly);
 
-        // Literal route, so it wins over /{id}.
+        // literal route wins over /{id}
         group.MapGet("/statuses", async (ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetStatusesAsync(user.ToCaller(), ct)));
 
-        // Lifecycle on the backend (the swarm today).
         group.MapGet("/{id}/status", async (string id, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetStatusAsync(user.ToCaller(), id, ct)));
 
@@ -102,7 +99,6 @@ public static class WorkloadEndpoints
             return TypedResults.NoContent();
         });
 
-        // Deployed config history + revert.
         group.MapGet("/{id}/revisions", async (string id, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetRevisionsAsync(user.ToCaller(), id, ct)));
 

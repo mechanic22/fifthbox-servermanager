@@ -4,8 +4,6 @@ using FifthBox.ServerManager.Shared.Agents;
 
 namespace FifthBox.ServerManager.Host.Agents;
 
-/// In-memory map of live agent connections (connectionId → agentId). Singleton, lives with the AgentHub;
-/// presence is derived from currently-open connections.
 public sealed class AgentRegistry : IAgentRegistry
 {
     private readonly ConcurrentDictionary<string, string> _byConnection = new();
@@ -20,8 +18,7 @@ public sealed class AgentRegistry : IAgentRegistry
             return null;
         }
 
-        // Metrics describe a machine we can no longer see, so they go with the connection rather than
-        // lingering as a number that looks current.
+        // drop metrics with the connection so stale numbers don't look current
         _metrics.TryRemove(agentId, out _);
         return agentId;
     }

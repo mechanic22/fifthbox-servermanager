@@ -13,14 +13,10 @@ public interface IAgentStatusRelay
     Task RelayAsync(string agentId, AgentWorkloadStatus status, CancellationToken ct = default);
     Task RelayLogsAsync(string agentId, string workloadName, IReadOnlyList<WorkloadLogLine> lines, CancellationToken ct = default);
 
-    /// An agent has gone: nothing it was running is reachable any more, so say so rather than leaving its
-    /// last push standing as though it were current.
+    /// marks the agent's workloads offline so its last push doesn't look current
     Task RelayOfflineAsync(string agentId, CancellationToken ct = default);
 }
 
-/// Turns an agent's report about one of its processes into cluster state, and tells clients if that
-/// changed anything. Same destination as the docker event stream — agents just get there by pushing
-/// rather than being watched.
 public sealed class AgentStatusRelay(
     IWorkloadRepository workloads,
     IClusterState state,
@@ -36,8 +32,7 @@ public sealed class AgentStatusRelay(
         }
     }
 
-    /// Workload names are unique, so the name alone finds it; the agent id is then checked rather than
-    /// searched on, which keeps a status report off a full table scan.
+    /// find by unique name then check the agent, keeps status reports off a table scan
     private async Task<Workload?> FindAsync(string agentId, string workloadName, CancellationToken ct)
     {
         var workload = await workloads.FindByNameAsync(workloadName, ct);
@@ -67,7 +62,6 @@ public sealed class AgentStatusRelay(
 
     public async Task RelayAsync(string agentId, AgentWorkloadStatus status, CancellationToken ct = default)
     {
-        // Agents speak in workload names; clients track ids.
         var workload = await FindAsync(agentId, status.Name, ct);
 
         if (workload is null)

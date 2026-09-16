@@ -147,8 +147,7 @@ public class NginxConfigGeneratorTests
             },
         ]);
 
-        // `^~` wins over the prefix location, so the challenge is reachable without credentials —
-        // otherwise issuance 401s on exactly the sites that most want a certificate.
+        // ^~ beats the prefix location so the challenge skips auth, or issuance 401s on protected sites
         StringAssert.Contains(config, "location ^~ /.well-known/acme-challenge/ {");
         var acme = config.IndexOf("location ^~ /.well-known/acme-challenge/ {", StringComparison.Ordinal);
         var auth = config.IndexOf("auth_basic", StringComparison.Ordinal);
@@ -190,8 +189,8 @@ public class NginxConfigGeneratorTests
     [TestMethod]
     public void An_uncertified_hostname_is_refused_rather_than_handed_another_sites_certificate()
     {
-        // detroitlakestkd sorts first, so without a default server it is what every uncertified
-        // hostname on the box gets offered — a name mismatch the visitor reads as a hijack.
+        // detroitlakestkd sorts first, so with no default server every uncertified hostname gets offered it
+        // and the name mismatch looks like a hijack
         var config = NginxConfigGenerator.Generate(
             [Route("detroitlakestkd.com", "/", "a", 80), Route("digikeygolf.com", "/", "b", 80)],
             AcmeUpstream,
@@ -219,8 +218,7 @@ public class NginxConfigGeneratorTests
         var config = NginxConfigGenerator.Generate(
             [Route("app.example.com", "/", "web", 80)], AcmeUpstream, [Certificate("app.example.com")], httpsPort: 8443);
 
-        // Without the port the redirect lands on 443, where nothing is listening — every certified site
-        // would become unreachable the moment HTTPS was enabled.
+        // without the port the redirect lands on 443 where nothing listens
         StringAssert.Contains(config, "return 301 https://$host:8443$request_uri;");
     }
 
@@ -237,8 +235,7 @@ public class NginxConfigGeneratorTests
     {
         var config = Generate([Route("app.example.com", "/", "web", 80)], "app.example.com");
 
-        // Renewal revalidates over port 80 every time. Redirecting the challenge would break issuance
-        // ~60 days later, long after anyone would connect it to enabling HTTPS.
+        // renewal revalidates over port 80, redirecting the challenge breaks it ~60 days later
         var port80 = config[config.IndexOf("listen 80;", StringComparison.Ordinal)..config.IndexOf("listen 443 ssl;", StringComparison.Ordinal)];
         StringAssert.Contains(port80, "location ^~ /.well-known/acme-challenge/ {");
         Assert.IsLessThan(
@@ -254,9 +251,7 @@ public class NginxConfigGeneratorTests
             Route("secure.example.com", "/", "web", 80),
         ], "secure.example.com");
 
-        // nginx refuses to start when an ssl_certificate file is missing, so a hostname whose key the
-        // edge isn't carrying must not get an ssl_certificate line — one bad host would take the whole
-        // edge down, every other site with it.
+        // nginx won't start with a missing ssl_certificate file, so one bad host would take down the whole edge
         Assert.AreEqual(1, CountOccurrences(config, "listen 443 ssl;"));
         Assert.AreEqual(1, CountOccurrences(config, "ssl_certificate "));
         Assert.DoesNotContain("cert-plain.example.com", config);
@@ -274,7 +269,7 @@ public class NginxConfigGeneratorTests
         Assert.DoesNotContain("server {", config);
     }
 
-    /// The one server block naming this hostname, up to its closing brace at column 0.
+    /// up to its closing brace at column 0
     private static string ServerBlock(string config, string hostname)
     {
         var start = config.LastIndexOf("server {", config.IndexOf($"server_name {hostname};", StringComparison.Ordinal), StringComparison.Ordinal);
@@ -305,8 +300,8 @@ public class NginxConfigGeneratorTests
             },
         ]);
 
-        // A literal proxy_pass host is resolved when nginx starts; one bad name would stop the whole
-        // edge coming up. Going through a variable defers it, so a bad host 502s just that location.
+        // a literal proxy_pass host resolves at startup and one bad name kills the edge,
+        // a variable defers it so only that location 502s
         StringAssert.Contains(config, "resolver 127.0.0.11");
         StringAssert.Contains(config, "set $upstream_0 \"nas.lan:5000\";");
         StringAssert.Contains(config, "proxy_pass http://$upstream_0;");
@@ -319,8 +314,7 @@ public class NginxConfigGeneratorTests
             new RouteConfig { Hostname = "app.example.com", Path = "/", UpstreamService = "web", UpstreamPort = 80 },
         ]);
 
-        // A swarm service has no DNS entry while it is stopped, scaled to zero or mid-redeploy. Resolving
-        // it literally at config load would make nginx refuse to start and take every other site down.
+        // a stopped or mid-redeploy service has no dns, resolving it at load stops nginx starting
         StringAssert.Contains(config, "resolver 127.0.0.11");
         StringAssert.Contains(config, "set $upstream_0 \"web:80\";");
         StringAssert.Contains(config, "proxy_pass http://$upstream_0;");

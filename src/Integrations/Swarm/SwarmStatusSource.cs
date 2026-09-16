@@ -9,8 +9,7 @@ public sealed class SwarmStatusSource(IDockerClient client) : IWorkloadStatusSou
 {
     public async Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetAllAsync(CancellationToken ct = default)
     {
-        // Unfiltered on purpose: the manager answers for the whole swarm out of raft, including nodes
-        // whose own events the Host can never see.
+        // unfiltered on purpose, the manager answers for every node out of raft
         var services = await client.Swarm.ListServicesAsync(cancellationToken: ct);
         var tasks = await client.Tasks.ListAsync(new TasksListParameters(), ct);
         return SwarmStatusMapper.Derive(services, tasks);

@@ -6,9 +6,6 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Agents;
 
-/// Runs native workloads on a custom agent by dispatching commands over the agent's connection
-/// (via IAgentCommandChannel). The transport lives in the Host and the process execution on the agent;
-/// this just translates workload ops into agent commands.
 public sealed class AgentBackend(IAgentCommandChannel channel) : IWorkloadBackend
 {
     public WorkloadKind SupportedKind => WorkloadKind.Native;
@@ -19,7 +16,7 @@ public sealed class AgentBackend(IAgentCommandChannel channel) : IWorkloadBacken
         await channel.DeployAsync(agentId, AgentWorkloadSpecMapper.ToSpec(deployment), ct);
     }
 
-    // Native workloads are a single process — there's nothing to scale.
+    // single process, nothing to scale
     public Task ScaleAsync(WorkloadDeployment deployment, int replicas, CancellationToken ct = default)
         => Task.CompletedTask;
 
@@ -36,12 +33,9 @@ public sealed class AgentBackend(IAgentCommandChannel channel) : IWorkloadBacken
         await channel.StopAsync(agentId, deployment.Name, ct);
     }
 
-    /// A stopped process has no state to resume — starting it is handing the agent its spec again.
     public Task StartAsync(WorkloadDeployment deployment, CancellationToken ct = default)
         => DeployAsync(deployment, ct);
 
-    /// A process has nothing to remove beyond stopping it — there is no service object holding ports or
-    /// history the way swarm has.
     public Task UndeployAsync(WorkloadDeployment deployment, CancellationToken ct = default) =>
         StopAsync(deployment, ct);
 

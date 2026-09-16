@@ -2,21 +2,15 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.App.Workloads;
 
-/// The revision history rules: what counts as a change worth snapshotting, which snapshot is the running
-/// one, and what a fresh status says about a rollout that has settled. Static because none of it needs
-/// anything beyond the workload in front of it.
 internal static class WorkloadRevisions
 {
     public const int RevisionHistory = 3;
     public static WorkloadRevision? Newest(Workload w)
         => w.Revisions.Count == 0 ? null : w.Revisions.OrderByDescending(r => r.Number).First();
-    /// The revision the backend is actually holding. Not always the newest: a deploy swarm rolled back
-    /// leaves a newer revision that never took, and treating that as running is how the platform ends up
-    /// describing config the cluster isn't using.
+    /// not always the newest, a rolled-back deploy leaves a newer revision that never took
     public static WorkloadRevision? Running(Workload w)
         => w.Revisions.Where(r => r.Applied).OrderByDescending(r => r.Number).FirstOrDefault();
-    /// Saved config differs from what's running. False for a workload that was never deployed — there's
-    /// nothing to differ from — which is why the deploy check asks about the revision separately.
+    /// false if never deployed, which is why the deploy check asks about the revision too
     public static bool HasPendingChanges(Workload w)
         => Running(w) is { } running && WorkloadConfigSignature.Of(w) != WorkloadConfigSignature.Of(running);
     public static bool RecordRevisionIfChanged(Workload w, TimeProvider clock)
@@ -75,10 +69,10 @@ internal static class WorkloadRevisions
             return;
         }
 
-        // Copying field by field here used to silently drop the health-check settings, which the config
-        // signature reads — so scaling a workload with a probe left it permanently "pending changes".
+        // copying field by field used to drop health settings and leave scaled workloads stuck pending
         running.Replicas = replicas;
     }
+    /// only acts on an unsettled revision, so repeat calls are harmless (swarm says rollback_completed for ages)
     public static bool Settle(Workload w, WorkloadRuntimeStatus status)
     {
         if (Newest(w) is not { Applied: false } pending)
@@ -86,8 +80,7 @@ internal static class WorkloadRevisions
             return false;
         }
 
-        // An agent deploy is finished when the call returns; there is no rollout, and nothing else will
-        // ever come back to settle it.
+        // agent deploy is done when the call returns, nothing else will settle it
         if (w.Kind == WorkloadKind.Native)
         {
             pending.Applied = true;
@@ -100,8 +93,7 @@ internal static class WorkloadRevisions
                     pending.Applied = true;
                     break;
 
-                // The backend put the previous spec back, so this revision never ran. Dropping it rather
-                // than flagging it means the pending-changes banner reappears and offers the retry.
+                // backend put the old spec back so this never ran, dropping it brings back the pending banner for a retry
                 case RolloutOutcome.Reverted:
                     w.Revisions = [.. w.Revisions.Where(r => r.Number != pending.Number)];
                     break;
@@ -113,12 +105,7 @@ internal static class WorkloadRevisions
 
         return true;
     }
-    /// Reconcile the newest revision against what the backend did with it. Only ever acts on a revision
-    /// that hasn't settled yet, which is what makes repeated calls on the same status harmless — swarm
-    /// keeps reporting "rollback_completed" long after the rollback.
-    /// A named volume only exists on the node its task landed on, so the first placement we see becomes
-    /// the placement forever. Learned once and never revised: if the node is gone, re-learning would
-    /// quietly bless a fresh empty volume as the real one.
+    /// first placement we see sticks forever, re-learning after losing the node would bless an empty volume
     public static bool RememberPlacement(Workload w, WorkloadRuntimeStatus status)
     {
         if (w.Kind != WorkloadKind.Container

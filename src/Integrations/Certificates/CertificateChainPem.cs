@@ -4,10 +4,8 @@ namespace FifthBox.ServerManager.Integrations.Certificates;
 
 public static class CertificateChainPem
 {
-    /// Leaf first, then the issuers the CA sent, in order. Certes' own ToPem() rebuilds the chain from
-    /// a bundled issuer store that only carries the production roots, so anything issued by the staging
-    /// CA throws "can not find issuer" — and the root it would append isn't wanted here anyway: a
-    /// server sends leaf + intermediates and lets the client supply the root.
+    /// leaf then issuers, no root. Certes' ToPem() only knows production roots
+    /// and throws on staging certs
     public static string Combine(string leaf, IEnumerable<string> issuers)
     {
         if (string.IsNullOrWhiteSpace(leaf))

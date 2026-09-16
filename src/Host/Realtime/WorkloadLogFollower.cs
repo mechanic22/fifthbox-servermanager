@@ -12,18 +12,14 @@ public interface IWorkloadLogFollower
     Task FollowAsync(string connectionId, string workloadId, CancellationToken ct = default);
     Task UnfollowAsync(string connectionId, string workloadId, CancellationToken ct = default);
 
-    /// Everything a dropped connection was watching.
     Task ReleaseAllAsync(string connectionId, CancellationToken ct = default);
 
-    /// True while at least one browser has this workload's Logs tab open.
     bool IsFollowed(string workloadId);
 
     Task PublishAsync(string workloadId, IReadOnlyList<WorkloadLogLine> lines, CancellationToken ct = default);
 }
 
-/// Reference-counts who is watching which workload's logs, and starts or stops the underlying source at
-/// the edges. Nothing streams while nobody is looking — a chatty game server would otherwise ship its
-/// output to the Host around the clock.
+/// ref-counted so nothing streams while nobody's looking
 public sealed class WorkloadLogFollower(
     IHubContext<WorkloadHub> hub,
     IServiceScopeFactory scopeFactory,
@@ -120,7 +116,7 @@ public sealed class WorkloadLogFollower(
         }
         catch (Exception ex)
         {
-            // Following is best-effort — the tab still has its tail and its Refresh button.
+            // best effort, the tab still has its tail and Refresh
             logger.LogWarning(ex, "Could not start following logs for {WorkloadId}", workloadId);
         }
     }
@@ -165,9 +161,7 @@ public sealed class WorkloadLogFollower(
 
             try
             {
-                // The docker stream ends with the container behind it, so a redeploy, a restart or a
-                // crash finishes this enumeration. Reopening is what keeps an open Logs tab working
-                // across a new revision instead of going quietly dead until the page is reloaded.
+                // stream ends with the container, reopen so an open tab survives redeploys and crashes
                 while (!token.IsCancellationRequested)
                 {
                     await using (var scope = scopeFactory.CreateAsyncScope())
@@ -180,14 +174,13 @@ public sealed class WorkloadLogFollower(
                         }
                     }
 
-                    // Also the throttle for a service that isn't there to stream from — mid-rollout, or
-                    // stopped — which ends the enumeration immediately.
+                    // also throttles a missing service, which ends the stream straight away
                     await Task.Delay(ReopenDelay, token);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Last watcher left.
+                // last watcher left
             }
             catch (Exception ex)
             {
@@ -195,8 +188,7 @@ public sealed class WorkloadLogFollower(
             }
             finally
             {
-                // Leaving the entry behind would make TryAdd fail forever: the Logs tab could never
-                // start streaming this workload again without the process restarting.
+                // a leftover entry makes TryAdd fail forever
                 if (_swarmStreams.TryRemove(new KeyValuePair<string, CancellationTokenSource>(workloadId, cts)))
                 {
                     cts.Dispose();

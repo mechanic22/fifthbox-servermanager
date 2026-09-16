@@ -5,13 +5,8 @@ using FifthBox.ServerManager.Shared.Auth;
 
 namespace FifthBox.ServerManager.Client.Core;
 
-/// <summary>
-/// The whole native auth lifecycle in one place. Attaches the stored access token to every request;
-/// on a 401 it swaps the refresh token for a new pair via <c>POST /api/auth/native/refresh</c> (once)
-/// and replays the request. If refresh fails it clears the tokens and signs the session out. The
-/// refresh sub-request goes through <c>base.SendAsync</c> — the inner handler — so it never loops back
-/// through this one.
-/// </summary>
+/// on 401 refreshes once and replays, a failed refresh clears tokens and signs out
+/// refresh goes through base.SendAsync so it can't loop back through here
 public sealed class BearerTokenHandler(ITokenStore store, IAuthSession session) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -28,7 +23,6 @@ public sealed class BearerTokenHandler(ITokenStore store, IAuthSession session) 
             return response;
         }
 
-        // 401 — try a single refresh, then replay the original request once with the new token.
         if (!await TryRefreshAsync(request, ct))
         {
             await store.ClearAsync(ct);

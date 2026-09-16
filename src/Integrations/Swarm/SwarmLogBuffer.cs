@@ -3,9 +3,8 @@ using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Integrations.Swarm;
 
-/// Reassembles docker's log reads into whole lines. A read boundary lands wherever the socket happens to
-/// fill, so it can split a line in half and even split a multi-byte character in half — both are held
-/// back until the rest arrives. One buffer per stream, since stdout and stderr interleave.
+/// a read can split a line or a multi-byte char, both get held back until the rest arrives
+/// one per stream, stdout and stderr interleave
 public sealed class SwarmLogBuffer
 {
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();

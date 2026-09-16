@@ -5,8 +5,6 @@ using Microsoft.Extensions.Options;
 
 namespace FifthBox.ServerManager.App.Platform;
 
-/// Builds a protector for a key other than the configured one. Implemented in the composition root,
-/// which is where the algorithm lives.
 public interface ISecretProtectorFactory
 {
     ISecretProtector ForKey(string key);
@@ -16,12 +14,10 @@ public interface ISecretCustodyService
 {
     Task<SecretsState> CheckAsync(CancellationToken ct = default);
 
-    /// Re-encrypt every stored secret under a new key. Returns how many values moved.
+    /// returns how many values moved
     Task<int> RotateAsync(string newKey, CancellationToken ct = default);
 }
 
-/// Looks after the encryption key: whether the configured one can still read what's stored, and moving
-/// everything onto a new one.
 public sealed class SecretCustodyService(
     IEnumerable<IProtectedSecretStore> stores,
     ISecretProtector protector,
@@ -46,8 +42,7 @@ public sealed class SecretCustodyService(
             }
             catch (Exception)
             {
-                // Wrong key, or a value written under a since-lost ephemeral one. Either way the
-                // operator needs telling rather than a 500 on the next image pull.
+                // wrong key or a lost ephemeral one, tell the operator instead of a 500 on the next pull
                 return SecretsState.Unreadable;
             }
         }
@@ -64,10 +59,8 @@ public sealed class SecretCustodyService(
 
         var target = BuildAndVerify(newKey);
 
-        // The same ciphertext always maps to the same new one. A workload's desired config and its
-        // revisions hold identical encrypted bytes for an unchanged secret; re-encrypting each copy
-        // separately would give them different bytes (fresh GCM nonce) and every workload would light up
-        // as having pending changes the moment the key rotated.
+        // same ciphertext maps to the same new one, a fresh GCM nonce per copy would flag
+        // every workload as pending changes after a rotation
         var rewrites = new Dictionary<string, string>(StringComparer.Ordinal);
         var failure = string.Empty;
 
@@ -102,8 +95,7 @@ public sealed class SecretCustodyService(
         return rewrites.Count;
     }
 
-    // A round-trip proves the key is both well-formed and the right length — constructing a protector
-    // alone doesn't, and finding out during rotation would leave secrets half-written.
+    // round-trip proves the key works, finding out mid-rotation leaves secrets half-written
     private ISecretProtector BuildAndVerify(string newKey)
     {
         if (string.IsNullOrWhiteSpace(newKey))
