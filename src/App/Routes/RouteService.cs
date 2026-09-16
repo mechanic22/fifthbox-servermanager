@@ -91,7 +91,7 @@ public sealed class RouteService(
             CreatedAt = now,
             UpdatedAt = now,
         };
-        ApplyHttpOptions(route, request.WebSockets, request.BasicAuthEnabled, request.BasicAuthUsername, request.BasicAuthPassword);
+        ApplyHttpOptions(route, request.WebSockets, request.MaxBodySizeMb, request.BasicAuthEnabled, request.BasicAuthUsername, request.BasicAuthPassword);
 
         await routes.AddAsync(route, ct);
         return Map(route, await WorkloadNamesAsync(ct));
@@ -118,7 +118,7 @@ public sealed class RouteService(
         route.UpstreamScheme = request.UpstreamScheme;
         route.TargetPort = request.TargetPort;
         route.UpdatedAt = clock.GetUtcNow();
-        ApplyHttpOptions(route, request.WebSockets, request.BasicAuthEnabled, request.BasicAuthUsername, request.BasicAuthPassword);
+        ApplyHttpOptions(route, request.WebSockets, request.MaxBodySizeMb, request.BasicAuthEnabled, request.BasicAuthUsername, request.BasicAuthPassword);
 
         await routes.UpdateAsync(route, ct);
         return Map(route, await WorkloadNamesAsync(ct));
@@ -276,6 +276,7 @@ public sealed class RouteService(
             UpstreamPort = r.TargetPort,
             Scheme = r.UpstreamScheme,
             WebSockets = r.WebSockets,
+            MaxBodySizeMb = r.MaxBodySizeMb,
             AuthFilePath = HasAuth(r) ? AuthPath(r) : null,
         }).ToList();
 
@@ -284,9 +285,15 @@ public sealed class RouteService(
 
     private static string AuthPath(Route r) => $"/etc/nginx/auth/{r.Id}.htpasswd";
 
-    private void ApplyHttpOptions(Route route, bool webSockets, bool basicAuthEnabled, string? username, string? password)
+    private void ApplyHttpOptions(Route route, bool webSockets, int? maxBodySizeMb, bool basicAuthEnabled, string? username, string? password)
     {
+        if (maxBodySizeMb < 0)
+        {
+            throw new ValidationException(nameof(CreateRouteRequest.MaxBodySizeMb), "Max body size can't be negative. Use 0 for unlimited.");
+        }
+
         route.WebSockets = webSockets;
+        route.MaxBodySizeMb = maxBodySizeMb;
         route.BasicAuthEnabled = basicAuthEnabled;
 
         if (!basicAuthEnabled)
@@ -434,6 +441,7 @@ public sealed class RouteService(
         WorkloadName = r.WorkloadId is null ? null : workloadNames.GetValueOrDefault(r.WorkloadId),
         TargetPort = r.TargetPort,
         WebSockets = r.WebSockets,
+        MaxBodySizeMb = r.MaxBodySizeMb,
         Target = r.Target,
         UpstreamHost = r.UpstreamHost,
         UpstreamScheme = r.UpstreamScheme,

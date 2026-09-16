@@ -327,6 +327,48 @@ public class NginxConfigGeneratorTests
     }
 
     [TestMethod]
+    public void No_body_size_leaves_the_nginx_default()
+    {
+        var config = Generate([Route("app.example.com", "/", "web", 80)]);
+
+        Assert.DoesNotContain("client_max_body_size", config);
+        Assert.DoesNotContain("proxy_request_buffering", config);
+    }
+
+    [TestMethod]
+    public void Zero_body_size_is_unlimited_and_streams_to_the_upstream()
+    {
+        var config = Generate([Route("registry.example.com", "/", "registry", 5000) with { MaxBodySizeMb = 0 }]);
+
+        StringAssert.Contains(config, "client_max_body_size 0;");
+        StringAssert.Contains(config, "proxy_request_buffering off;");
+    }
+
+    [TestMethod]
+    public void A_body_size_caps_in_megabytes_and_keeps_buffering()
+    {
+        var config = Generate([Route("upload.example.com", "/", "web", 80) with { MaxBodySizeMb = 50 }]);
+
+        StringAssert.Contains(config, "client_max_body_size 50m;");
+        Assert.DoesNotContain("proxy_request_buffering", config);
+    }
+
+    [TestMethod]
+    public void Body_size_is_scoped_to_its_own_location()
+    {
+        var config = Generate([
+            Route("app.example.com", "/", "web", 80),
+            Route("app.example.com", "/upload", "uploads", 8080) with { MaxBodySizeMb = 0 },
+        ]);
+
+        var root = config.IndexOf("location / {", StringComparison.Ordinal);
+        var upload = config.IndexOf("location /upload {", StringComparison.Ordinal);
+        var limit = config.IndexOf("client_max_body_size", StringComparison.Ordinal);
+
+        Assert.IsTrue(root < upload && upload < limit, "the limit belongs to /upload, not /");
+    }
+
+    [TestMethod]
     public void No_routes_means_no_resolver_directive()
     {
         Assert.DoesNotContain("resolver", Generate([]));

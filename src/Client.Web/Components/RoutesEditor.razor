@@ -44,6 +44,10 @@
                         {
                             <MaterialChip Text="WS" Size="MaterialChipSize.Small" />
                         }
+                        @if (r.MaxBodySizeMb is { } mb)
+                        {
+                            <MaterialChip Text="@(mb == 0 ? "No body limit" : $"{mb} MB")" Size="MaterialChipSize.Small" />
+                        }
                         @if (r.BasicAuthEnabled)
                         {
                             <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />

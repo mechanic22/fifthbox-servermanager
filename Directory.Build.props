@@ -30,7 +30,7 @@
     <FifthBoxEncryptionRepo>$(MSBuildThisFileDirectory)../fifthbox-encryption-aes</FifthBoxEncryptionRepo>
 
     <FifthBoxIdentityVersion>1.2.3</FifthBoxIdentityVersion>
-    <FifthBoxMaterialVersion>1.0.31</FifthBoxMaterialVersion>
+    <FifthBoxMaterialVersion>1.0.32</FifthBoxMaterialVersion>
     <FifthBoxEncryptionVersion>0.1.0</FifthBoxEncryptionVersion>
   </PropertyGroup>
 </Project>

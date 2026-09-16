@@ -17,6 +17,9 @@
 
     <MaterialSwitch @bind-Value="Model.WebSockets" Label="WebSocket support" Disabled="Busy" />
 
+    <MaterialInput @bind-Value="Model.MaxBodySizeMb" For="@(() => Model.MaxBodySizeMb)" Type="number"
+                   Label="Max request body (MB) — blank = 1 MB, 0 = unlimited" Disabled="Busy" />
+
     <MaterialSwitch @bind-Value="Model.BasicAuthEnabled" Label="Require basic auth" Disabled="Busy" />
     @if (Model.BasicAuthEnabled)
     {

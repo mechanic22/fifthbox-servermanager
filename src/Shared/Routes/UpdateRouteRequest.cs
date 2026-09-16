@@ -11,6 +11,10 @@ public record UpdateRouteRequest
     public int TargetPort { get; init; }
 
     public bool WebSockets { get; init; }
+
+    /// Null = nginx's 1 MB default; 0 = unlimited.
+    public int? MaxBodySizeMb { get; init; }
+
     public bool BasicAuthEnabled { get; init; }
     public string? BasicAuthUsername { get; init; }
 

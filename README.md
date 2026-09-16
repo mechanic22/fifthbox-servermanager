@@ -172,6 +172,30 @@ docker service update --image docker.5thbox.com/fbsm/servermanager:0.2.0 fbsm-ho
 docker rm -f fbsm-host && docker run ... :0.2.0                         # if a plain container
 ```
 
+#### Without the registry
+
+When the registry is down or unreachable (it runs behind the same nginx this deploys, so a broken edge
+can block the push that would fix it), build straight into the server's Docker instead. The `docker` CLI
+can drive a remote daemon over SSH, so nothing is pushed or copied by hand:
+
+```bash
+npm run publish
+DOCKER_HOST=ssh://you@your-server node scripts/image.mjs local
+docker -H ssh://you@your-server service update \
+  --image docker.5thbox.com/fbsm/servermanager:0.2.4 --no-resolve-image fbsm-host
+```
+
+The build runs on the server, so it's native to that machine's architecture, and the image lands in its
+local store under the usual tag. SSH has to work non-interactively — key auth, and
+`ssh you@your-server docker version` should succeed without a prompt — or the connection fails with a
+misleading "make sure the URL is valid" error.
+
+`--no-resolve-image` matters: without it the manager asks the registry what the tag points to and can pin
+the old image. With it, the node's pull fails and it falls back to the local copy — which only exists on
+the node you built on, so this suits a Host pinned to one node (it is, by SQLite). A plain container
+just needs `docker run` with that tag. Push properly with `npm run image:push` once the registry is
+reachable again.
+
 Migrations run automatically at startup. The Host is **single-instance by design** — `AgentRegistry` is
 in-memory with no SignalR backplane, so a second replica would break agent presence and command
 dispatch.

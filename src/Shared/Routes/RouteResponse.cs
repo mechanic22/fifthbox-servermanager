@@ -14,6 +14,7 @@ public record RouteResponse
     public bool Enabled { get; init; } = true;
 
     public bool WebSockets { get; init; }
+    public int? MaxBodySizeMb { get; init; }
     public bool BasicAuthEnabled { get; init; }
     public string? BasicAuthUsername { get; init; }
 

@@ -24,6 +24,10 @@ public sealed class RouteFormModel
     public int TargetPort { get; set; } = 80;
 
     public bool WebSockets { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Max body size can't be negative. Use 0 for unlimited.")]
+    public int? MaxBodySizeMb { get; set; }
+
     public bool BasicAuthEnabled { get; set; }
     public string BasicAuthUsername { get; set; } = string.Empty;
     public string BasicAuthPassword { get; set; } = string.Empty;
@@ -38,6 +42,7 @@ public sealed class RouteFormModel
         UpstreamScheme = r.UpstreamScheme,
         TargetPort = r.TargetPort,
         WebSockets = r.WebSockets,
+        MaxBodySizeMb = r.MaxBodySizeMb,
         BasicAuthEnabled = r.BasicAuthEnabled,
         BasicAuthUsername = r.BasicAuthUsername ?? string.Empty,
     };
@@ -52,6 +57,7 @@ public sealed class RouteFormModel
         UpstreamScheme = UpstreamScheme,
         TargetPort = TargetPort,
         WebSockets = WebSockets,
+        MaxBodySizeMb = MaxBodySizeMb,
         BasicAuthEnabled = BasicAuthEnabled,
         BasicAuthUsername = BasicAuthEnabled ? BasicAuthUsername : null,
         BasicAuthPassword = string.IsNullOrEmpty(BasicAuthPassword) ? null : BasicAuthPassword,
@@ -67,6 +73,7 @@ public sealed class RouteFormModel
         UpstreamScheme = UpstreamScheme,
         TargetPort = TargetPort,
         WebSockets = WebSockets,
+        MaxBodySizeMb = MaxBodySizeMb,
         BasicAuthEnabled = BasicAuthEnabled,
         BasicAuthUsername = BasicAuthEnabled ? BasicAuthUsername : null,
         BasicAuthPassword = string.IsNullOrEmpty(BasicAuthPassword) ? null : BasicAuthPassword,

@@ -1,6 +1,6 @@
 {
   "name": "fifth-box-server-manager",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "FifthBox.ServerManager \u2014 a self-hosted PaaS for managing a Docker Swarm, nginx, and letsencrypt, with heterogeneous nodes (swarm members + custom agents).",
   "scripts": {

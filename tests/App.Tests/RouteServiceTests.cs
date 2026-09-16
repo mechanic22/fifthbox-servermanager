@@ -329,6 +329,29 @@ public class RouteServiceTests
         Assert.IsTrue(saved!.WebSockets);
     }
 
+    [TestMethod]
+    public async Task Max_body_size_is_persisted_and_returned()
+    {
+        var (svc, routes) = Build();
+        Route? saved = null;
+        routes.Setup(r => r.AddAsync(It.IsAny<Route>(), It.IsAny<CancellationToken>()))
+            .Callback<Route, CancellationToken>((r, _) => saved = r).Returns(Task.CompletedTask);
+
+        var response = await svc.CreateAsync(new CreateRouteRequest { Hostname = "registry.example.com", Path = "/", WorkloadId = "w1", TargetPort = 5000, MaxBodySizeMb = 0 });
+
+        Assert.AreEqual(0, saved!.MaxBodySizeMb);
+        Assert.AreEqual(0, response.MaxBodySizeMb);
+    }
+
+    [TestMethod]
+    public async Task Negative_max_body_size_throws_validation()
+    {
+        var (svc, _) = Build();
+
+        await Assert.ThrowsExactlyAsync<ValidationException>(() =>
+            svc.CreateAsync(new CreateRouteRequest { Hostname = "app.example.com", Path = "/", WorkloadId = "w1", TargetPort = 80, MaxBodySizeMb = -1 }));
+    }
+
     private static readonly Workload NativeGameServer = new()
     {
         Id = "n1", Name = "srcds", Kind = WorkloadKind.Native, AgentId = "a1", Command = "/srv/srcds",

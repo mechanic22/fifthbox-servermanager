@@ -125,6 +125,18 @@ public static class NginxConfigGenerator
                 sb.Append("        proxy_set_header Connection \"upgrade\";\n");
             }
 
+            if (route.MaxBodySizeMb == 0)
+            {
+                // Buffering would spool the whole body to the edge's disk before the upstream sees a
+                // byte, so "unlimited" would really mean "as big as nginx's disk".
+                sb.Append("        client_max_body_size 0;\n");
+                sb.Append("        proxy_request_buffering off;\n");
+            }
+            else if (route.MaxBodySizeMb is { } mb)
+            {
+                sb.Append($"        client_max_body_size {mb}m;\n");
+            }
+
             if (!string.IsNullOrEmpty(route.AuthFilePath))
             {
                 sb.Append("        auth_basic \"Restricted\";\n");

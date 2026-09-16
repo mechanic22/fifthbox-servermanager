@@ -27,6 +27,10 @@ public class Route
 
     /// nginx site options (the old "HTTP" tab).
     public bool WebSockets { get; set; }
+
+    /// Null leaves nginx's 1 MB default; 0 lifts the cap and streams the body straight to the upstream.
+    public int? MaxBodySizeMb { get; set; }
+
     public bool BasicAuthEnabled { get; set; }
     public string? BasicAuthUsername { get; set; }
 

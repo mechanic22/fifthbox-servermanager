@@ -26,6 +26,8 @@ public record RouteConfig
     /// Emit the connection-upgrade headers so WebSocket connections proxy through.
     public bool WebSockets { get; init; }
 
+    public int? MaxBodySizeMb { get; init; }
+
     /// When set, the location gets `auth_basic` guarding it, reading this htpasswd file (delivered to
     /// nginx as its own config-object by the apply step).
     public string? AuthFilePath { get; init; }

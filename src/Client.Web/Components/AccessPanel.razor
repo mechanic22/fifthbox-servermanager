@@ -68,7 +68,8 @@
                    OnSaved="LoadAsync" />
 
 <MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Remove access?"
-                       Message="@RemoveMessage()" ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveConfirmedAsync" />
+                       Message="@RemoveMessage()" ConfirmText="Remove" Busy="_busy"
+                       OnConfirm="RemoveConfirmedAsync" OnCancel="@(() => _pendingRemove = null)" />
 
 @code {
     [Parameter, EditorRequired] public AccessScope Scope { get; set; }
@@ -88,7 +89,23 @@
     private bool _confirmOpen;
     private AccessGrantResponse? _pendingRemove;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private AccessScope _loadedScope;
+    private string? _loadedTargetId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedTargetId == TargetId && _loadedScope == Scope)
+        {
+            return;
+        }
+
+        _loadedScope = Scope;
+        _loadedTargetId = TargetId;
+        _dialogOpen = false;
+        _confirmOpen = false;
+        _pendingRemove = null;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
