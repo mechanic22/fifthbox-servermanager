@@ -180,9 +180,8 @@ can drive a remote daemon over SSH, so nothing is pushed or copied by hand:
 
 ```bash
 npm run publish
-DOCKER_HOST=ssh://you@your-server node scripts/image.mjs local
-docker -H ssh://you@your-server service update \
-  --image docker.5thbox.com/fbsm/servermanager:0.2.4 --no-resolve-image fbsm-host
+DOCKER_HOST=ssh://root@sm.5thbox.com node scripts/image.mjs local
+docker -H ssh://root@sm.5thbox.com service update --image docker.5thbox.com/fbsm/servermanager:0.2.5 --no-resolve-image fbsm-host
 ```
 
 The build runs on the server, so it's native to that machine's architecture, and the image lands in its
