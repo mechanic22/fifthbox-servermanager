@@ -27,6 +27,18 @@ public static class CertificateEndpoints
         group.MapPost("/{hostname}/retry", async (string hostname, ICertificateService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.RetryAsync(hostname, ct)));
 
+        group.MapPut("/{hostname}/www", async (string hostname, ICertificateService svc, CancellationToken ct) =>
+        {
+            await svc.SetWwwRedirectAsync(hostname, enabled: true, ct);
+            return TypedResults.NoContent();
+        });
+
+        group.MapDelete("/{hostname}/www", async (string hostname, ICertificateService svc, CancellationToken ct) =>
+        {
+            await svc.SetWwwRedirectAsync(hostname, enabled: false, ct);
+            return TypedResults.NoContent();
+        });
+
         group.MapDelete("/{hostname}", async (string hostname, ICertificateService svc, CancellationToken ct) =>
         {
             await svc.DisableAsync(hostname, ct);

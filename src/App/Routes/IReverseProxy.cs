@@ -2,5 +2,6 @@ namespace FifthBox.ServerManager.App.Routes;
 
 public interface IReverseProxy
 {
-    string Render(IReadOnlyList<RouteConfig> routes, IReadOnlyList<HostCertificate> certificates);
+    /// wwwRedirects are bare hostnames whose www. twin 301s to them
+    string Render(IReadOnlyList<RouteConfig> routes, IReadOnlyList<HostCertificate> certificates, IReadOnlySet<string> wwwRedirects);
 }

@@ -18,12 +18,7 @@ public sealed class WorkloadLifecycleService(
 {
     public async Task<WorkloadRuntimeStatus> DeployAsync(Caller caller, string id, CancellationToken ct = default)
     {
-        var (workload, level) = await loader.LoadAsync(caller, id, AccessLevel.Operate, ct);
-        if (!DeployPermission.Allowed(level, WorkloadRevisions.Running(workload) is not null, WorkloadRevisions.HasPendingChanges(workload)))
-        {
-            throw new ForbiddenException(
-                $"Deploying '{workload.Name}' would publish config changes that haven't been deployed yet.");
-        }
+        var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.Configure, ct);
 
         var deployment = deployments.ToDeployment(workload);
         var backend = backends.Resolve(workload.Kind);

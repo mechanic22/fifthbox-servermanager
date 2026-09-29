@@ -11,7 +11,9 @@ public static class NginxConfigGenerator
         IReadOnlyList<RouteConfig> routes,
         string acmeUpstream,
         IReadOnlyList<HostCertificate>? certificates = null,
-        int httpsPort = ReverseProxyPorts.StandardHttps)
+        int httpsPort = ReverseProxyPorts.StandardHttps,
+        IReadOnlySet<string>? wwwRedirects = null,
+        int httpPort = ReverseProxyPorts.StandardHttp)
     {
         var certified = (certificates ?? [])
             .GroupBy(c => c.Hostname, StringComparer.Ordinal)
@@ -72,7 +74,51 @@ public static class NginxConfigGenerator
             sb.Append("}\n");
         }
 
+        foreach (var host in routes.Select(r => r.Hostname).Distinct(StringComparer.Ordinal)
+                     .Where(h => wwwRedirects?.Contains(h) == true)
+                     .OrderBy(h => h, StringComparer.Ordinal))
+        {
+            AppendWwwRedirect(sb, host, certified.GetValueOrDefault(host), acmeUpstream, httpPort, httpsPort);
+        }
+
         return sb.ToString();
+    }
+
+    private static void AppendWwwRedirect(
+        StringBuilder sb, string host, HostCertificate? certificate, string acmeUpstream, int httpPort, int httpsPort)
+    {
+        var target = certificate is null
+            ? $"http://{host}{ReverseProxyPorts.Suffix(httpPort, https: false)}"
+            : $"https://{host}{ReverseProxyPorts.Suffix(httpsPort, https: true)}";
+
+        // challenge location so the www SAN can validate
+        sb.Append('\n');
+        sb.Append("server {\n");
+        sb.Append("    listen 80;\n");
+        sb.Append($"    server_name www.{host};\n");
+        AppendAcmeLocation(sb, acmeUpstream);
+        sb.Append("    location / {\n");
+        sb.Append($"        return 301 {target}$request_uri;\n");
+        sb.Append("    }\n");
+        sb.Append("}\n");
+
+        // cert not reissued with www yet, the default block rejects the handshake
+        if (certificate is not { IncludesWww: true })
+        {
+            return;
+        }
+
+        sb.Append('\n');
+        sb.Append("server {\n");
+        sb.Append("    listen 443 ssl;\n");
+        sb.Append("    http2 on;\n");
+        sb.Append($"    server_name www.{host};\n");
+        sb.Append($"    ssl_certificate {certificate.CertificatePath};\n");
+        sb.Append($"    ssl_certificate_key {certificate.PrivateKeyPath};\n");
+        sb.Append("    ssl_protocols TLSv1.2 TLSv1.3;\n");
+        sb.Append("    ssl_session_cache shared:SSL:10m;\n");
+        sb.Append($"    return 301 {target}$request_uri;\n");
+        sb.Append("}\n");
     }
 
     private static void AppendAcmeLocation(StringBuilder sb, string acmeUpstream)

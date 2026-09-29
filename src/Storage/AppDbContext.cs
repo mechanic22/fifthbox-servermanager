@@ -27,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PlatformSettings> PlatformSettings => Set<PlatformSettings>();
     public DbSet<Registry> Registries => Set<Registry>();
     public DbSet<Certificate> Certificates => Set<Certificate>();
+    public DbSet<WwwRedirect> WwwRedirects => Set<WwwRedirect>();
     public DbSet<AccessGrant> AccessGrants => Set<AccessGrant>();
     public DbSet<Team> Teams => Set<Team>();
 

@@ -9,9 +9,9 @@ public enum AccessLevel
     /// details, status, logs, history, routes
     View = 10,
 
-    /// restart, stop, scale, and deploy only when nothing's unpublished
+    /// start, restart, stop, scale
     Operate = 20,
 
-    /// edit config, revert, move, deploy whenever
+    /// edit config, see env vars, deploy, revert, move
     Configure = 30,
 }

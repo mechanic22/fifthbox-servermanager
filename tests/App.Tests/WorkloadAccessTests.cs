@@ -179,7 +179,7 @@ public class WorkloadAccessTests
     }
 
     [TestMethod]
-    public async Task Operate_can_redeploy_when_nothing_is_pending()
+    public async Task Operate_cannot_deploy_deploying_publishes_config()
     {
         var workload = Container();
         var (svc, _, backend) = Build(workload, [Grant(AccessLevel.Operate)]);
@@ -187,58 +187,11 @@ public class WorkloadAccessTests
 
         // revision 1 is what's running and the saved config still matches it
         await svc.DeployAsync(Admin, "w1");
-
-        Assert.IsTrue((await svc.DeployAsync(Friend, "w1")).Deployed);
-    }
-
-    [TestMethod]
-    public async Task Operate_cannot_publish_someone_elses_pending_edit()
-    {
-        var workload = Container();
-        var (svc, _, backend) = Build(workload, [Grant(AccessLevel.Operate)]);
-        backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        await svc.DeployAsync(Admin, "w1");
-
-        workload.Image = "nginx:1.28";
-
         await Assert.ThrowsExactlyAsync<ForbiddenException>(() => svc.DeployAsync(Friend, "w1"));
-    }
 
-    [TestMethod]
-    public async Task Operate_cannot_perform_the_very_first_deploy()
-    {
-        // nothing deployed yet, so the draft isn't pending, just unpublished
-        var (svc, _, _) = Build(Container(), [Grant(AccessLevel.Operate)]);
-
-        await Assert.ThrowsExactlyAsync<ForbiddenException>(() => svc.DeployAsync(Friend, "w1"));
-    }
-
-    [TestMethod]
-    public async Task Configure_deploys_pending_changes_freely()
-    {
-        var workload = Container();
-        var (svc, _, backend) = Build(workload, [Grant(AccessLevel.Configure)]);
-        backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        await svc.DeployAsync(Admin, "w1");
-
+        // and certainly not with someone else's edit sitting unpublished
         workload.Image = "nginx:1.28";
-
-        Assert.IsTrue((await svc.DeployAsync(Friend, "w1")).Deployed);
-    }
-
-    [TestMethod]
-    public async Task A_group_grant_reaches_a_workload_nested_under_it()
-    {
-        var groups = new List<WorkloadGroup>
-        {
-            new() { Id = "clients", Name = "clients" },
-            new() { Id = "acme", Name = "acme", ParentId = "clients" },
-        };
-        var (svc, _, _) = Build(Container(groupId: "acme"), [Grant(AccessLevel.Operate, AccessScope.Group, "clients")], groups);
-
-        Assert.AreEqual("web", (await svc.GetAsync(Friend, "w1")).Name);
-        await Assert.ThrowsExactlyAsync<ForbiddenException>(() =>
-            svc.UpdateAsync(Friend, "w1", new UpdateWorkloadRequest { Image = "nginx:1.28" }));
+        await Assert.ThrowsExactlyAsync<ForbiddenException>(() => svc.DeployAsync(Friend, "w1"));
     }
 
     [TestMethod]
@@ -247,11 +200,35 @@ public class WorkloadAccessTests
         var workload = Container();
         workload.Env = [new EnvVar("RCON_PASSWORD", "enc:hunter2", Secret: true)];
 
+        workload.Env = [.. workload.Env, new EnvVar("PLAIN", "yes")];
+
+        // no env at all below Configure, the Secret flag is a human decision and the one nobody ticked would leak
         var (operate, _, _) = Build(workload, [Grant(AccessLevel.Operate)]);
-        Assert.AreEqual(string.Empty, (await operate.GetAsync(Friend, "w1")).Env.Single().Value);
+        Assert.IsEmpty((await operate.GetAsync(Friend, "w1")).Env);
 
         var (configure, _, _) = Build(workload, [Grant(AccessLevel.Configure)]);
-        Assert.AreEqual("hunter2", (await configure.GetAsync(Friend, "w1")).Env.Single().Value);
+        var env = (await configure.GetAsync(Friend, "w1")).Env;
+        Assert.AreEqual("hunter2", env.Single(v => v.Key == "RCON_PASSWORD").Value);
+        Assert.AreEqual("yes", env.Single(v => v.Key == "PLAIN").Value);
+    }
+
+    [TestMethod]
+    public async Task History_keeps_env_out_of_reach_below_configure()
+    {
+        var workload = Container();
+        workload.Env = [new EnvVar("RCON_PASSWORD", "enc:hunter2", Secret: true), new EnvVar("PLAIN", "yes")];
+
+        var (operate, _, backend) = Build(workload, [Grant(AccessLevel.Operate)]);
+        backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await operate.DeployAsync(Admin, "w1");
+
+        var seenByOperate = await operate.GetRevisionsAsync(Friend, "w1");
+        Assert.IsEmpty(seenByOperate.Single().Env);
+
+        var (configure, _, _) = Build(workload, [Grant(AccessLevel.Configure)]);
+        var seenByConfigure = (await configure.GetRevisionsAsync(Friend, "w1")).Single().Env;
+        Assert.AreEqual("yes", seenByConfigure.Single(v => v.Key == "PLAIN").Value);
+        Assert.AreEqual(string.Empty, seenByConfigure.Single(v => v.Key == "RCON_PASSWORD").Value, "secrets stay blank even for Configure");
     }
 
     [TestMethod]

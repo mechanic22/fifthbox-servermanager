@@ -393,4 +393,83 @@ public class NginxConfigGeneratorTests
         StringAssert.Contains(config, "set $upstream_0 \"a.lan:1\";");
         StringAssert.Contains(config, "set $upstream_1 \"b.lan:2\";");
     }
+
+    private static string WithWww(IReadOnlyList<RouteConfig> routes, IReadOnlyList<HostCertificate> certificates, params string[] wwwHosts) =>
+        NginxConfigGenerator.Generate(routes, AcmeUpstream, certificates, wwwRedirects: wwwHosts.ToHashSet());
+
+    [TestMethod]
+    public void A_www_redirect_host_gets_a_port_80_block_redirecting_to_the_apex()
+    {
+        var config = WithWww([Route("example.com", "/", "web", 80)], [], "example.com");
+
+        StringAssert.Contains(config, "server_name www.example.com;");
+        StringAssert.Contains(config, "return 301 http://example.com$request_uri;");
+        StringAssert.Contains(config, "server_name example.com;", "the apex still serves its routes");
+    }
+
+    [TestMethod]
+    public void The_www_block_serves_the_acme_challenge()
+    {
+        var config = WithWww([Route("example.com", "/", "web", 80)], [], "example.com");
+
+        var www = config[config.IndexOf("server_name www.example.com;", StringComparison.Ordinal)..];
+        Assert.IsLessThan(
+            www.IndexOf("return 301", StringComparison.Ordinal),
+            www.IndexOf("location ^~ /.well-known/acme-challenge/", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void A_certified_www_redirect_goes_straight_to_https_apex()
+    {
+        var config = WithWww([Route("example.com", "/", "web", 80)], [Certificate("example.com")], "example.com");
+
+        StringAssert.Contains(config, "return 301 https://example.com$request_uri;");
+    }
+
+    [TestMethod]
+    public void A_www_redirect_keeps_a_non_standard_published_port()
+    {
+        var config = NginxConfigGenerator.Generate(
+            [Route("example.com", "/", "web", 80)], AcmeUpstream, [], wwwRedirects: new HashSet<string> { "example.com" }, httpPort: 8081);
+
+        StringAssert.Contains(config, "return 301 http://example.com:8081$request_uri;");
+    }
+
+    [TestMethod]
+    public void A_www_cert_gets_a_tls_redirect_block_with_the_apex_cert_files()
+    {
+        var config = WithWww([Route("example.com", "/", "web", 80)],
+            [Certificate("example.com") with { IncludesWww = true }], "example.com");
+
+        var tls = config[config.LastIndexOf("server_name www.example.com;", StringComparison.Ordinal)..];
+        StringAssert.Contains(tls, "ssl_certificate /run/secrets/cert-example.com.pem;");
+        Assert.AreEqual(2, CountOccurrences(config, "server_name www.example.com;"));
+        Assert.AreEqual(2, CountOccurrences(config, "listen 443 ssl;"));
+    }
+
+    [TestMethod]
+    public void A_cert_without_www_gets_no_www_tls_block()
+    {
+        var config = WithWww([Route("example.com", "/", "web", 80)], [Certificate("example.com")], "example.com");
+
+        Assert.AreEqual(1, CountOccurrences(config, "server_name www.example.com;"));
+        Assert.AreEqual(1, CountOccurrences(config, "listen 443 ssl;"));
+    }
+
+    [TestMethod]
+    public void A_www_redirect_for_a_host_with_no_routes_emits_nothing()
+    {
+        var config = WithWww([Route("other.com", "/", "web", 80)], [], "example.com");
+
+        Assert.IsFalse(config.Contains("www.example.com", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Www_output_is_deterministic_regardless_of_input_order()
+    {
+        var a = WithWww([Route("b.com", "/", "web", 80), Route("a.com", "/", "web", 80)], [], "b.com", "a.com");
+        var b = WithWww([Route("a.com", "/", "web", 80), Route("b.com", "/", "web", 80)], [], "a.com", "b.com");
+
+        Assert.AreEqual(a, b);
+    }
 }

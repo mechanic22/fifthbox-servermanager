@@ -20,6 +20,9 @@ public interface ICertificateService
 
     Task<CertificateResponse> RetryAsync(string hostname, CancellationToken ct = default);
 
+    /// www.{hostname} 301s to hostname, reissues straight away if there's a cert so it covers both
+    Task SetWwwRedirectAsync(string hostname, bool enabled, CancellationToken ct = default);
+
     /// never creates rows, returns how many changed (nonzero means reapply nginx)
     Task<int> IssueDueAsync(CancellationToken ct = default);
 
@@ -32,11 +35,13 @@ public sealed record CertificateMaterial
     public required string Hostname { get; init; }
     public required string PemChain { get; init; }
     public required string PrivateKeyPem { get; init; }
+    public bool IncludesWww { get; init; }
 }
 
 public sealed class CertificateService(
     ICertificateRepository certificates,
     IRouteRepository routes,
+    IWwwRedirectRepository wwwRedirects,
     IAcmeClient acme,
     ISecretProtector protector,
     IOptions<AcmeOptions> options,
@@ -50,6 +55,7 @@ public sealed class CertificateService(
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
         var hostnames = counts.Keys.Union(rows.Keys, StringComparer.Ordinal).OrderBy(h => h, StringComparer.Ordinal);
+        var www = await WwwHostsAsync(ct);
 
         return new TlsOverviewResponse
         {
@@ -64,6 +70,8 @@ public sealed class CertificateService(
                     Status = certificate?.Status,
                     NotAfter = certificate?.NotAfter,
                     LastError = certificate?.LastError,
+                    WwwRedirect = www.Contains(hostname),
+                    CertificateIncludesWww = certificate?.IncludesWww ?? false,
                     IssuanceBlockedReason = IssuableHostname.BlockedReason(hostname, options.Value.ReservedSuffixes),
                 };
             })],
@@ -77,6 +85,12 @@ public sealed class CertificateService(
         if (IssuableHostname.BlockedReason(host, options.Value.ReservedSuffixes) is { } blocked)
         {
             throw new ValidationException(nameof(EnableHttpsRequest.Hostname), blocked);
+        }
+
+        if (await wwwRedirects.FindAsync(host, ct) is not null
+            && IssuableHostname.BlockedReason(Www(host), options.Value.ReservedSuffixes) is { } wwwBlocked)
+        {
+            throw new ValidationException(nameof(EnableHttpsRequest.Hostname), wwwBlocked);
         }
 
         if (await certificates.FindByHostnameAsync(host, ct) is not null)
@@ -117,14 +131,64 @@ public sealed class CertificateService(
         return Map(certificate);
     }
 
+    public async Task SetWwwRedirectAsync(string hostname, bool enabled, CancellationToken ct = default)
+    {
+        var host = ValidateHostname(hostname);
+        var existing = await wwwRedirects.FindAsync(host, ct);
+
+        if (!enabled)
+        {
+            if (existing is not null)
+            {
+                await wwwRedirects.RemoveAsync(existing, ct);
+                await ReissueIfCertifiedAsync(host, ct);
+            }
+
+            return;
+        }
+
+        if (existing is not null)
+        {
+            return;
+        }
+
+        if (host.StartsWith("www.", StringComparison.Ordinal))
+        {
+            throw new ValidationException(nameof(EnableHttpsRequest.Hostname), "This is already a www hostname.");
+        }
+
+        var routed = await routes.ListAsync(ct);
+        if (!routed.Any(r => r.Hostname == host))
+        {
+            throw new ValidationException(nameof(EnableHttpsRequest.Hostname), "Add a route for this hostname first.");
+        }
+
+        if (routed.Any(r => r.Hostname == Www(host)))
+        {
+            throw new ConflictException($"'{Www(host)}' has its own routes. Remove them before redirecting it to '{host}'.");
+        }
+
+        await wwwRedirects.AddAsync(new WwwRedirect { Hostname = host, CreatedAt = clock.GetUtcNow() }, ct);
+        await ReissueIfCertifiedAsync(host, ct);
+    }
+
+    private async Task ReissueIfCertifiedAsync(string host, CancellationToken ct)
+    {
+        if (await certificates.FindByHostnameAsync(host, ct) is { } certificate)
+        {
+            await IssueAsync(certificate, ct);
+        }
+    }
+
     public async Task<int> IssueDueAsync(CancellationToken ct = default)
     {
         var now = clock.GetUtcNow();
         var changed = 0;
+        var www = await WwwHostsAsync(ct);
 
         foreach (var certificate in await certificates.ListAsync(ct))
         {
-            if (!CertificateRenewal.IsDue(certificate, now, options.Value.RenewBeforeDays))
+            if (!CertificateRenewal.IsDue(certificate, now, options.Value.RenewBeforeDays, www.Contains(certificate.Hostname)))
             {
                 continue;
             }
@@ -172,6 +236,7 @@ public sealed class CertificateService(
                 Hostname = certificate.Hostname,
                 PemChain = chain,
                 PrivateKeyPem = plaintextKey,
+                IncludesWww = certificate.IncludesWww,
             });
         }
 
@@ -184,13 +249,17 @@ public sealed class CertificateService(
 
         try
         {
-            var issued = await acme.IssueAsync([certificate.Hostname], ct);
+            // www state read here so renewal, retry and the toggle all issue for the same names
+            var includesWww = await wwwRedirects.FindAsync(certificate.Hostname, ct) is not null;
+            var issued = await acme.IssueAsync(
+                includesWww ? [certificate.Hostname, Www(certificate.Hostname)] : [certificate.Hostname], ct);
             certificate.PemChain = issued.PemChain;
             certificate.PrivateKeyEnc = protector.Protect(issued.PrivateKeyPem);
             certificate.IssuedAt = issued.NotBefore;
             certificate.NotAfter = issued.NotAfter;
             certificate.Status = CertificateStatus.Valid;
             certificate.LastError = null;
+            certificate.IncludesWww = includesWww;
         }
         catch (CertificateIssuanceException ex)
         {
@@ -204,6 +273,11 @@ public sealed class CertificateService(
         certificate.UpdatedAt = now;
         await certificates.UpdateAsync(certificate, ct);
     }
+
+    private async Task<HashSet<string>> WwwHostsAsync(CancellationToken ct)
+        => (await wwwRedirects.ListAsync(ct)).Select(w => w.Hostname).ToHashSet(StringComparer.Ordinal);
+
+    private static string Www(string hostname) => $"www.{hostname}";
 
     private static string ValidateHostname(string hostname)
     {

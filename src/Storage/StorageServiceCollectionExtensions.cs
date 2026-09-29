@@ -36,6 +36,7 @@ public static class StorageServiceCollectionExtensions
         services.TryAddScoped<IBackupStore, SqliteBackupStore>();
         services.TryAddScoped<IAcmeAccountStore, AcmeAccountStore>();
         services.TryAddScoped<ICertificateRepository, EfCertificateRepository>();
+        services.TryAddScoped<IWwwRedirectRepository, EfWwwRedirectRepository>();
         services.TryAddScoped<IAccessGrantRepository, EfAccessGrantRepository>();
         services.TryAddScoped<ITeamRepository, EfTeamRepository>();
         services.TryAddScoped<IUserDirectory, EfUserDirectory>();

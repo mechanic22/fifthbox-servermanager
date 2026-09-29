@@ -39,5 +39,6 @@ public record WorkloadRevisionResponse
     public int HealthRetries { get; init; } = 3;
     public int HealthStartPeriodSeconds { get; init; } = 10;
 
+    /// empty below Configure, and secret values are always blank
     public IReadOnlyList<EnvVar> Env { get; init; } = [];
 }

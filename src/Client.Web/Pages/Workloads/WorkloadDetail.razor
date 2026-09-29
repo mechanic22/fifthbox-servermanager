@@ -405,6 +405,8 @@
                         <dd class="font-mono text-xs">@(string.IsNullOrEmpty(rev.WorkingDirectory) ? "—" : rev.WorkingDirectory)
                         </dd>
                     }
+                    @if (CanConfigure)
+                    {
                     <dt class="opacity-60">Env</dt>
                     <dd class="text-xs">
                         @if (rev.Env.Count == 0)
@@ -421,6 +423,7 @@
                             </div>
                         }
                     </dd>
+                    }
                 </dl>
             }
         </ChildContent>

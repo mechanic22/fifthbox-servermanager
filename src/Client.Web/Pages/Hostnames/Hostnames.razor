@@ -14,7 +14,7 @@
                         OnClick="ApplyAsync" Disabled="_busy" />
     </div>
     <ProxyDriftBanner State="_proxy" OnApplied="ReloadStateAsync"
-                      Message="A certificate has changed since nginx was last deployed. Traffic is still being served with the old one." />
+                      Message="A certificate or www setting has changed since nginx was last deployed. Traffic is still being served the old way." />
 
     @if (_edgeHttpPort != 80)
     {
@@ -41,6 +41,7 @@
             <tr>
                 <th>Hostname</th>
                 <th>Routes</th>
+                <th>www</th>
                 <th>Status</th>
                 <th>Expires</th>
                 <th></th>
@@ -54,6 +55,17 @@
                     <tr>
                         <td data-label="Hostname">@host.Hostname</td>
                         <td data-label="Routes" class="text-sm opacity-70">@host.RouteCount</td>
+                        <td data-label="www">
+                            @if (!host.Hostname.StartsWith("www."))
+                            {
+                                <MaterialSwitch Value="host.WwwRedirect" ValueChanged="@((bool on) => SetWwwAsync(host, on))"
+                                                Label="@($"www.{host.Hostname}")" Disabled="_busy || host.RouteCount == 0" />
+                                @if (host.WwwRedirect && host.Status == CertificateStatus.Valid && !host.CertificateIncludesWww)
+                                {
+                                    <MaterialChip Text="www not on cert yet" Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" class="mt-1" />
+                                }
+                            }
+                        </td>
                         <td data-label="Status">
                             <MaterialChip Text="@StatusText(host)" Color="StatusColor(host.Status)" Size="MaterialChipSize.Small" />
                             @if (!string.IsNullOrWhiteSpace(host.LastError))
@@ -87,7 +99,7 @@
                     </tr>
                 }
             }
-            <TableState Columns="5" Loading="_loading" Error="@_error" IsEmpty="@(_overview is null or { Hosts.Count: 0 })"
+            <TableState Columns="6" Loading="_loading" Error="@_error" IsEmpty="@(_overview is null or { Hosts.Count: 0 })"
                         Empty="No hostnames yet — add a route first, then come back to give it a certificate."
                         OnRetry="LoadAsync" Busy="_busy" />
         </tbody>
@@ -177,6 +189,19 @@
         await LoadAsync();
         await ReloadStateAsync();
         Snackbar.Show($"{host.Hostname} is back to HTTP — deploy nginx to apply.");
+    });
+
+    private Task SetWwwAsync(TlsHostResponse host, bool on) => RunAsync(async () =>
+    {
+        await TlsApi.SetWwwAsync(host.Hostname, on);
+        await LoadAsync();
+        await ReloadStateAsync();
+        var updated = _overview?.Hosts.FirstOrDefault(h => h.Hostname == host.Hostname);
+        Snackbar.Show(!on
+            ? $"www.{host.Hostname} no longer redirects. Deploy nginx to apply."
+            : updated is { Status: CertificateStatus.Valid, CertificateIncludesWww: false }
+                ? $"www redirect saved, but the certificate couldn't add www.{host.Hostname}: {updated.LastError}"
+                : $"www.{host.Hostname} now redirects to {host.Hostname}. Deploy nginx to apply.");
     });
 
     private Task ApplyAsync() => RunAsync(async () =>

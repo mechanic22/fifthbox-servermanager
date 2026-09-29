@@ -22,6 +22,11 @@ public record TlsHostResponse
     public DateTimeOffset? NotAfter { get; init; }
     public string? LastError { get; init; }
 
+    public bool WwwRedirect { get; init; }
+
+    /// false while www is on means the cert hasn't been reissued with the www name yet
+    public bool CertificateIncludesWww { get; init; }
+
     /// why a public CA can't issue (.local, single label, ip), null if it can
     public string? IssuanceBlockedReason { get; init; }
 }

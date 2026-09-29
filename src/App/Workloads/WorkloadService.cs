@@ -100,7 +100,8 @@ public sealed class WorkloadService(
             .ToList();
     }
 
-    // single read has secrets in the clear for the config form, list and history stay redacted
+    // single read has secrets in the clear for the config form. list and history redact, and anything
+    // below Configure gets no env at all
     public async Task<WorkloadResponse> GetAsync(Caller caller, string id, CancellationToken ct = default)
     {
         var (workload, level) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
@@ -322,7 +323,7 @@ public sealed class WorkloadService(
 
     public async Task<IReadOnlyList<WorkloadRevisionResponse>> GetRevisionsAsync(Caller caller, string id, CancellationToken ct = default)
     {
-        var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
+        var (workload, level) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
         var current = WorkloadRevisions.Running(workload)?.Number;
         return workload.Revisions
             .OrderByDescending(r => r.Number)
@@ -351,7 +352,7 @@ public sealed class WorkloadService(
                 StopCommand = r.StopCommand,
                 ManagedDirectory = r.ManagedDirectory,
                 Source = SourceResponse(r.Source),
-                Env = Redacted(r.Env),
+                Env = EnvFor(level, r.Env),
                 HealthCommand = r.HealthCommand,
                 HealthIntervalSeconds = r.HealthIntervalSeconds,
                 HealthTimeoutSeconds = r.HealthTimeoutSeconds,
@@ -668,6 +669,11 @@ public sealed class WorkloadService(
     }
 
 
+    /// the Secret flag is a human decision, so the one nobody ticked is the one that would leak.
+    /// below Configure there's no env at all
+    private static List<EnvVar> EnvFor(AccessLevel level, IEnumerable<EnvVar> env) =>
+        level >= AccessLevel.Configure ? Redacted(env) : [];
+
     private static List<EnvVar> Redacted(IEnumerable<EnvVar> env) =>
         env.Select(v => v.Secret ? v with { Value = string.Empty } : v).ToList();
 
@@ -707,7 +713,7 @@ public sealed class WorkloadService(
             ManagedDirectory = w.ManagedDirectory,
             Source = SourceResponse(w.Source),
             RestartDailyAtMinutes = w.RestartDailyAtMinutes,
-            Env = Redacted(w.Env),
+            Env = EnvFor(access, w.Env),
             HealthCommand = w.HealthCommand,
             HealthIntervalSeconds = w.HealthIntervalSeconds,
             HealthTimeoutSeconds = w.HealthTimeoutSeconds,
@@ -717,7 +723,7 @@ public sealed class WorkloadService(
             CurrentRevision = running?.Number,
             IsDeploying = WorkloadRevisions.Newest(w) is { Applied: false },
             Access = access,
-            CanDeploy = DeployPermission.Allowed(access, running is not null, WorkloadRevisions.HasPendingChanges(w)),
+            CanDeploy = DeployPermission.Allowed(access),
             CreatedAt = w.CreatedAt,
             UpdatedAt = w.UpdatedAt,
         };

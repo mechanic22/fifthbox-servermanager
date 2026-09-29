@@ -7,35 +7,22 @@ namespace FifthBox.ServerManager.App.Tests;
 public class DeployPermissionTests
 {
     [TestMethod]
-    public void Configure_can_always_deploy()
+    public void Configure_can_deploy()
     {
-        Assert.IsTrue(DeployPermission.Allowed(AccessLevel.Configure, hasRevision: false, hasPendingChanges: false));
-        Assert.IsTrue(DeployPermission.Allowed(AccessLevel.Configure, hasRevision: true, hasPendingChanges: true));
+        Assert.IsTrue(DeployPermission.Allowed(AccessLevel.Configure));
     }
 
     [TestMethod]
-    public void Operate_can_redeploy_a_running_workload_with_nothing_unpublished()
+    public void Operate_cannot_deploy_it_publishes_config()
     {
-        Assert.IsTrue(DeployPermission.Allowed(AccessLevel.Operate, hasRevision: true, hasPendingChanges: false));
-    }
-
-    [TestMethod]
-    public void Operate_cannot_publish_pending_changes()
-    {
-        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.Operate, hasRevision: true, hasPendingChanges: true));
-    }
-
-    [TestMethod]
-    public void Operate_cannot_perform_the_first_deploy()
-    {
-        // HasPendingChanges is false before the first deploy, which is why hasRevision exists
-        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.Operate, hasRevision: false, hasPendingChanges: false));
+        // bringing a stopped workload back is Start, which redeploys the running revision
+        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.Operate));
     }
 
     [TestMethod]
     public void View_and_none_cannot_deploy()
     {
-        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.View, hasRevision: true, hasPendingChanges: false));
-        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.None, hasRevision: true, hasPendingChanges: false));
+        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.View));
+        Assert.IsFalse(DeployPermission.Allowed(AccessLevel.None));
     }
 }

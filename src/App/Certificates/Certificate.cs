@@ -20,6 +20,9 @@ public class Certificate
 
     public string? LastError { get; set; }
 
+    /// what the stored cert was issued for, can lag the www toggle until the reissue lands
+    public bool IncludesWww { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -9,6 +9,7 @@ public interface ITlsClient
     Task<CertificateResponse> EnableAsync(string hostname, CancellationToken ct = default);
     Task<CertificateResponse> RetryAsync(string hostname, CancellationToken ct = default);
     Task DisableAsync(string hostname, CancellationToken ct = default);
+    Task SetWwwAsync(string hostname, bool enabled, CancellationToken ct = default);
 }
 
 public sealed class TlsClient(HttpClient http) : ITlsClient
@@ -29,6 +30,13 @@ public sealed class TlsClient(HttpClient http) : ITlsClient
     public async Task DisableAsync(string hostname, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/tls/{Uri.EscapeDataString(hostname)}", ct);
+        await ThrowIfFailedAsync(response, ct);
+    }
+
+    public async Task SetWwwAsync(string hostname, bool enabled, CancellationToken ct = default)
+    {
+        var uri = $"api/tls/{Uri.EscapeDataString(hostname)}/www";
+        using var response = enabled ? await http.PutAsync(uri, null, ct) : await http.DeleteAsync(uri, ct);
         await ThrowIfFailedAsync(response, ct);
     }
 

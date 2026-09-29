@@ -39,6 +39,7 @@ public sealed class RouteService(
     IWorkloadRepository workloads,
     IReverseProxy reverseProxy,
     ICertificateService certificates,
+    IWwwRedirectRepository wwwRedirects,
     IWorkloadBackendResolver backends,
     IBasicAuthHasher basicAuthHasher,
     IPlatformSettingsRepository settings,
@@ -73,6 +74,7 @@ public sealed class RouteService(
         {
             throw new ConflictException($"A route for '{hostname}{path}' already exists.");
         }
+        await RejectWwwTwinAsync(hostname, ct);
 
         var now = clock.GetUtcNow();
         var route = new Route
@@ -105,6 +107,7 @@ public sealed class RouteService(
         {
             throw new ConflictException($"A route for '{hostname}{path}' already exists.");
         }
+        await RejectWwwTwinAsync(hostname, ct);
 
         route.Hostname = hostname;
         route.Path = path;
@@ -118,6 +121,16 @@ public sealed class RouteService(
 
         await routes.UpdateAsync(route, ct);
         return Map(route, await WorkloadNamesAsync(ct));
+    }
+
+    /// www.x is already served by x's redirect block, a second server_name would fight it
+    private async Task RejectWwwTwinAsync(string hostname, CancellationToken ct)
+    {
+        if (hostname.StartsWith("www.", StringComparison.Ordinal)
+            && await wwwRedirects.FindAsync(hostname[4..], ct) is not null)
+        {
+            throw new ConflictException($"'{hostname}' already redirects to '{hostname[4..]}'. Turn that off on the Hostnames page first.");
+        }
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
@@ -143,7 +156,8 @@ public sealed class RouteService(
         // one list drives both ssl_certificate lines and mounts
         // a missing cert file stops nginx and every other site with it
         var installable = await certificates.InstallableAsync(ct);
-        var config = reverseProxy.Render(ToConfigs(routable, names), [.. installable.Select(ToHostCertificate)]);
+        var www = (await wwwRedirects.ListAsync(ct)).Select(w => w.Hostname).ToHashSet(StringComparer.Ordinal);
+        var config = reverseProxy.Render(ToConfigs(routable, names), [.. installable.Select(ToHostCertificate)], www);
 
         var mounts = new List<ConfigMount> { new() { Name = "nginx", Content = config, Path = _proxy.ConfigPath } };
         foreach (var r in routable.Where(HasAuth))
@@ -240,6 +254,7 @@ public sealed class RouteService(
         Hostname = material.Hostname,
         CertificatePath = $"{SecretsDirectory}/{CertificateFileName(material.Hostname)}",
         PrivateKeyPath = $"{SecretsDirectory}/{PrivateKeyFileName(material.Hostname)}",
+        IncludesWww = material.IncludesWww,
     };
 
     private const string SecretsDirectory = "/run/secrets";

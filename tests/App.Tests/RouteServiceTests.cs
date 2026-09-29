@@ -22,7 +22,8 @@ public class RouteServiceTests
         Mock<IWorkloadBackend>? backend = null,
         Mock<ICertificateService>? certificates = null,
         ReverseProxyOptions? proxyOptions = null,
-        InMemoryPlatformSettings? settings = null)
+        InMemoryPlatformSettings? settings = null,
+        InMemoryWwwRedirects? www = null)
     {
         var resolver = new Mock<IWorkloadBackendResolver>();
         resolver.Setup(r => r.Resolve(It.IsAny<WorkloadKind>())).Returns((backend ?? new Mock<IWorkloadBackend>()).Object);
@@ -31,6 +32,7 @@ public class RouteServiceTests
         var certs = certificates ?? WithCertificates();
         return new(routes.Object, workloads.Object, proxy.Object,
             certs.Object,
+            www ?? new InMemoryWwwRedirects(),
             resolver.Object,
             hasher.Object,
             settings ?? new InMemoryPlatformSettings(),
@@ -53,7 +55,7 @@ public class RouteServiceTests
         PrivateKeyPem = "-----BEGIN EC PRIVATE KEY-----secret",
     };
 
-    private static (RouteService svc, Mock<IRouteRepository> routes) Build(bool workloadExists = true)
+    private static (RouteService svc, Mock<IRouteRepository> routes) Build(bool workloadExists = true, InMemoryWwwRedirects? www = null)
     {
         var routes = new Mock<IRouteRepository>();
         routes.Setup(r => r.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -64,9 +66,9 @@ public class RouteServiceTests
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload> { Web });
 
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>())).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>())).Returns("cfg");
 
-        return (NewService(routes, workloads, proxy), routes);
+        return (NewService(routes, workloads, proxy, www: www), routes);
     }
 
     [TestMethod]
@@ -127,6 +129,51 @@ public class RouteServiceTests
     }
 
     [TestMethod]
+    public async Task Create_www_host_throws_conflict_when_the_apex_redirects_www()
+    {
+        var (svc, routes) = Build(www: new InMemoryWwwRedirects("example.com"));
+
+        await Assert.ThrowsExactlyAsync<ConflictException>(() =>
+            svc.CreateAsync(new CreateRouteRequest { Hostname = "www.example.com", Path = "/", WorkloadId = "w1", TargetPort = 80 }));
+        routes.Verify(r => r.AddAsync(It.IsAny<Route>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task Create_www_host_is_fine_when_the_apex_has_no_redirect()
+    {
+        var (svc, _) = Build();
+
+        var created = await svc.CreateAsync(new CreateRouteRequest { Hostname = "www.example.com", Path = "/", WorkloadId = "w1", TargetPort = 80 });
+
+        Assert.AreEqual("www.example.com", created.Hostname);
+    }
+
+    [TestMethod]
+    public async Task Render_passes_www_redirects_and_which_certs_cover_www()
+    {
+        var routes = new Mock<IRouteRepository>();
+        routes.Setup(r => r.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Route>
+        {
+            new() { Id = "r1", Hostname = "example.com", Path = "/", WorkloadId = "w1", TargetPort = 80 },
+        });
+        var workloads = new Mock<IWorkloadRepository>();
+        workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload> { Web });
+        var proxy = new Mock<IReverseProxy>();
+        IReadOnlyList<HostCertificate>? certs = null;
+        IReadOnlySet<string>? www = null;
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((_, c, w) => { certs = c; www = w; })
+            .Returns("cfg");
+
+        await NewService(routes, workloads, proxy,
+            certificates: WithCertificates(Material("example.com") with { IncludesWww = true }),
+            www: new InMemoryWwwRedirects("example.com")).RenderConfigAsync();
+
+        Assert.Contains("example.com", www!);
+        Assert.IsTrue(certs!.Single().IncludesWww);
+    }
+
+    [TestMethod]
     public async Task RenderConfig_resolves_upstream_service_and_port()
     {
         var routes = new Mock<IRouteRepository>();
@@ -139,8 +186,8 @@ public class RouteServiceTests
 
         var proxy = new Mock<IReverseProxy>();
         IReadOnlyList<RouteConfig>? captured = null;
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((c, _) => captured = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((c, _, _) => captured = c).Returns("cfg");
 
         var svc = NewService(routes, workloads, proxy);
         var result = await svc.RenderConfigAsync();
@@ -162,8 +209,8 @@ public class RouteServiceTests
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload> { Web });
         var proxy = new Mock<IReverseProxy>();
         IReadOnlyList<RouteConfig>? captured = null;
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((c, _) => captured = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((c, _, _) => captured = c).Returns("cfg");
 
         await NewService(routes, workloads, proxy).RenderConfigAsync();
 
@@ -183,8 +230,8 @@ public class RouteServiceTests
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload> { Web });
         var proxy = new Mock<IReverseProxy>();
         IReadOnlyList<HostCertificate>? rendered = null;
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((_, c) => rendered = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((_, c, _) => rendered = c).Returns("cfg");
 
         var backend = new Mock<IWorkloadBackend>();
         WorkloadDeployment? sent = null;
@@ -213,7 +260,7 @@ public class RouteServiceTests
         var workloads = new Mock<IWorkloadRepository>();
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload>());
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>())).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>())).Returns("cfg");
         var backend = new Mock<IWorkloadBackend>();
         WorkloadDeployment? sent = null;
         backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>()))
@@ -232,7 +279,7 @@ public class RouteServiceTests
         var workloads = new Mock<IWorkloadRepository>();
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload>());
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>())).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>())).Returns("cfg");
         var backend = new Mock<IWorkloadBackend>();
         WorkloadDeployment? sent = null;
         backend.Setup(b => b.DeployAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<CancellationToken>()))
@@ -257,7 +304,7 @@ public class RouteServiceTests
         var workloads = new Mock<IWorkloadRepository>();
         workloads.Setup(w => w.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Workload>());
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>())).Returns("nginx-config-text");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>())).Returns("nginx-config-text");
 
         var backend = new Mock<IWorkloadBackend>();
         WorkloadDeployment? sent = null;
@@ -388,8 +435,8 @@ public class RouteServiceTests
 
         IReadOnlyList<RouteConfig>? captured = null;
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((c, _) => captured = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((c, _, _) => captured = c).Returns("cfg");
 
         await NewService(routes, workloads, proxy).RenderConfigAsync();
 
@@ -410,8 +457,8 @@ public class RouteServiceTests
 
         IReadOnlyList<RouteConfig>? captured = null;
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((c, _) => captured = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((c, _, _) => captured = c).Returns("cfg");
 
         var svc = NewService(routes, workloads, proxy);
 
@@ -480,8 +527,8 @@ public class RouteServiceTests
 
         IReadOnlyList<RouteConfig>? captured = null;
         var proxy = new Mock<IReverseProxy>();
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>>((c, _) => captured = c).Returns("cfg");
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Callback<IReadOnlyList<RouteConfig>, IReadOnlyList<HostCertificate>, IReadOnlySet<string>>((c, _, _) => captured = c).Returns("cfg");
 
         await NewService(routes, workloads, proxy).RenderConfigAsync();
 

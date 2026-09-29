@@ -39,8 +39,8 @@ public class ProxyDriftTests
 
         var proxy = new Mock<IReverseProxy>();
         // echoes the routes, so changing the route set changes the config like the real one
-        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>()))
-            .Returns((IReadOnlyList<RouteConfig> configs, IReadOnlyList<HostCertificate> certs) =>
+        proxy.Setup(p => p.Render(It.IsAny<IReadOnlyList<RouteConfig>>(), It.IsAny<IReadOnlyList<HostCertificate>>(), It.IsAny<IReadOnlySet<string>>()))
+            .Returns((IReadOnlyList<RouteConfig> configs, IReadOnlyList<HostCertificate> certs, IReadOnlySet<string> _) =>
                 string.Join(";", configs.Select(c => $"{c.Hostname}{c.Path}>{c.UpstreamService}:{c.UpstreamPort}"))
                 + "|" + string.Join(";", certs.Select(c => c.Hostname)));
 
@@ -62,7 +62,7 @@ public class ProxyDriftTests
 
         return new Harness
         {
-            Service = new RouteService(routes.Object, workloads.Object, proxy.Object, certificateService.Object,
+            Service = new RouteService(routes.Object, workloads.Object, proxy.Object, certificateService.Object, new InMemoryWwwRedirects(),
                 resolver.Object, hasher.Object, settings,
                 Options.Create(new ClusterOptions { OverlayNetwork = "fbsm-overlay" }),
                 Options.Create(new ReverseProxyOptions()),

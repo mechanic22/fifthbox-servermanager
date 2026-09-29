@@ -8,6 +8,9 @@ public record HostCertificate
     public required string Hostname { get; init; }
     public required string CertificatePath { get; init; }
     public required string PrivateKeyPath { get; init; }
+
+    /// www.{Hostname} is a SAN on this cert
+    public bool IncludesWww { get; init; }
 }
 
 public record RouteConfig

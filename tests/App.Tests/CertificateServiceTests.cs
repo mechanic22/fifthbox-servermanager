@@ -18,13 +18,15 @@ public class CertificateServiceTests
         Mock<ICertificateRepository> certificates,
         Mock<IAcmeClient>? acme = null,
         Mock<IRouteRepository>? routes = null,
-        int renewBeforeDays = 30)
+        int renewBeforeDays = 30,
+        InMemoryWwwRedirects? www = null)
     {
         var routeRepo = routes ?? WithRoute();
         var client = acme ?? Issuing();
         return new CertificateService(
             certificates.Object,
             routeRepo.Object,
+            www ?? new InMemoryWwwRedirects(),
             client.Object,
             new PassthroughProtector(),
             Options.Create(new AcmeOptions { RenewBeforeDays = renewBeforeDays }),
@@ -370,4 +372,145 @@ public class CertificateServiceTests
         IssuedAt = Now - TimeSpan.FromDays(90) + expiresIn,
         NotAfter = Now + expiresIn,
     };
+
+    private static Mock<IRouteRepository> WithRoutes(params string[] hostnames)
+    {
+        var routes = new Mock<IRouteRepository>();
+        routes.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([.. hostnames.Select(h => new Route { Hostname = h, Path = "/" })]);
+        return routes;
+    }
+
+    [TestMethod]
+    public async Task Issue_asks_for_the_www_name_too_when_www_is_on()
+    {
+        var acme = Issuing();
+        var repo = Repo();
+
+        await Build(repo, acme, WithRoute("example.com"), www: new InMemoryWwwRedirects("example.com")).EnableAsync("example.com");
+
+        acme.Verify(a => a.IssueAsync(
+            It.Is<IReadOnlyList<string>>(n => n.SequenceEqual(new[] { "example.com", "www.example.com" })),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [TestMethod]
+    public async Task Issue_asks_for_the_apex_only_when_www_is_off()
+    {
+        var acme = Issuing();
+
+        await Build(Repo(), acme, WithRoute("example.com")).EnableAsync("example.com");
+
+        acme.Verify(a => a.IssueAsync(
+            It.Is<IReadOnlyList<string>>(n => n.SequenceEqual(new[] { "example.com" })),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [TestMethod]
+    public async Task Turning_www_on_reissues_an_existing_cert_to_cover_it()
+    {
+        var existing = Live("example.com", expiresIn: TimeSpan.FromDays(60));
+        var www = new InMemoryWwwRedirects();
+
+        await Build(Repo(existing), Issuing(), WithRoute("example.com"), www: www).SetWwwRedirectAsync("example.com", true);
+
+        Assert.AreEqual("example.com", www.Rows.Single().Hostname);
+        Assert.IsTrue(existing.IncludesWww);
+        Assert.AreEqual("-----BEGIN CERTIFICATE-----leaf", existing.PemChain);
+    }
+
+    [TestMethod]
+    public async Task Turning_www_off_reissues_without_it()
+    {
+        var existing = Live("example.com", expiresIn: TimeSpan.FromDays(60));
+        existing.IncludesWww = true;
+        var www = new InMemoryWwwRedirects("example.com");
+        var acme = Issuing();
+
+        await Build(Repo(existing), acme, WithRoute("example.com"), www: www).SetWwwRedirectAsync("example.com", false);
+
+        Assert.IsEmpty(www.Rows);
+        Assert.IsFalse(existing.IncludesWww);
+        acme.Verify(a => a.IssueAsync(
+            It.Is<IReadOnlyList<string>>(n => n.SequenceEqual(new[] { "example.com" })),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [TestMethod]
+    public async Task A_failed_www_reissue_keeps_the_old_cert_serving_without_www()
+    {
+        var existing = Live("example.com", expiresIn: TimeSpan.FromDays(60));
+
+        await Build(Repo(existing), Failing(), WithRoute("example.com"), www: new InMemoryWwwRedirects())
+            .SetWwwRedirectAsync("example.com", true);
+
+        Assert.AreEqual(CertificateStatus.Valid, existing.Status);
+        Assert.AreEqual("-----BEGIN CERTIFICATE-----old", existing.PemChain);
+        Assert.IsFalse(existing.IncludesWww, "still the apex-only cert, so nginx mustn't offer it for www");
+        Assert.IsNotNull(existing.LastError);
+    }
+
+    [TestMethod]
+    public async Task Www_without_a_cert_just_saves_the_redirect()
+    {
+        var acme = Issuing();
+        var www = new InMemoryWwwRedirects();
+
+        await Build(Repo(), acme, WithRoute("example.com"), www: www).SetWwwRedirectAsync("example.com", true);
+
+        Assert.HasCount(1, www.Rows);
+        acme.Verify(a => a.IssueAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task Www_for_a_hostname_with_no_route_throws()
+    {
+        var www = new InMemoryWwwRedirects();
+
+        await Assert.ThrowsExactlyAsync<ValidationException>(() =>
+            Build(Repo(), routes: WithRoute("other.com"), www: www).SetWwwRedirectAsync("example.com", true));
+        Assert.IsEmpty(www.Rows);
+    }
+
+    [TestMethod]
+    public async Task Www_on_a_www_hostname_throws()
+    {
+        await Assert.ThrowsExactlyAsync<ValidationException>(() =>
+            Build(Repo(), routes: WithRoute("www.example.com")).SetWwwRedirectAsync("www.example.com", true));
+    }
+
+    [TestMethod]
+    public async Task Www_when_the_www_name_has_its_own_routes_throws_conflict()
+    {
+        var www = new InMemoryWwwRedirects();
+
+        await Assert.ThrowsExactlyAsync<ConflictException>(() =>
+            Build(Repo(), routes: WithRoutes("example.com", "www.example.com"), www: www).SetWwwRedirectAsync("example.com", true));
+        Assert.IsEmpty(www.Rows);
+    }
+
+    [TestMethod]
+    public async Task Renewal_picks_up_a_cert_whose_www_coverage_is_behind()
+    {
+        var existing = Live("example.com", expiresIn: TimeSpan.FromDays(60));
+
+        var changed = await Build(Repo(existing), Issuing(), WithRoute("example.com"), www: new InMemoryWwwRedirects("example.com"))
+            .IssueDueAsync();
+
+        Assert.AreEqual(1, changed);
+        Assert.IsTrue(existing.IncludesWww);
+    }
+
+    [TestMethod]
+    public async Task Overview_reports_www_and_whether_the_cert_covers_it()
+    {
+        var existing = Live("example.com", expiresIn: TimeSpan.FromDays(60));
+
+        var overview = await Build(Repo(existing), Issuing(), WithRoute("example.com"), www: new InMemoryWwwRedirects("example.com"))
+            .OverviewAsync();
+
+        var host = overview.Hosts.Single();
+        Assert.IsTrue(host.WwwRedirect);
+        Assert.IsFalse(host.CertificateIncludesWww);
+    }
 }

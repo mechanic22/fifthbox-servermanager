@@ -68,7 +68,7 @@ public record WorkloadResponse
     /// computed per request so the ui gates on what the server enforces
     public AccessLevel Access { get; init; }
 
-    /// not a plain level check, Operate can only bounce what's already running the saved config
+    /// deploying publishes config, so it needs Configure
     public bool CanDeploy { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
