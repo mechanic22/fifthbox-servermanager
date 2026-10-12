@@ -41,7 +41,6 @@
             <tr>
                 <th>Hostname</th>
                 <th>Routes</th>
-                <th>www</th>
                 <th>Status</th>
                 <th>Expires</th>
                 <th></th>
@@ -53,19 +52,21 @@
                 @foreach (var host in _overview.Hosts)
                 {
                     <tr>
-                        <td data-label="Hostname">@host.Hostname</td>
-                        <td data-label="Routes" class="text-sm opacity-70">@host.RouteCount</td>
-                        <td data-label="www">
+                        <td data-label="Hostname">
+                            <div>@host.Hostname</div>
                             @if (!host.Hostname.StartsWith("www."))
                             {
-                                <MaterialSwitch Value="host.WwwRedirect" ValueChanged="@((bool on) => SetWwwAsync(host, on))"
-                                                Label="@($"www.{host.Hostname}")" Disabled="_busy || host.RouteCount == 0" />
-                                @if (host.WwwRedirect && host.Status == CertificateStatus.Valid && !host.CertificateIncludesWww)
-                                {
-                                    <MaterialChip Text="www not on cert yet" Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" class="mt-1" />
-                                }
+                                <div class="mt-1 flex flex-wrap items-center gap-2">
+                                    <MaterialSwitch Value="host.WwwRedirect" ValueChanged="@((bool on) => SetWwwAsync(host, on))"
+                                                    Label="www" Disabled="_busy || host.RouteCount == 0" />
+                                    @if (host.WwwRedirect && host.Status == CertificateStatus.Valid && !host.CertificateIncludesWww)
+                                    {
+                                        <MaterialChip Text="www not on cert yet" Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" />
+                                    }
+                                </div>
                             }
                         </td>
+                        <td data-label="Routes" class="text-sm opacity-70">@host.RouteCount</td>
                         <td data-label="Status">
                             <MaterialChip Text="@StatusText(host)" Color="StatusColor(host.Status)" Size="MaterialChipSize.Small" />
                             @if (!string.IsNullOrWhiteSpace(host.LastError))
@@ -99,7 +100,7 @@
                     </tr>
                 }
             }
-            <TableState Columns="6" Loading="_loading" Error="@_error" IsEmpty="@(_overview is null or { Hosts.Count: 0 })"
+            <TableState Columns="5" Loading="_loading" Error="@_error" IsEmpty="@(_overview is null or { Hosts.Count: 0 })"
                         Empty="No hostnames yet — add a route first, then come back to give it a certificate."
                         OnRetry="LoadAsync" Busy="_busy" />
         </tbody>
