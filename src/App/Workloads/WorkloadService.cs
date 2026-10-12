@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Access;
 using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Common;
@@ -20,7 +21,8 @@ public interface IWorkloadService
     Task<WorkloadResponse> GetAsync(Caller caller, string id, CancellationToken ct = default);
     Task<WorkloadResponse> CreateAsync(Caller caller, CreateWorkloadRequest request, CancellationToken ct = default);
     Task<WorkloadResponse> UpdateAsync(Caller caller, string id, UpdateWorkloadRequest request, CancellationToken ct = default);
-    Task DeleteAsync(Caller caller, string id, CancellationToken ct = default);
+    /// with <paramref name="deleteVolumes"/> its named volumes go too, its data with them
+    Task<WorkloadDeleteResponse> DeleteAsync(Caller caller, string id, bool deleteVolumes = false, CancellationToken ct = default);
 
     Task<WorkloadRuntimeStatus> DeployAsync(Caller caller, string id, CancellationToken ct = default);
     Task<WorkloadRuntimeStatus> ScaleAsync(Caller caller, string id, int replicas, CancellationToken ct = default);
@@ -82,6 +84,7 @@ public sealed class WorkloadService(
     INodeService nodes,
     ISecretProtector protector,
     WorkloadDeploymentFactory deployments,
+    WorkloadVolumeCleanup volumeCleanup,
     TimeProvider clock) : IWorkloadService
 {
     public async Task<IReadOnlyList<WorkloadResponse>> ListAsync(Caller caller, CancellationToken ct = default)
@@ -223,13 +226,14 @@ public sealed class WorkloadService(
         return await MapAsync(workload, level, ct);
     }
 
-    public async Task DeleteAsync(Caller caller, string id, CancellationToken ct = default)
+    public async Task<WorkloadDeleteResponse> DeleteAsync(Caller caller, string id, bool deleteVolumes = false, CancellationToken ct = default)
     {
         WorkloadLoader.RequireAdmin(caller);
         var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.Configure, ct);
+        var deployment = deployments.ToDeployment(workload);
 
         // otherwise the service keeps running as an orphan only the docker cli can find
-        await backends.Resolve(workload.Kind).UndeployAsync(deployments.ToDeployment(workload), ct);
+        await backends.Resolve(workload.Kind).UndeployAsync(deployment, ct);
 
         await repository.RemoveAsync(workload, ct);
         await accessGrants.RemoveForTargetAsync(AccessScope.Workload, id, ct);
@@ -239,6 +243,15 @@ public sealed class WorkloadService(
         {
             await routes.DeleteAsync(route.Id, ct);
         }
+
+        if (!deleteVolumes)
+        {
+            return new WorkloadDeleteResponse();
+        }
+
+        var names = WorkloadVolumeCleanup.VolumeNames(deployment, workload.Kind);
+        var kept = await volumeCleanup.RemoveAsync(names, ct);
+        return new WorkloadDeleteResponse { RemovedVolumes = [.. names.Except(kept)], KeptVolumes = [.. kept] };
     }
 
 

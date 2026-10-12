@@ -11,7 +11,8 @@ public interface IWorkloadsClient
     Task<WorkloadResponse> GetAsync(string id, CancellationToken ct = default);
     Task<WorkloadResponse> CreateAsync(CreateWorkloadRequest request, CancellationToken ct = default);
     Task<WorkloadResponse> UpdateAsync(string id, UpdateWorkloadRequest request, CancellationToken ct = default);
-    Task DeleteAsync(string id, CancellationToken ct = default);
+    /// with <paramref name="deleteVolumes"/> its named volumes and their data go too
+    Task<WorkloadDeleteResponse> DeleteAsync(string id, bool deleteVolumes = false, CancellationToken ct = default);
 
     Task<WorkloadRuntimeStatus> GetStatusAsync(string id, CancellationToken ct = default);
     Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(CancellationToken ct = default);
@@ -76,13 +77,15 @@ public sealed class WorkloadsClient(HttpClient http) : IWorkloadsClient
     public Task<WorkloadResponse> UpdateAsync(string id, UpdateWorkloadRequest request, CancellationToken ct = default)
         => SendAsync(HttpMethod.Put, $"api/workloads/{id}", request, ct);
 
-    public async Task DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<WorkloadDeleteResponse> DeleteAsync(string id, bool deleteVolumes = false, CancellationToken ct = default)
     {
-        using var response = await http.DeleteAsync($"api/workloads/{id}", ct);
+        using var response = await http.DeleteAsync($"api/workloads/{id}{(deleteVolumes ? "?deleteVolumes=true" : "")}", ct);
         if (!response.IsSuccessStatusCode)
         {
             throw await HttpProblem.ToExceptionAsync(response, ct);
         }
+
+        return (await response.Content.ReadFromJsonAsync<WorkloadDeleteResponse>(ct))!;
     }
 
     public Task<WorkloadRuntimeStatus> GetStatusAsync(string id, CancellationToken ct = default)

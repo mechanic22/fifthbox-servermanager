@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Access;
 using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Cluster;
@@ -77,7 +78,7 @@ public class WorkloadServiceTests
             nodeService.Object,
             protector,
             factory,
-            TimeProvider.System);
+            new WorkloadVolumeCleanup(new Mock<IDockerVolumes>().Object), TimeProvider.System);
     }
 
     /// so a non-admin Caller goes through the same resolution the Host does

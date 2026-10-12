@@ -154,6 +154,7 @@ app.MapUserEndpoints();
 app.MapAccessEndpoints();
 app.MapTeamEndpoints();
 app.MapNodeEndpoints();
+app.MapCleanupEndpoints();
 app.MapClusterEndpoints();
 app.MapWorkloadEndpoints();
 app.MapWorkloadGroupEndpoints();

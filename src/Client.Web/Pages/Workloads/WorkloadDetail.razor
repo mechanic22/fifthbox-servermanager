@@ -193,7 +193,7 @@
                                 <div class="text-sm opacity-70">Its deploy history goes too, and anything running stops.</div>
                             </div>
                             <MaterialButton Text="Delete workload" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
-                                            OnClick="@(() => _confirmOpen = true)" Disabled="_busy" />
+                                            OnClick="@(() => { _deleteVolumes = false; _confirmOpen = true; })" Disabled="_busy" />
                         </div>
                     </MaterialCard>
                 }
@@ -326,7 +326,14 @@
 
 <MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete workload?"
                        Message="@($"'{_workload?.Name}' and its deploy history are removed. Anything currently running is stopped.")"
-                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteAsync" />
+                       ConfirmText="Delete" Busy="_busy" OnConfirm="DeleteAsync">
+    @if (NamedVolumes.Count > 0)
+    {
+        <MaterialCheckbox @bind-Value="_deleteVolumes" Disabled="_busy"
+                          Label="@($"Also delete its data ({string.Join(", ", NamedVolumes)})")"
+                          SupportingText="The volume and everything in it is gone for good." class="mt-3" />
+    }
+</MaterialConfirmDialog>
 
 <MaterialConfirmDialog IsOpen="@(_revertNumber is not null)"
                        IsOpenChanged="@((bool open) => { if (!open) _revertNumber = null; })"
@@ -901,10 +908,20 @@
         await LoadAsync();
     });
 
+    private bool _deleteVolumes;
+
+    private IReadOnlyList<string> NamedVolumes => _workload is { Kind: WorkloadKind.Container } w
+        ? [.. w.Mounts.Where(m => m.Type == VolumeMountType.Volume).Select(m => m.Source).Distinct()]
+        : [];
+
     private Task DeleteAsync() => RunAsync(async () =>
     {
         _confirmOpen = false;
-        await WorkloadsApi.DeleteAsync(Id);
+        var result = await WorkloadsApi.DeleteAsync(Id, _deleteVolumes);
+        if (result.KeptVolumes.Count > 0)
+            Snackbar.Show($"Deleted, but {string.Join(", ", result.KeptVolumes)} couldn't be removed (still in use or on another node).");
+        else if (result.RemovedVolumes.Count > 0)
+            Snackbar.Show($"Deleted along with {string.Join(", ", result.RemovedVolumes)}.");
         Nav.NavigateTo("workloads");
     });
 

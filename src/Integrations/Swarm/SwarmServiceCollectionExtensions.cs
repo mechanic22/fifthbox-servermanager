@@ -1,4 +1,5 @@
 using Docker.DotNet;
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Cluster;
 using FifthBox.ServerManager.App.Nodes;
 using FifthBox.ServerManager.App.Platform;
@@ -19,6 +20,8 @@ public static class SwarmServiceCollectionExtensions
         services.AddSingleton<IWorkloadStatusSource, SwarmStatusSource>();
         services.AddScoped<INodeSource, SwarmNodeSource>();
         services.AddScoped<INodeControl, SwarmNodeControl>();
+        services.AddScoped<IDockerImages, SwarmImages>();
+        services.AddScoped<IDockerVolumes, SwarmVolumes>();
         services.AddScoped<IDeployedSpecSource, SwarmDeployedSpecSource>();
         services.TryAddScoped<ISwarmLifecycle, SwarmLifecycle>();
         services.AddScoped<IWorkloadBackend, SwarmBackend>();

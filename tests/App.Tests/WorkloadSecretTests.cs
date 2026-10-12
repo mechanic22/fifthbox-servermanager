@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Access;
 using FifthBox.ServerManager.App.Cluster;
 using FifthBox.ServerManager.App.Agents;
@@ -73,7 +74,7 @@ public class WorkloadSecretTests
         var svc = new WorkloadService(repo.Object, loader, lifecycle, agents.Object, new Mock<IAgentRegistry>().Object,
             groups.Object, access, grants.Object, resolver.Object,
             new Mock<IRouteService>().Object, settings.Object, nodes.Object,
-            protector, factory, TimeProvider.System);
+            protector, factory, new WorkloadVolumeCleanup(new Mock<IDockerVolumes>().Object), TimeProvider.System);
 
         return (svc, repo, backend);
     }

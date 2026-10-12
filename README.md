@@ -71,6 +71,12 @@ npm run deploy:direct     # registry unreachable: build on the server over ssh i
 Both talk to `ssh://root@sm.5thbox.com` with key auth (override with `FBSM_DOCKER_HOST` / `FBSM_SERVICE`).
 Migrations run at startup. The Host is single-instance by design, never scale it past 1.
 
+```bash
+npm run publish
+DOCKER_HOST=ssh://root@sm.5thbox.com node scripts/image.mjs local
+docker -H ssh://root@sm.5thbox.com service update --image docker.5thbox.com/fbsm/servermanager:<new version> --no-resolve-image fbsm-host
+```
+
 ## Agents (Windows)
 
 ```bash

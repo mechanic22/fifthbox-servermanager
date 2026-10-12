@@ -3,6 +3,7 @@ using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Certificates;
 using FifthBox.ServerManager.App.Cluster;
 using FifthBox.ServerManager.App.Common;
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Nodes;
 using FifthBox.ServerManager.App.Platform;
 using FifthBox.ServerManager.App.Registries;
@@ -20,6 +21,8 @@ public static class AppServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IClusterState, ClusterState>();
         services.AddScoped<INodeService, NodeService>();
+        services.AddScoped<IImageCleanupService, ImageCleanupService>();
+        services.AddScoped<WorkloadVolumeCleanup>();
         services.AddScoped<INodeSource, AgentNodeSource>();
         services.AddScoped<IClusterService, ClusterService>();
         services.AddScoped<IWorkloadAccess, WorkloadAccess>();

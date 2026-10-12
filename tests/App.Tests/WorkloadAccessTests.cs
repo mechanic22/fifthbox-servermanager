@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.Cleanup;
 using FifthBox.ServerManager.App.Access;
 using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Cluster;
@@ -120,7 +121,7 @@ public class WorkloadAccessTests
             nodes.Object,
             protector,
             factory,
-            TimeProvider.System);
+            new WorkloadVolumeCleanup(new Mock<IDockerVolumes>().Object), TimeProvider.System);
 
         return (svc, grantRepo, backend);
     }

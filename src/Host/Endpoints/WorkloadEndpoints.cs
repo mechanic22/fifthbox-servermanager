@@ -26,11 +26,9 @@ public static class WorkloadEndpoints
         group.MapPut("/{id}", async (string id, UpdateWorkloadRequest request, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.UpdateAsync(user.ToCaller(), id, request, ct)));
 
-        group.MapDelete("/{id}", async (string id, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
-        {
-            await svc.DeleteAsync(user.ToCaller(), id, ct);
-            return TypedResults.NoContent();
-        }).RequireAuthorization(AuthPolicies.AdminOnly);
+        group.MapDelete("/{id}", async (string id, bool? deleteVolumes, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.DeleteAsync(user.ToCaller(), id, deleteVolumes == true, ct)))
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         // literal route wins over /{id}
         group.MapGet("/statuses", async (ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>

@@ -22,6 +22,7 @@ builder.Services.AddScoped<IAdminClient, AdminClient>();
 builder.Services.AddScoped<IAccessClient, AccessClient>();
 builder.Services.AddScoped<ITeamsClient, TeamsClient>();
 builder.Services.AddScoped<INodesClient, NodesClient>();
+builder.Services.AddScoped<ICleanupClient, CleanupClient>();
 builder.Services.AddScoped<IClusterClient, ClusterClient>();
 builder.Services.AddScoped<IWorkloadsClient, WorkloadsClient>();
 builder.Services.AddScoped<IWorkloadGroupsClient, WorkloadGroupsClient>();

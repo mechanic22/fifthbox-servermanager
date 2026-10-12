@@ -1,0 +1,119 @@
+@using FifthBox.ServerManager.Shared.Cleanup
+@inject ICleanupClient CleanupApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="p-6 mb-6">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+            <h2 class="text-lg font-medium">Disk</h2>
+            <p class="text-sm opacity-60">Images on this host's node. Every deploy leaves the old one behind and swarm never removes them.</p>
+        </div>
+        <MaterialButton Text="Remove unused images" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                        OnClick="() => _confirmOpen = true" Disabled="_busy || _preview is not { Removable.Count: > 0 }" />
+    </div>
+
+    @if (_loading)
+    {
+        <MaterialSkeleton class="h-16 w-full" />
+    }
+    else if (_error is not null)
+    {
+        <p class="text-sm" style="color: var(--md-sys-color-error)">@_error</p>
+        <MaterialButton Text="Retry" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small" OnClick="LoadAsync" />
+    }
+    else if (_preview is { } p)
+    {
+        <dl class="grid grid-cols-3 gap-4 text-sm">
+            <div><dt class="opacity-60">Images</dt><dd class="text-lg">@p.ImageCount <span class="text-sm opacity-60">· @Size(p.ImageBytes)</span></dd></div>
+            <div><dt class="opacity-60">Reclaimable</dt><dd class="text-lg">@(p.Removable.Count == 0 ? "nothing" : $"up to {Size(p.ReclaimableBytes)}")</dd></div>
+            <div><dt class="opacity-60">Volumes</dt><dd class="text-lg">@p.VolumeCount</dd></div>
+        </dl>
+        @if (p.Removable.Count > 0)
+        {
+            <details class="mt-3 text-sm">
+                <summary class="cursor-pointer opacity-70">@p.Removable.Count unused @(p.Removable.Count == 1 ? "image" : "images")</summary>
+                <ul class="mt-2 space-y-1">
+                    @foreach (var image in p.Removable)
+                    {
+                        <li class="flex justify-between gap-3"><span class="font-mono text-xs truncate">@image.Name</span><span class="opacity-60 shrink-0">@Size(image.Size)</span></li>
+                    }
+                </ul>
+            </details>
+        }
+        <p class="mt-3 text-xs opacity-60">Keeps every image a service uses and the previous tag of each, so a rollback works without the registry.</p>
+    }
+</MaterialCard>
+
+<MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Remove unused images?"
+                       Message="@ConfirmMessage" ConfirmText="Remove" Busy="_busy" OnConfirm="RemoveAsync" />
+
+@code {
+    private ImageCleanupResponse? _preview;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _confirmOpen;
+    private string? _error;
+
+    private string ConfirmMessage => _preview is { } p
+        ? $"{p.Removable.Count} images, up to {Size(p.ReclaimableBytes)}. Anything removed is pulled from the registry again if it's ever needed."
+        : "";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _preview = await CleanupApi.PreviewImagesAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await CleanupApi.RemoveUnusedImagesAsync();
+            _confirmOpen = false;
+            Snackbar.Show(result.Removed == 0
+                ? "Nothing was removed."
+                : $"Removed {result.Removed} {(result.Removed == 1 ? "image" : "images")}, up to {Size(result.FreedBytes)} freed."
+                  + (result.Skipped > 0 ? $" {result.Skipped} still in use by a stopped container." : ""));
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // no relational switch arms, razor reads a leading '<' as a tag
+    private static string Size(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024)
+        {
+            return $"{bytes / (1024d * 1024 * 1024):0.#} GB";
+        }
+
+        if (bytes >= 1024 * 1024)
+        {
+            return $"{bytes / (1024d * 1024):0.#} MB";
+        }
+
+        return bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
+    }
+}
