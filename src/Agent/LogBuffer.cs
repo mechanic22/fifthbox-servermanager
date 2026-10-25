@@ -22,6 +22,10 @@ public sealed class LogBuffer(int capacity)
         }
     }
 
+    /// oldest first, lines captured before currentRunStart come back Previous
+    public IReadOnlyList<WorkloadLogLine> Tail(int tail, DateTimeOffset currentRunStart)
+        => [.. Tail(tail).Select(l => l.Timestamp < currentRunStart ? l with { Previous = true } : l)];
+
     /// oldest first
     public IReadOnlyList<WorkloadLogLine> Tail(int tail)
     {

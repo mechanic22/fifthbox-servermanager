@@ -386,7 +386,7 @@ public sealed class AgentProcessManager(
     }
 
     public IReadOnlyList<WorkloadLogLine> GetLogs(string name, int tail) =>
-        _workloads.TryGetValue(name, out var workload) ? workload.Logs.Tail(tail) : [];
+        _workloads.TryGetValue(name, out var workload) ? workload.Logs.Tail(tail, workload.StartedAt) : [];
 
     private void Watch(string name, SupervisedWorkload workload, Process process)
     {

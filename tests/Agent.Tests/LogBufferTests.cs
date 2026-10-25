@@ -55,4 +55,15 @@ public class LogBufferTests
         Assert.AreEqual(1, buffer.Capacity);
         Assert.AreEqual("only", buffer.Tail(5).Single().Text);
     }
+
+    [TestMethod]
+    public void Lines_captured_before_the_current_run_started_come_back_previous()
+    {
+        var start = new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero);
+        var buffer = new LogBuffer(10);
+        buffer.Add(new WorkloadLogLine { Text = "old", Timestamp = start.AddSeconds(-5) });
+        buffer.Add(new WorkloadLogLine { Text = "new", Timestamp = start.AddSeconds(1) });
+
+        CollectionAssert.AreEqual(new[] { true, false }, buffer.Tail(10, start).Select(l => l.Previous).ToArray());
+    }
 }

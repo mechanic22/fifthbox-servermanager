@@ -12,4 +12,7 @@ public record WorkloadLogLine
     public required string Text { get; init; }
     public LogStream Stream { get; init; }
     public DateTimeOffset? Timestamp { get; init; }
+
+    /// from a replaced task or before the last restart
+    public bool Previous { get; init; }
 }

@@ -6,9 +6,18 @@
     <div @ref="_scroller" tabindex="0"
          class="text-xs font-mono leading-relaxed overflow-y-auto overscroll-contain p-3 rounded h-96"
          style="background: var(--md-sys-color-surface-container-high)">
-        @foreach (var line in Lines)
+        @for (var i = 0; i < Lines.Count; i++)
         {
-            <div class="flex gap-3 -mx-1 px-1 rounded-sm hover:bg-[var(--md-sys-color-surface-container-highest)]">
+            var line = Lines[i];
+            @if (!line.Previous && i > 0 && Lines[i - 1].Previous)
+            {
+                <div class="flex items-center gap-2 my-2 opacity-70 select-none">
+                    <MaterialDivider class="flex-1" />
+                    <span>current run</span>
+                    <MaterialDivider class="flex-1" />
+                </div>
+            }
+            <div class="flex gap-3 -mx-1 px-1 rounded-sm hover:bg-[var(--md-sys-color-surface-container-highest)] @(line.Previous ? "opacity-50" : null)">
                 <span class="shrink-0 tabular-nums opacity-50 select-none">@Stamp(line)</span>
                 <span class="min-w-0 flex-1 whitespace-pre-wrap wrap-break-word"
                       style="@(line.Stream == LogStream.Stderr ? "color: var(--md-sys-color-error)" : null)">@line.Text</span>

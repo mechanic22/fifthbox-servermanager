@@ -54,4 +54,44 @@ public class SwarmLogParserTests
     {
         Assert.IsEmpty(SwarmLogParser.Parse(string.Empty, LogStream.Stdout).ToList());
     }
+
+    [TestMethod]
+    public void Lines_from_a_task_that_is_no_longer_running_come_back_previous()
+    {
+        var payload =
+            "2026-08-05T10:00:00Z com.docker.swarm.node.id=n1,com.docker.swarm.service.id=s1,com.docker.swarm.task.id=old crashed\n" +
+            "2026-08-05T10:01:00Z com.docker.swarm.node.id=n1,com.docker.swarm.service.id=s1,com.docker.swarm.task.id=new started\n";
+
+        var lines = SwarmLogParser.Parse(payload, LogStream.Stdout, new HashSet<string> { "new" }).ToList();
+
+        CollectionAssert.AreEqual(new[] { "crashed", "started" }, lines.Select(l => l.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { true, false }, lines.Select(l => l.Previous).ToArray());
+    }
+
+    [TestMethod]
+    public void With_nothing_running_no_line_is_previous()
+    {
+        var lines = SwarmLogParser.Parse(
+            "2026-08-05T10:00:00Z com.docker.swarm.task.id=old crashed\n", LogStream.Stdout, new HashSet<string>()).ToList();
+
+        Assert.AreEqual("crashed", lines.Single().Text);
+        Assert.IsFalse(lines.Single().Previous);
+    }
+
+    [TestMethod]
+    public void Empty_details_still_strip_cleanly()
+    {
+        var lines = SwarmLogParser.Parse("2026-08-05T10:00:00Z  hello world\n", LogStream.Stdout, new HashSet<string> { "t" }).ToList();
+
+        Assert.AreEqual("hello world", lines.Single().Text);
+        Assert.IsFalse(lines.Single().Previous);
+    }
+
+    [TestMethod]
+    public void A_message_word_is_not_mistaken_for_details()
+    {
+        var lines = SwarmLogParser.Parse("2026-08-05T10:00:00Z listening on 8080\n", LogStream.Stdout, new HashSet<string> { "t" }).ToList();
+
+        Assert.AreEqual("listening on 8080", lines.Single().Text);
+    }
 }

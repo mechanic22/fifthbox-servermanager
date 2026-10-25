@@ -205,11 +205,22 @@ public sealed class SwarmBackend(
             ShowStdout = true,
             ShowStderr = true,
             Timestamps = true,
+            Details = true,
             Tail = tail.ToString(),
         };
 
         // ask about TTY, guessing the framing wrong throws "unknown stream type"
         var tty = service.Spec?.TaskTemplate?.ContainerSpec?.TTY ?? false;
+
+        var running = await client.Tasks.ListAsync(new TasksListParameters
+        {
+            Filters = new Dictionary<string, IDictionary<string, bool>>
+            {
+                ["service"] = new Dictionary<string, bool> { [service.ID] = true },
+                ["desired-state"] = new Dictionary<string, bool> { ["running"] = true },
+            },
+        }, ct);
+        var current = running.Select(t => t.ID).ToHashSet(StringComparer.Ordinal);
 
         string stdout, stderr;
         try
@@ -224,8 +235,8 @@ public sealed class SwarmBackend(
             return [];
         }
 
-        return [.. SwarmLogParser.Parse(stdout, LogStream.Stdout)
-            .Concat(SwarmLogParser.Parse(stderr, LogStream.Stderr))
+        return [.. SwarmLogParser.Parse(stdout, LogStream.Stdout, current)
+            .Concat(SwarmLogParser.Parse(stderr, LogStream.Stderr, current))
             .OrderBy(l => l.Timestamp ?? DateTimeOffset.MinValue)];
     }
 
