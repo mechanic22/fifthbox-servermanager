@@ -50,6 +50,7 @@ public static class NginxConfigGenerator
             if (certificate is null)
             {
                 AppendRouteLocations(sb, host);
+                AppendUnavailablePage(sb);
                 sb.Append("}\n");
                 continue;
             }
@@ -71,6 +72,7 @@ public static class NginxConfigGenerator
             sb.Append("    ssl_protocols TLSv1.2 TLSv1.3;\n");
             sb.Append("    ssl_session_cache shared:SSL:10m;\n");
             AppendRouteLocations(sb, host);
+            AppendUnavailablePage(sb);
             sb.Append("}\n");
         }
 
@@ -119,6 +121,28 @@ public static class NginxConfigGenerator
         sb.Append("    ssl_session_cache shared:SSL:10m;\n");
         sb.Append($"    return 301 {target}$request_uri;\n");
         sb.Append("}\n");
+    }
+
+    // nginx's own 502/503/504, when the workload is stopped, restarting or unreachable. an app's own error page passes
+    // through untouched, that needs proxy_intercept_errors which isn't set. no apostrophes or $ in the html, it's an nginx string
+    private const string UnavailableHtml =
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+        "<title>Temporarily unavailable</title><style>" +
+        "body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f6f7f9;color:#1b1c1f}" +
+        "main{max-width:28rem;padding:2rem;text-align:center}h1{font-size:1.5rem;margin:0 0 .75rem}p{margin:0;opacity:.7;line-height:1.5}" +
+        "@media (prefers-color-scheme:dark){body{background:#121316;color:#e3e3e6}}" +
+        "</style></head><body><main><h1>This site is temporarily unavailable</h1>" +
+        "<p>It should be back shortly. Please try again in a few minutes.</p></main></body></html>";
+
+    private static void AppendUnavailablePage(StringBuilder sb)
+    {
+        sb.Append("    error_page 502 503 504 =503 @fbsm_unavailable;\n");
+        sb.Append("    location @fbsm_unavailable {\n");
+        sb.Append("        default_type text/html;\n");
+        sb.Append("        add_header Retry-After 30 always;\n");
+        sb.Append("        add_header Cache-Control no-store always;\n");
+        sb.Append($"        return 503 '{UnavailableHtml}';\n");
+        sb.Append("    }\n");
     }
 
     private static void AppendAcmeLocation(StringBuilder sb, string acmeUpstream)

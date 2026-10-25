@@ -472,4 +472,36 @@ public class NginxConfigGeneratorTests
 
         Assert.AreEqual(a, b);
     }
+
+    [TestMethod]
+    public void A_down_upstream_gets_a_friendly_page_on_http_and_https()
+    {
+        var config = Generate([Route("app.example.com", "/", "web", 80), Route("plain.example.com", "/", "web", 80)], "app.example.com");
+
+        // the plain host's port 80 block and the certified host's 443 block both proxy, so both get it
+        Assert.AreEqual(2, config.Split("error_page 502 503 504 =503 @fbsm_unavailable;").Length - 1);
+        StringAssert.Contains(config, "location @fbsm_unavailable {");
+        StringAssert.Contains(config, "return 503 '<!doctype html>");
+        StringAssert.Contains(config, "add_header Retry-After 30 always;");
+    }
+
+    [TestMethod]
+    public void The_unavailable_page_is_a_valid_nginx_string()
+    {
+        var config = Generate([Route("app.example.com", "/", "web", 80)]);
+        var page = config[(config.IndexOf("return 503 '", StringComparison.Ordinal) + 12)..];
+        page = page[..page.IndexOf("';", StringComparison.Ordinal)];
+
+        Assert.DoesNotContain("'", page);
+        Assert.DoesNotContain("$", page);
+    }
+
+    [TestMethod]
+    public void Redirect_only_blocks_dont_get_it()
+    {
+        var config = NginxConfigGenerator.Generate([Route("app.example.com", "/", "web", 80)], AcmeUpstream, wwwRedirects: new HashSet<string> { "app.example.com" });
+        var www = config[config.IndexOf("server_name www.app.example.com;", StringComparison.Ordinal)..];
+
+        Assert.DoesNotContain("@fbsm_unavailable", www);
+    }
 }

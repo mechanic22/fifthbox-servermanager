@@ -34,7 +34,8 @@ public class WorkloadServiceTests
         Mock<IRouteService>? routes = null,
         string? rootDomain = null,
         ClusterState? state = null,
-        IReadOnlyList<AccessGrant>? grants = null)
+        IReadOnlyList<AccessGrant>? grants = null,
+        TimeProvider? clock = null)
     {
         var agentRepo = agents ?? new Mock<IAgentRepository>();
         agentRepo.Setup(a => a.ListAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Agent>());
@@ -61,7 +62,7 @@ public class WorkloadServiceTests
         var factory = new WorkloadDeploymentFactory(protector, cluster);
         var lifecycle = new WorkloadLifecycleService(
             loader, repo.Object, access, resolver.Object, specs.Object,
-            state ?? new ClusterState(), factory, TimeProvider.System);
+            state ?? new ClusterState(), factory, clock ?? TimeProvider.System);
 
         return new WorkloadService(
             repo.Object,
@@ -318,6 +319,29 @@ public class WorkloadServiceTests
         Assert.AreEqual("fbsm-overlay", sent.Network);
         Assert.HasCount(1, sent.Ports);
         Assert.AreEqual(WorkloadState.Running, status.State);
+    }
+
+    [TestMethod]
+    public async Task Logs_that_never_arrive_time_out_as_conflict_and_cancel_the_fetch()
+    {
+        var repo = Repo();
+        repo.Setup(r => r.FindByIdAsync("w1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Workload { Id = "w1", Name = "web", Image = "nginx" });
+
+        var backend = new Mock<IWorkloadBackend>();
+        var fetchToken = CancellationToken.None;
+        backend.Setup(b => b.GetLogsAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<WorkloadDeployment, int, CancellationToken>((_, _, t) => fetchToken = t)
+            .Returns(new TaskCompletionSource<IReadOnlyList<WorkloadLogLine>>().Task);
+
+        var clock = new ManualClock();
+        var pending = Build(repo, backend, clock: clock).GetLogsAsync(Admin, "w1", 200);
+        Assert.IsFalse(pending.IsCompleted);
+
+        clock.Advance(WorkloadLifecycleService.LogFetchTimeout);
+
+        await Assert.ThrowsExactlyAsync<ConflictException>(() => pending);
+        Assert.IsTrue(fetchToken.IsCancellationRequested);
     }
 
     [TestMethod]

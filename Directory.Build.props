@@ -16,7 +16,7 @@
     NOT added to the solution.
 
     Default is published packages (the honest consumer story): Identity 1.2.1 (core + AspNetCore +
-    EntityFrameworkCore + BCrypt + Blazor) and Material 1.0.28. Flip to local for co-development with
+    EntityFrameworkCore + BCrypt + Blazor) and Material 1.0.35. Flip to local for co-development with
     -p:UseLocalFifthBox=true (or per library with UseLocalIdentity / UseLocalMaterial).
   -->
   <PropertyGroup>
@@ -30,7 +30,7 @@
     <FifthBoxEncryptionRepo>$(MSBuildThisFileDirectory)../fifthbox-encryption-aes</FifthBoxEncryptionRepo>
 
     <FifthBoxIdentityVersion>1.2.3</FifthBoxIdentityVersion>
-    <FifthBoxMaterialVersion>1.0.32</FifthBoxMaterialVersion>
+    <FifthBoxMaterialVersion>1.0.35</FifthBoxMaterialVersion>
     <FifthBoxEncryptionVersion>0.1.0</FifthBoxEncryptionVersion>
   </PropertyGroup>
 </Project>

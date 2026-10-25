@@ -251,6 +251,21 @@ public sealed class WorkloadLifecycleService(
     public async Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(Caller caller, string id, int tail, CancellationToken ct = default)
     {
         var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
-        return await backends.Resolve(workload.Kind).GetLogsAsync(deployments.ToDeployment(workload), Math.Clamp(tail, 1, 2000), ct);
+
+        // docker service logs can hang forever on a dead node's task, a stale agent connection waits out the keepalive
+        using var fetch = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        try
+        {
+            return await backends.Resolve(workload.Kind)
+                .GetLogsAsync(deployments.ToDeployment(workload), Math.Clamp(tail, 1, 2000), fetch.Token)
+                .WaitAsync(LogFetchTimeout, clock, ct);
+        }
+        catch (TimeoutException)
+        {
+            await fetch.CancelAsync();
+            throw new ConflictException($"Logs for '{workload.Name}' didn't come back within {LogFetchTimeout.TotalSeconds:0} seconds.");
+        }
     }
+
+    public static readonly TimeSpan LogFetchTimeout = TimeSpan.FromSeconds(10);
 }
