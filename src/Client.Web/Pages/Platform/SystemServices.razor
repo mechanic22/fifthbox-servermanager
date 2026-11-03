@@ -20,10 +20,10 @@
         <MaterialCard class="mb-6 p-4 flex flex-col gap-3">
             <div class="flex items-center gap-3 flex-wrap">
                 <span class="text-sm font-medium">This ServerManager</span>
-                <MaterialChip Text="@RunModeText(d)" Color="@(d.RunMode == HostRunMode.SwarmService ? MaterialChipColor.Primary : MaterialChipColor.Default)" />
+                <MaterialChip Text="@RunModeText(d)" />
                 @if (d.SplitBrain)
                 {
-                    <MaterialChip Text="two instances running" Color="MaterialChipColor.Error" />
+                    <StatusChip Text="two instances running" Tone="StatusTone.Bad" />
                 }
             </div>
 
@@ -65,7 +65,7 @@
                     <tr>
                         <td data-label="Service" class="font-medium">@s.Name</td>
                         <td data-label="Image" class="font-mono text-xs">@s.Image</td>
-                        <td data-label="Status"><MaterialChip Text="@StatusText(s)" Color="StatusColor(s.State)" /></td>
+                        <td data-label="Status"><StatusChip Text="@StatusText(s)" Tone="StatusTones.For(s.State)" /></td>
                         <td class="text-right">
                             <MaterialButton Text="Restart" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small" OnClick="@(() => RestartAsync(s))" Disabled="_busy" />
                         </td>
@@ -138,10 +138,4 @@
     private static string StatusText(PlatformServiceResponse s) =>
         s.State == WorkloadState.NotDeployed ? "Not deployed" : $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}";
 
-    private static MaterialChipColor StatusColor(WorkloadState state) => state switch
-    {
-        WorkloadState.Running => MaterialChipColor.Primary,
-        WorkloadState.Partial => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
 }

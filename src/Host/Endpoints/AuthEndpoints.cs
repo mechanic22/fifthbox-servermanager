@@ -85,7 +85,7 @@ public static class AuthEndpoints
             }
 
             // links by provider key, then by profile email, and only creates an account under SelfService
-            var result = await svc.LoginWithExternalAsync(info, issueBearerTokens: false, ct);
+            var result = await svc.LoginWithExternalAsync(info, issueBearerTokens: false, ct: ct);
 
             await UserProfileComposition.UpsertProfileAsync(profiles, result.UserId, info.Email, info.FirstName, info.LastName, ct);
 

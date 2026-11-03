@@ -1,0 +1,29 @@
+@if (Status is null)
+{
+    @* not "Unknown", every workload sits here for a moment after a Host restart *@
+    <StatusChip Text="Checking…" />
+}
+else
+{
+    <StatusChip Text="@StateText(Workload, Status)" Tone="@StatusTones.For(Status, IsMissing(Workload, Status))" />
+}
+
+@code {
+    [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
+    [Parameter] public WorkloadRuntimeStatus? Status { get; set; }
+
+    /// gone without anyone stopping it, not the same as never deployed or stopped
+    public static bool IsMissing(WorkloadResponse w, WorkloadRuntimeStatus? s) =>
+        s is { State: WorkloadState.NotDeployed }
+        && w.CurrentRevision is not null
+        && w.DesiredState == WorkloadDesiredState.Running;
+
+    private static string StateText(WorkloadResponse w, WorkloadRuntimeStatus s) => s.State switch
+    {
+        WorkloadState.NotDeployed when IsMissing(w, s) => "Missing",
+        WorkloadState.NotDeployed when w.CurrentRevision is not null => "Undeployed",
+        WorkloadState.NotDeployed => "Not deployed",
+        WorkloadState.Updating => "Updating files",
+        _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
+    };
+}

@@ -34,7 +34,7 @@
             <LoadFailure Message="@_error" OnRetry="LoadAsync" Busy="_loading" />
         </MaterialCard>
     }
-    else if (_loading)
+    else if (_loading && _workloads is null)
     {
         <MaterialSkeleton Type="MaterialSkeletonType.TableRow" AriaLabel="Loading applications" />
     }

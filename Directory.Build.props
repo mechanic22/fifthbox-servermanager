@@ -15,22 +15,22 @@
     UseLocalIdentity / UseLocalMaterial. The sibling .csproj paths are referenced directly and are
     NOT added to the solution.
 
-    Default is published packages (the honest consumer story): Identity 1.2.1 (core + AspNetCore +
-    EntityFrameworkCore + BCrypt + Blazor) and Material 1.0.35. Flip to local for co-development with
+    Default is published packages (the honest consumer story): Identity 1.6.0 (core + AspNetCore +
+    EntityFrameworkCore + BCrypt + Blazor) and Material 1.0.55. Flip to local for co-development with
     -p:UseLocalFifthBox=true (or per library with UseLocalIdentity / UseLocalMaterial).
   -->
   <PropertyGroup>
     <UseLocalFifthBox Condition="'$(UseLocalFifthBox)' == ''">false</UseLocalFifthBox>
     <UseLocalIdentity Condition="'$(UseLocalIdentity)' == ''">$(UseLocalFifthBox)</UseLocalIdentity>
-    <UseLocalMaterial Condition="'$(UseLocalMaterial)' == ''">true</UseLocalMaterial>
+    <UseLocalMaterial Condition="'$(UseLocalMaterial)' == ''">$(UseLocalFifthBox)</UseLocalMaterial>
     <UseLocalEncryption Condition="'$(UseLocalEncryption)' == ''">false</UseLocalEncryption>
 
     <FifthBoxIdentityRepo>$(MSBuildThisFileDirectory)../fifthbox-identity</FifthBoxIdentityRepo>
     <FifthBoxMaterialRepo>$(MSBuildThisFileDirectory)../fifthbox-materialcomponents</FifthBoxMaterialRepo>
     <FifthBoxEncryptionRepo>$(MSBuildThisFileDirectory)../fifthbox-encryption-aes</FifthBoxEncryptionRepo>
 
-    <FifthBoxIdentityVersion>1.2.3</FifthBoxIdentityVersion>
-    <FifthBoxMaterialVersion>1.0.35</FifthBoxMaterialVersion>
+    <FifthBoxIdentityVersion>1.6.0</FifthBoxIdentityVersion>
+    <FifthBoxMaterialVersion>1.0.55</FifthBoxMaterialVersion>
     <FifthBoxEncryptionVersion>0.1.0</FifthBoxEncryptionVersion>
   </PropertyGroup>
 </Project>

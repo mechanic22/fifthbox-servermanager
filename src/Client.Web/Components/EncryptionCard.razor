@@ -20,7 +20,7 @@
     }
     else if (_info is null)
     {
-        <MaterialProgressIndicator />
+        <MaterialSkeleton Type="MaterialSkeletonType.Article" AriaLabel="Loading encryption status" />
     }
     else if (_info.EncryptionKeyEphemeral)
     {
@@ -41,7 +41,7 @@
     else if (_info.Secrets == SecretsState.Readable)
     {
         <p class="text-sm">
-            <MaterialChip Text="Key valid" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
+            <StatusChip Text="Key valid" Tone="StatusTone.Good" />
         </p>
     }
     else

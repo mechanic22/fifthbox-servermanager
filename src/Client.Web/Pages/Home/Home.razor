@@ -8,12 +8,35 @@
 @inject IRoutesClient RoutesApi
 @inject ITlsClient TlsApi
 @inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
 @inject NavigationManager Nav
 
 <PageTitle>Home — FifthBox.ServerManager</PageTitle>
 
-<div class="max-w-5xl mx-auto p-6">
-    <h1 class="text-2xl font-medium mb-6">FifthBox.ServerManager</h1>
+<PageHeader Kicker="Home" Title="FifthBox.ServerManager">
+    <Sub>
+        @if (_isAdmin && !_loading && _nodes is not null && _workloads is not null)
+        {
+            <span>@NodesValue() @NodesDetail()</span>
+            <span>@RunningCount/@_workloads.Count applications running</span>
+        }
+    </Sub>
+    <Action>
+        @if (_proxy is { PendingChanges: true })
+        {
+            <MaterialButton Text="@(_deployingEdge ? "Deploying…" : "Deploy nginx")" Style="MaterialButtonStyle.Filled"
+                            OnClick="DeployEdgeAsync" Disabled="_deployingEdge" />
+        }
+    </Action>
+</PageHeader>
+
+<div class="max-w-6xl mx-auto px-4 md:px-6 py-6">
+    @if (_proxy is { PendingChanges: true })
+    {
+        <Banner Tone="StatusTone.Warn">
+            <span class="text-sm">Routes have changed since nginx was last deployed. Nothing you've saved is being served yet.</span>
+        </Banner>
+    }
 
     @if (!_isAdmin)
     {
@@ -30,7 +53,7 @@
                             <span class="flex-1 min-w-0 truncate text-sm" style="color: var(--md-sys-color-primary)">@w.Name</span>
                             @if (_statuses.GetValueOrDefault(w.Id) is { } status)
                             {
-                                <MaterialChip Text="@StateText(status)" Color="@StateColor(status.State)" Size="MaterialChipSize.Small" />
+                                <StatusChip Text="@StateText(status)" Tone="@StatusTones.For(status)" />
                             }
                         </a>
                     }
@@ -48,12 +71,15 @@
     }
     else
     {
-        <FirstRunChecklist Steps="SetupSteps()" />
+        @if (SetupKnown)
+        {
+            <FirstRunChecklist Steps="SetupSteps()" />
+        }
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatusTile Label="Cluster" Href="cluster" Loading="_loading" Failed="_clusterFailed"
                         Value="@NodesValue()" Detail="@NodesDetail()"
-                        Chip="@_cluster?.Membership.ToString()" ChipColor="MembershipColor()" />
+                        Chip="@_cluster?.Membership.ToString()" ChipTone="@(_cluster is { } cluster ? StatusTones.For(cluster.Membership) : StatusTone.Neutral)" />
 
             <StatusTile Label="Applications" Href="workloads" Loading="_loading" Failed="_workloadsFailed"
                         Value="@($"{RunningCount}/{_workloads?.Count ?? 0}")" Detail="running"
@@ -71,8 +97,7 @@
         {
             <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 mt-4 flex items-center gap-3 flex-wrap">
                 <span class="text-sm font-medium">This ServerManager</span>
-                <MaterialChip Text="@RunModeText(d)" Size="MaterialChipSize.Small"
-                              Color="@(d.RunMode == HostRunMode.SwarmService ? MaterialChipColor.Primary : MaterialChipColor.Default)" />
+                <MaterialChip Text="@RunModeText(d)" Size="MaterialChipSize.Small" />
                 @if (d.SplitBrain)
                 {
                     <span class="text-sm flex-1 min-w-56" style="color: var(--md-sys-color-error)">
@@ -168,6 +193,27 @@
         }
     }
 
+    private bool _deployingEdge;
+
+    private async Task DeployEdgeAsync()
+    {
+        _deployingEdge = true;
+        try
+        {
+            await RoutesApi.ApplyAsync();
+            Snackbar.Show("nginx deployed with the current routes.");
+            await LoadProxyAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _deployingEdge = false;
+        }
+    }
+
     private async Task LoadProxyAsync()
     {
         try
@@ -205,6 +251,9 @@
         }
     }
 
+    // null is still loading or failed, neither means the step isn't done
+    private bool SetupKnown => _cluster is not null && _settings is not null && _proxy is not null && _workloads is not null;
+
     private List<FirstRunChecklist.SetupStep> SetupSteps() =>
     [
         new("Bootstrap the cluster",
@@ -240,14 +289,6 @@
     private string NodesValue() => _nodes is null ? "—" : $"{_nodes.Count(n => n.Status == NodeStatus.Ready)}/{_nodes.Count}";
 
     private string NodesDetail() => _nodes is null ? "machines" : _nodes.Count == 1 ? "machine ready" : "machines ready";
-
-    private MaterialChipColor MembershipColor() => _cluster?.Membership switch
-    {
-        SwarmMembership.Active => MaterialChipColor.Primary,
-        SwarmMembership.Error or SwarmMembership.Locked => MaterialChipColor.Error,
-        SwarmMembership.Pending => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
 
     private string EdgeValue() => _proxy?.Status switch
     {
@@ -295,14 +336,6 @@
         WorkloadState.NotDeployed => "Not deployed",
         WorkloadState.Updating => "Updating files",
         _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
-    };
-
-    private static MaterialChipColor StateColor(WorkloadState state) => state switch
-    {
-        WorkloadState.Running => MaterialChipColor.Primary,
-        WorkloadState.Partial => MaterialChipColor.Tertiary,
-        WorkloadState.Updating => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
     };
 
     private static string RunModeText(HostDeploymentInfo d) => d.RunMode switch

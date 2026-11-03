@@ -25,14 +25,14 @@
     }
     else if (_status is null)
     {
-        <MaterialProgressIndicator />
+        <MaterialSkeleton Type="MaterialSkeletonType.Article" AriaLabel="Loading the cluster" />
     }
     else
     {
         <MaterialCard Variant="MaterialCardVariant.Filled" class="p-6 mb-3">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-medium">Swarm</h2>
-                <MaterialChip Text="@_status.Membership.ToString()" Color="MembershipColor(_status.Membership)" />
+                <StatusChip Text="@_status.Membership.ToString()" Tone="StatusTones.For(_status.Membership)" />
             </div>
             <dl class="grid grid-cols-2 gap-y-2 text-sm">
                 <dt class="opacity-60">This host</dt>
@@ -40,8 +40,7 @@
                 <dt class="opacity-60">Managed network</dt>
                 <dd>
                     <code>@_status.ManagedNetworkName</code>
-                    <MaterialChip Text="@(_status.ManagedNetworkExists ? "present" : "missing")"
-                                  Color="@(_status.ManagedNetworkExists ? MaterialChipColor.Primary : MaterialChipColor.Tertiary)" />
+                    <StatusChip Text="@(_status.ManagedNetworkExists ? "present" : "missing")" Tone="@(_status.ManagedNetworkExists ? StatusTone.Good : StatusTone.Warn)" />
                 </dd>
                 @if (_status.Error is not null)
                 {
@@ -93,11 +92,10 @@
                             <td data-label="Backend" class="text-sm">@n.Backend</td>
                             <td data-label="Role">@(n.Backend == NodeBackendKind.Agent ? "—" : n.Role.ToString())</td>
                             <td data-label="Status">
-                                <MaterialChip Text="@n.Status.ToString()" Color="StatusColor(n.Status)" />
+                                <StatusChip Text="@n.Status.ToString()" Tone="StatusTones.For(n.Status)" />
                                 @if (n.Backend == NodeBackendKind.Swarm && n.Availability != NodeAvailability.Active)
                                 {
-                                    <MaterialChip Text="@n.Availability.ToString().ToLowerInvariant()"
-                                                  Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" />
+                                    <StatusChip Text="@n.Availability.ToString().ToLowerInvariant()" Tone="StatusTone.Warn" />
                                 }
                             </td>
                             <td data-label="Platform">@PlatformText(n)</td>
@@ -475,19 +473,4 @@
             ? n.LastSeenAt?.ToLocalTime().ToString("g") ?? "never"
             : n.EngineVersion ?? "—";
 
-    private static MaterialChipColor StatusColor(NodeStatus status) => status switch
-    {
-        NodeStatus.Ready => MaterialChipColor.Primary,
-        NodeStatus.Down => MaterialChipColor.Error,
-        NodeStatus.Disconnected => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
-
-    private static MaterialChipColor MembershipColor(SwarmMembership membership) => membership switch
-    {
-        SwarmMembership.Active => MaterialChipColor.Primary,
-        SwarmMembership.Error or SwarmMembership.Locked => MaterialChipColor.Error,
-        SwarmMembership.Pending => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
 }

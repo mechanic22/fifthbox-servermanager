@@ -1,120 +1,92 @@
-<div class="flex flex-col gap-2">
-    <div class="flex items-center gap-2 flex-wrap">
-        @if (Status is null)
-        {
-            @* not "Unknown", every workload sits here for a moment after a Host restart *@
-            <MaterialChip Text="Checking…" />
-        }
-        else
-        {
-            <MaterialChip Text="@StateText(Workload, Status)" Color="@StateColor(Workload, Status)" />
-        }
+@if (HasDetails)
+{
+    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4">
+        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide mb-3">Details</h2>
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                @if (Workload.Kind == WorkloadKind.Native && Status is { Pid: { } pid })
+                {
+                    <span class="text-sm opacity-70">PID @pid</span>
+                    @if (Status.StartedAt is { } since)
+                    {
+                        <span class="text-sm opacity-70">up @UptimeText(since)</span>
+                    }
+                    @if (Status.Adopted)
+                    {
+                        <MaterialChip Text="adopted" Size="MaterialChipSize.Small" />
+                    }
+                }
 
-        @if (Workload.Kind == WorkloadKind.Native && Status is { Pid: { } pid })
-        {
-            <span class="text-sm opacity-70">PID @pid</span>
-            @if (Status.StartedAt is { } since)
+                @if (Status?.InstalledVersion is { Length: > 0 } version)
+                {
+                    <span class="text-sm opacity-70">@version</span>
+                }
+                @* null = nothing to probe (udp-only, say), so say nothing *@
+                @if (Status?.Reachable is false)
+                {
+                    <StatusChip Text="not answering" Tone="StatusTone.Bad" />
+                }
+                @if (Status?.MemoryBytes is { } memory)
+                {
+                    <span class="text-sm opacity-70">@Mb(memory)</span>
+                }
+                @if (Status?.CpuPercent is { } cpu)
+                {
+                    <span class="text-sm opacity-70">@cpu.ToString("0.#")% cpu</span>
+                }
+                @if (Status is { RestartCount: > 0 })
+                {
+                    <span class="text-sm opacity-70">@Status.RestartCount restart(s)</span>
+                }
+                @if (Status?.ExitCode is { } exitCode)
+                {
+                    <span class="text-sm opacity-70">last exit @exitCode</span>
+                }
+            </div>
+
+            @if (Status?.UpdateState is "updating" or "rollback_completed" or "rollback_started" or "paused")
             {
-                <span class="text-sm opacity-70">· up @UptimeText(since)</span>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <StatusChip Text="@RolloutText(Status.UpdateState)" Tone="@RolloutTone(Status.UpdateState)" />
+                    <span class="text-xs opacity-60">@Status.UpdateMessage</span>
+                </div>
             }
-            @if (Status.Adopted)
+
+            @if (Status?.RunningImage is { Length: > 0 } image)
             {
-                <MaterialChip Text="adopted" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                <span class="text-xs opacity-60 font-mono" title="@image">Running @ImageText(image)</span>
             }
-        }
 
-        @if (Status?.InstalledVersion is { Length: > 0 } version)
-        {
-            <span class="text-sm opacity-70">· @version</span>
-        }
-        @* null = nothing to probe (udp-only, say), so say nothing *@
-        @if (Status?.Reachable is false)
-        {
-            <MaterialChip Text="not answering" Size="MaterialChipSize.Small" Color="MaterialChipColor.Error" />
-        }
-        @if (Status?.MemoryBytes is { } memory)
-        {
-            <span class="text-sm opacity-70">· @Mb(memory)</span>
-        }
-        @if (Status?.CpuPercent is { } cpu)
-        {
-            <span class="text-sm opacity-70">· @cpu.ToString("0.#")% cpu</span>
-        }
-        @if (Status is { RestartCount: > 0 })
-        {
-            <span class="text-sm opacity-70">· @Status.RestartCount restart(s)</span>
-        }
-        @if (Status?.ExitCode is { } exitCode)
-        {
-            <span class="text-sm opacity-70">· last exit @exitCode</span>
-        }
+            @* not running, it's the banner at the top of the page *@
+            @if (Status is { State: WorkloadState.Running, LastError: { Length: > 0 } error })
+            {
+                <span class="text-sm" style="color: var(--md-sys-color-error)">@error</span>
+            }
 
-        @if (Workload.CurrentRevision is { } revision)
-        {
-            <span class="text-xs opacity-60">config rev @revision</span>
-        }
-    </div>
-
-    @if (Status?.UpdateState is "updating" or "rollback_completed" or "rollback_started" or "paused")
-    {
-        <div class="flex items-center gap-2 flex-wrap">
-            <MaterialChip Text="@RolloutText(Status.UpdateState)" Color="@RolloutColor(Status.UpdateState)"
-                          Size="MaterialChipSize.Small" />
-            <span class="text-xs opacity-60">@Status.UpdateMessage</span>
+            @if (!string.IsNullOrWhiteSpace(Status?.Detail))
+            {
+                <span class="text-xs opacity-60">@Status!.Detail</span>
+            }
         </div>
-    }
-
-    @if (IsMissing(Workload, Status))
-    {
-        <span class="text-sm" style="color: var(--md-sys-color-error)">
-            Nothing is deployed, but this was never stopped — the service has been removed outside
-            ServerManager. Deploy to put it back.
-        </span>
-    }
-
-    @if (Status?.RunningImage is { Length: > 0 } image)
-    {
-        <span class="text-xs opacity-60 font-mono" title="@image">Running @ImageText(image)</span>
-    }
-
-    @if (Status?.LastError is { Length: > 0 } error)
-    {
-        <span class="text-sm" style="color: var(--md-sys-color-error)">@error</span>
-    }
-
-    @if (!string.IsNullOrWhiteSpace(Status?.Detail))
-    {
-        <span class="text-xs opacity-60">@Status!.Detail</span>
-    }
-</div>
+    </MaterialCard>
+}
 
 @code {
     [Parameter, EditorRequired] public required WorkloadResponse Workload { get; set; }
     [Parameter] public WorkloadRuntimeStatus? Status { get; set; }
 
-    /// gone without anyone stopping it, not the same as never deployed or stopped
-    private static bool IsMissing(WorkloadResponse w, WorkloadRuntimeStatus? s) =>
-        s is { State: WorkloadState.NotDeployed }
-        && w.CurrentRevision is not null
-        && w.DesiredState == WorkloadDesiredState.Running;
-
-    private static string StateText(WorkloadResponse w, WorkloadRuntimeStatus s) => s.State switch
-    {
-        WorkloadState.NotDeployed when IsMissing(w, s) => "Missing",
-        WorkloadState.NotDeployed when w.CurrentRevision is not null => "Undeployed",
-        WorkloadState.NotDeployed => "Not deployed",
-        WorkloadState.Updating => "Updating files",
-        _ => $"{s.State} {s.RunningReplicas}/{s.DesiredReplicas}",
-    };
-
-    private static MaterialChipColor StateColor(WorkloadResponse w, WorkloadRuntimeStatus s) => s switch
-    {
-        _ when IsMissing(w, s) => MaterialChipColor.Error,
-        { State: WorkloadState.Running } => MaterialChipColor.Primary,
-        { State: WorkloadState.Partial } => MaterialChipColor.Tertiary,
-        { State: WorkloadState.Updating } => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
+    private bool HasDetails => Status is { } s && (
+        (Workload.Kind == WorkloadKind.Native && s.Pid is not null)
+        || s.InstalledVersion is { Length: > 0 }
+        || s.Reachable is false
+        || s.MemoryBytes is not null
+        || s.CpuPercent is not null
+        || s.RestartCount > 0
+        || s.ExitCode is not null
+        || s.UpdateState is "updating" or "rollback_completed" or "rollback_started" or "paused"
+        || s.RunningImage is { Length: > 0 }
+        || s is { State: WorkloadState.Running, LastError.Length: > 0 }
+        || !string.IsNullOrWhiteSpace(s.Detail));
 
     private static string RolloutText(string? updateState) => updateState switch
     {
@@ -124,8 +96,8 @@
         _ => "Paused",
     };
 
-    private static MaterialChipColor RolloutColor(string? updateState) =>
-        updateState == "updating" ? MaterialChipColor.Tertiary : MaterialChipColor.Error;
+    private static StatusTone RolloutTone(string? updateState) =>
+        updateState == "updating" ? StatusTone.Warn : StatusTone.Bad;
 
     /// the digest shows whether a :latest redeploy actually picked up the new build
     private static string ImageText(string image)

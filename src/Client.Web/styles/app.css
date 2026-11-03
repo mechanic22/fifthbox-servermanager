@@ -17,6 +17,8 @@
 @theme {
   --color-primary: var(--md-sys-color-primary);
   --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
   --color-surface: var(--md-sys-color-surface);
   --color-on-surface: var(--md-sys-color-on-surface);
   --color-outline-variant: var(--md-sys-color-outline-variant);
@@ -69,6 +71,11 @@
   --md-sys-color-inverse-primary: #FEC699;
   --md-sys-color-scrim: #000000;
   --md-sys-color-shadow: #000000;
+
+  --app-good-container: #C4EFD0;
+  --app-on-good-container: #0B3D1E;
+  --app-warn-container: #FFE2A6;
+  --app-on-warn-container: #4A3200;
 }
 
 /* Dark Theme */
@@ -114,8 +121,24 @@
   --md-sys-color-inverse-primary: #CC5B00;
   --md-sys-color-scrim: #000000;
   --md-sys-color-shadow: #000000;
+
+  --app-good-container: #1B4A2C;
+  --app-on-good-container: #BDF0CC;
+  --app-warn-container: #4D3800;
+  --app-on-warn-container: #FFDFA0;
 }
 
+
+/* see StatusChip */
+.status-good {
+  --md-sys-color-primary-container: var(--app-good-container);
+  --md-sys-color-on-primary-container: var(--app-on-good-container);
+}
+
+.status-warn {
+  --md-sys-color-primary-container: var(--app-warn-container);
+  --md-sys-color-on-primary-container: var(--app-on-warn-container);
+}
 
 /* Paint the page background/text from the Material surface tokens so the whole app tracks the
    light/dark theme, not just the components. */

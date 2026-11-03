@@ -6,7 +6,7 @@
         @if (Status is not null)
         {
             <span title="@Status.LastError">
-                <MaterialChip Text="@StatusText(Workload, Status)" Color="StatusColor(Workload, Status)" Size="MaterialChipSize.Small" />
+                <StatusChip Text="@StatusText(Workload, Status)" Tone="StatusTones.For(Status, IsMissing(Workload, Status))" />
             </span>
         }
         else
@@ -106,13 +106,4 @@
         return clause.Length is > 0 and <= 28 ? clause : error[..Math.Min(28, error.Length)].Trim();
     }
 
-    private static MaterialChipColor StatusColor(WorkloadResponse w, WorkloadRuntimeStatus s) => s switch
-    {
-        _ when IsMissing(w, s) => MaterialChipColor.Error,
-        { State: WorkloadState.Running } => MaterialChipColor.Primary,
-        { LastError: { Length: > 0 } } => MaterialChipColor.Error,
-        { State: WorkloadState.Partial } => MaterialChipColor.Tertiary,
-        { State: WorkloadState.Updating } => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
 }

@@ -3,8 +3,7 @@
 
 @if (State is { PendingChanges: true })
 {
-    <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3 flex-wrap"
-                  style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
+    <Banner Tone="StatusTone.Warn">
         <span class="text-sm flex-1 min-w-56">
             @Message
             @if (State.LastAppliedAt is { } applied)
@@ -14,7 +13,7 @@
         </span>
         <MaterialButton Text="@(_busy ? "Deploying…" : "Deploy nginx")" Style="MaterialButtonStyle.Filled"
                         Size="MaterialSize.Small" OnClick="ApplyAsync" Disabled="_busy" />
-    </MaterialCard>
+    </Banner>
 }
 
 @code {

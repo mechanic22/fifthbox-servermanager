@@ -1,0 +1,30 @@
+<header class="bg-primary-container text-on-primary-container">
+    <div class="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-6 grid grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1.5 items-start">
+        <div class="text-xs font-semibold uppercase tracking-wide opacity-80 self-center">@Kicker</div>
+        <div class="flex items-center justify-end gap-3 text-sm relative">@Links</div>
+        <div class="col-span-2 md:col-span-1 min-w-0 flex flex-col gap-1.5">
+            <h1 class="text-2xl md:text-3xl font-medium leading-tight text-balance">@Title</h1>
+            @if (Sub is not null)
+            {
+                <div class="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">@Sub</div>
+            }
+        </div>
+        @if (Action is not null)
+        {
+            @* column on a phone so the button stretches to full width *@
+            <div class="col-span-2 md:col-span-1 empty:hidden flex flex-col md:items-end mt-2 md:mt-0">@Action</div>
+        }
+    </div>
+</header>
+
+@code {
+    [Parameter, EditorRequired] public required string Title { get; set; }
+    [Parameter] public string? Kicker { get; set; }
+    [Parameter] public RenderFragment? Sub { get; set; }
+
+    /// top right, the way back and anything else that only goes somewhere
+    [Parameter] public RenderFragment? Links { get; set; }
+
+    /// the one thing to do right now, leave it null when there isn't one
+    [Parameter] public RenderFragment? Action { get; set; }
+}

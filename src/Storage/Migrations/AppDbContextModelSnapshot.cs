@@ -15,7 +15,7 @@ namespace FifthBox.ServerManager.Storage.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("FifthBox.Identity.Models.ExternalLogin", b =>
                 {
@@ -67,6 +67,9 @@ namespace FifthBox.ServerManager.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset?>("LockoutEndsAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PasswordChangedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PasswordHash")

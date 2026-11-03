@@ -27,11 +27,11 @@ else
                 }
                 @if (link.BasicAuth)
                 {
-                    <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                    <MaterialChip Text="Auth" Size="MaterialChipSize.Small" />
                 }
                 @if (link.DirectLabel is { } label)
                 {
-                    <MaterialChip Text="@label" Size="MaterialChipSize.Small" Color="MaterialChipColor.Secondary" />
+                    <MaterialChip Text="@label" Size="MaterialChipSize.Small" />
                 }
             </div>
         }

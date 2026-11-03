@@ -1,0 +1,23 @@
+@* the library only colours selected chips, and has no green or amber role, so app.css re-points the token *@
+<MaterialChip Text="@Text" Size="MaterialChipSize.Small" Selected="@(Tone != StatusTone.Neutral)" Color="@Color"
+              class="@Css" @attributes="AdditionalAttributes" />
+
+@code {
+    [Parameter, EditorRequired] public required string Text { get; set; }
+    [Parameter] public StatusTone Tone { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private MaterialChipColor Color => Tone switch
+    {
+        StatusTone.Bad => MaterialChipColor.Error,
+        StatusTone.Neutral => MaterialChipColor.Default,
+        _ => MaterialChipColor.Primary,
+    };
+
+    private string? Css => Tone switch
+    {
+        StatusTone.Good => "status-good",
+        StatusTone.Warn => "status-warn",
+        _ => null,
+    };
+}

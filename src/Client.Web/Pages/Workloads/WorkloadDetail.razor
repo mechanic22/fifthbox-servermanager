@@ -17,7 +17,80 @@
 
 <PageTitle>@(_workload?.Name ?? "Workload") — FifthBox.ServerManager</PageTitle>
 
-<div class="max-w-6xl mx-auto p-6">
+@if (_workload is not null)
+{
+    <PageHeader Kicker="@($"Applications · {_workload.GroupName ?? "Root"}")" Title="@_workload.Name">
+        <Sub>
+            <WorkloadStatusChip Workload="_workload" Status="_status" />
+            <span>@KindText()</span>
+            @if (_workload.CurrentRevision is { } revision)
+            {
+                <span>config rev @revision</span>
+            }
+        </Sub>
+        <Links>
+            <a href="workloads" class="font-medium hover:underline">‹ Applications</a>
+            @if (HasMenu)
+            {
+                <MaterialIconButton Icon="@KebabIcon()" Style="MaterialIconButtonStyle.Standard" Size="MaterialSize.Small"
+                                    OnClick="@(() => _menuOpen = !_menuOpen)" Disabled="_busy" title="Workload actions" />
+                <MaterialDrop @bind-IsOpen="_menuOpen" Alignment="MaterialDropAlignment.End" Position="MaterialDropPosition.Bottom">
+                    @if (CanDeploy && !Deploying && Primary != WorkloadAction.Deploy)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(DeployAsync))">@DeployText()</button>
+                    }
+                    @if (CanOperate && IsStopped && _workload.CurrentRevision is not null && Primary != WorkloadAction.Start)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(StartAsync))">Start</button>
+                    }
+                    @if (CanOperate && !IsStopped && IsDeployed)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(RestartAsync))">Restart</button>
+                    }
+                    @if (CanOperate && IsScalable(_workload))
+                    {
+                        <button type="button" class="md-menu-item" @onclick="OpenScale">Scale…</button>
+                    }
+                    @if (CanOperate && _workload.Source is not null && _status?.Updating != true && !IsDeployed)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(UpdateFilesAsync))">Update files</button>
+                    }
+                    @* placement rewrites saved config and can strand it on an offline agent or clashing port *@
+                    @if (CanConfigure && _workload.Kind == WorkloadKind.Native)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(OpenMoveAsync))">Move to agent…</button>
+                    }
+                    @if (CanOperate && !IsStopped && IsDeployed)
+                    {
+                        <button type="button" class="md-menu-item" @onclick="@(() => FromMenu(StopAsync))">Stop</button>
+                    }
+                    @if (_isAdmin)
+                    {
+                        <div class="md-menu-divider"></div>
+                        @if (_workload.Kind == WorkloadKind.Container)
+                        {
+                            <button type="button" class="md-menu-item" @onclick="@(() => { _menuOpen = false; _undeployOpen = true; })">Undeploy…</button>
+                        }
+                        <button type="button" class="md-menu-item" style="color: var(--md-sys-color-error)"
+                                @onclick="@(() => { _menuOpen = false; _deleteVolumes = false; _confirmOpen = true; })">Delete…</button>
+                    }
+                </MaterialDrop>
+            }
+        </Links>
+        <Action>
+            @if (Primary == WorkloadAction.Deploy)
+            {
+                <MaterialButton Text="@DeployText()" Style="MaterialButtonStyle.Filled" OnClick="DeployAsync" Disabled="_busy" />
+            }
+            else if (Primary == WorkloadAction.Start)
+            {
+                <MaterialButton Text="Start" Style="MaterialButtonStyle.Filled" OnClick="StartAsync" Disabled="_busy" />
+            }
+        </Action>
+    </PageHeader>
+}
+
+<div class="max-w-6xl mx-auto px-4 md:px-6 py-6">
     @if (_workload is null && _error is not null)
     {
         <MaterialCard Variant="MaterialCardVariant.Outlined">
@@ -31,70 +104,63 @@
     }
     else if (_workload is null)
     {
-        <MaterialProgressIndicator />
+        <MaterialSkeleton Type="MaterialSkeletonType.Article" AriaLabel="Loading this workload" />
     }
     else
     {
-        <MaterialBreadcrumbs Items="_crumbs" />
-
-        <div class="flex items-center gap-3 mt-3 mb-4">
-            <h1 class="text-2xl font-medium">@_workload.Name</h1>
-            <MaterialChip Text="@KindText()" />
-        </div>
+        @if (_status is { } gone && WorkloadStatusChip.IsMissing(_workload, gone))
+        {
+            <Banner Tone="StatusTone.Bad">
+                <span class="text-sm">
+                    Nothing is deployed, but this was never stopped. The service has been removed outside ServerManager.
+                    Deploy to put it back.
+                </span>
+            </Banner>
+        }
+        else if (_status is { State: not WorkloadState.Running, LastError: { Length: > 0 } lastError })
+        {
+            <Banner Tone="StatusTone.Bad">
+                <span class="text-sm">@lastError</span>
+            </Banner>
+        }
 
         @if (_drift is { HasDrift: true })
         {
-            <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3 flex-wrap"
-                          style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container)">
+            <Banner Tone="StatusTone.Bad">
                 <span class="text-sm flex-1 min-w-56">
                     The running service no longer matches what it was deployed from — @DriftText() differ. Either it was
                     changed outside ServerManager, or a change made here never reached the running container. What you
                     see on Config is not what is running.
                 </span>
-                @if (CanDeploy)
-                {
-                    <MaterialButton Text="Redeploy" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
-                                    OnClick="DeployAsync" Disabled="_busy" />
-                }
-            </MaterialCard>
+            </Banner>
         }
 
         @if (Deploying)
         {
-            <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3"
-                          style="background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container)">
+            <Banner Tone="StatusTone.Neutral">
                 <MaterialProgressIndicator Indeterminate="true" Size="MaterialProgressSize.Small" />
                 <span class="text-sm flex-1">
                     Deploying. Changes you save now go out on the next deploy.
                 </span>
-            </MaterialCard>
+            </Banner>
         }
         else if (_status is { RolloutStalled: true })
         {
-            <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3 flex-wrap"
-                          style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container)">
+            <Banner Tone="StatusTone.Bad">
                 <span class="text-sm flex-1 min-w-56">
                     The rollout stopped partway and swarm is holding it there@(_status.UpdateMessage is { Length: > 0 } why ? $" — {why}" : "").
                     Nothing more happens until it's deployed again.
                 </span>
-                @if (CanDeploy)
-                {
-                    <MaterialButton Text="Redeploy" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
-                                    OnClick="DeployAsync" Disabled="_busy" />
-                }
-            </MaterialCard>
+            </Banner>
         }
         else if (_workload.HasPendingChanges && CanConfigure)
         {
-            <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3"
-                          style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
+            <Banner Tone="StatusTone.Warn">
                 <span class="text-sm flex-1">
                     Pending changes — the running instance is on revision @_workload.CurrentRevision. Redeploy to apply your
                     saved config.
                 </span>
-                <MaterialButton Text="Redeploy" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
-                                OnClick="DeployAsync" Disabled="_busy" />
-            </MaterialCard>
+            </Banner>
         }
 
         <MaterialTabs Tabs="_tabs" @bind-ActiveTab="_tab" ShowContent="false" />
@@ -102,12 +168,7 @@
         <div class="mt-6">
             @if (_tab == "overview")
             {
-                <div class="flex flex-col gap-4">
-                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4">
-                        <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide mb-3">Status</h2>
-                        <WorkloadStatusStrip Workload="_workload" Status="_status" />
-                    </MaterialCard>
-
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                     @if (_status is { Tasks.Count: > 0 })
                     {
                         <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4">
@@ -121,82 +182,9 @@
                         <WorkloadAddresses Workload="_workload" Routes="_workloadRoutes" Tls="_tls" Nodes="_nodes"
                                            RunningNodeIds="RunningNodeIds()" EdgeHttpPort="_edgeHttpPort" EdgeHttpsPort="_edgeHttpsPort" />
                     </MaterialCard>
+
+                    <WorkloadStatusStrip Workload="_workload" Status="_status" />
                 </div>
-
-                <div class="flex flex-wrap items-center gap-2 mt-6">
-                    @if (CanDeploy)
-                    {
-                        <MaterialButton Text="@DeployText()" Style="MaterialButtonStyle.Filled" OnClick="DeployAsync"
-                                        Disabled="_busy || Deploying" />
-                    }
-                    @if (CanOperate && IsStopped)
-                    {
-                        <MaterialButton Text="Start" Style="MaterialButtonStyle.Outlined" OnClick="StartAsync"
-                                        Disabled="_busy || _workload.CurrentRevision is null" />
-                    }
-                    @if (CanOperate && !IsStopped)
-                    {
-                        <MaterialButton Text="Restart" Style="MaterialButtonStyle.Outlined" OnClick="RestartAsync"
-                                        Disabled="_busy || !IsDeployed" />
-                    }
-                    @if (CanOperate && IsScalable(_workload))
-                    {
-                        <div class="w-28">
-                            <MaterialInput @bind-Value="_scaleTo" Type="number" Label="Replicas"
-                                           Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Disabled="_busy" />
-                        </div>
-                        <MaterialButton Text="Scale now" Style="MaterialButtonStyle.Outlined" OnClick="ScaleAsync"
-                                        Disabled="_busy" />
-                    }
-                    @if (CanOperate && _workload.Source is not null)
-                    {
-                        <MaterialButton Text="@(_status?.Updating == true ? "Updating…" : "Update files")"
-                                        Style="MaterialButtonStyle.Outlined" OnClick="UpdateFilesAsync"
-                                        Disabled="_busy || _status?.Updating == true || IsDeployed" />
-                    }
-                    @* placement rewrites saved config and can strand it on an offline agent or clashing port *@
-                    @if (CanConfigure && _workload.Kind == WorkloadKind.Native)
-                    {
-                        <MaterialButton Text="Move to agent" Style="MaterialButtonStyle.Outlined" OnClick="OpenMoveAsync"
-                                        Disabled="_busy" />
-                    }
-                    @if (CanOperate && !IsStopped)
-                    {
-                        <MaterialButton Text="Stop" Style="MaterialButtonStyle.Text" OnClick="StopAsync"
-                                        Disabled="_busy || !IsDeployed" />
-                    }
-                </div>
-
-                @if (_isAdmin)
-                {
-                    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 mt-8 flex flex-col gap-4"
-                                  style="border-color: var(--md-sys-color-error)">
-                        @if (_workload.Kind == WorkloadKind.Container)
-                        {
-                            <div class="flex items-center gap-3 flex-wrap">
-                                <div class="flex-1 min-w-56">
-                                    <div class="text-sm font-medium">Undeploy</div>
-                                    <div class="text-sm opacity-70">
-                                        Removes the swarm service. Stop only holds it at zero replicas; this throws away
-                                        its published ports and the task history that explains what it did. The config
-                                        and its revisions stay here, so Deploy recreates it.
-                                    </div>
-                                </div>
-                                <MaterialButton Text="Undeploy" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
-                                                OnClick="@(() => _undeployOpen = true)" Disabled="_busy" />
-                            </div>
-                        }
-
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <div class="flex-1 min-w-56">
-                                <div class="text-sm font-medium">Delete this workload</div>
-                                <div class="text-sm opacity-70">Its deploy history goes too, and anything running stops.</div>
-                            </div>
-                            <MaterialButton Text="Delete workload" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
-                                            OnClick="@(() => { _deleteVolumes = false; _confirmOpen = true; })" Disabled="_busy" />
-                        </div>
-                    </MaterialCard>
-                }
             }
             else if (_tab == "config")
             {
@@ -256,7 +244,7 @@
                                     <td data-label="State">
                                         @if (r.IsCurrent)
                                         {
-                                            <MaterialChip Text="Running" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
+                                            <StatusChip Text="Running" Tone="StatusTone.Good" />
                                         }
                                     </td>
                                     <td class="text-right whitespace-nowrap">
@@ -321,7 +309,7 @@
 </div>
 
 <MaterialConfirmDialog @bind-IsOpen="_undeployOpen" Title="Undeploy this workload?"
-                       Message="@($"'{_workload?.Name}' is removed from the swarm. Its saved config and deploy history stay, so Deploy puts it back — but its task history goes.")"
+                       Message="@($"'{_workload?.Name}' is removed from the swarm, along with its published ports and task history. Its saved config and deploy history stay, so Deploy puts it back. Stop only holds it at zero replicas.")"
                        ConfirmText="Undeploy" Busy="_busy" OnConfirm="UndeployAsync" />
 
 <MaterialConfirmDialog @bind-IsOpen="_confirmOpen" Title="Delete workload?"
@@ -340,6 +328,19 @@
                        Title="@($"Revert to revision {_revertNumber}?")"
                        Message="@($"This replaces the saved config for '{_workload?.Name}' with revision {_revertNumber} and loads it into the editor. Nothing running changes until you Redeploy.")"
                        ConfirmText="Revert" Busy="_busy" OnConfirm="ConfirmRevertAsync" />
+
+<MaterialDialog IsOpen="_scaleOpen" Title="Scale" OnClose="@(() => _scaleOpen = false)">
+    <ChildContent>
+        <div class="sm:min-w-[22rem]">
+            <MaterialInput @bind-Value="_scaleTo" Type="number" Label="Replicas"
+                           Variant="MaterialInputVariant.Outlined" Size="MaterialSize.Small" Disabled="_busy" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Text="Cancel" Style="MaterialButtonStyle.Text" OnClick="@(() => _scaleOpen = false)" Disabled="_busy" />
+        <MaterialButton Text="Scale now" Style="MaterialButtonStyle.Filled" OnClick="ScaleAsync" Disabled="_busy" />
+    </Actions>
+</MaterialDialog>
 
 <MaterialDialog IsOpen="_moveOpen" Title="Move to another agent" OnClose="@(() => _moveOpen = false)">
     <ChildContent>
@@ -536,6 +537,40 @@
 
     private bool IsStopped => _workload?.DesiredState == WorkloadDesiredState.Stopped;
 
+    private WorkloadAction Primary => WorkloadPrimaryAction.For(
+        CanDeploy,
+        CanOperate,
+        Deploying,
+        neverDeployed: _workload?.CurrentRevision is null,
+        stalled: _status is { RolloutStalled: true },
+        drift: _drift is { HasDrift: true },
+        pendingChanges: _workload is { HasPendingChanges: true },
+        gone: _status is { Deployed: false } && !IsStopped,
+        IsStopped);
+
+    private bool HasMenu => CanDeploy || CanOperate || CanConfigure || _isAdmin;
+
+    private bool _menuOpen;
+    private bool _scaleOpen;
+
+    private Task FromMenu(Func<Task> action)
+    {
+        _menuOpen = false;
+        return action();
+    }
+
+    private void OpenScale()
+    {
+        _menuOpen = false;
+        _scaleTo = _workload?.Replicas ?? 1;
+        _scaleOpen = true;
+    }
+
+    private RenderFragment KebabIcon() => __builder =>
+    {
+        <MaterialIcon Path="@MaterialIcons.MoreVert" Size="IconSize.SM" />
+    };
+
     // undeploy keeps revisions, so there can be config with nothing running it
     private bool IsDeployed => _status is { Deployed: true };
 
@@ -556,7 +591,6 @@
     private bool _undeployOpen;
     private ProxyStateResponse? _proxy;
     private WorkloadDriftResponse? _drift;
-    private List<MaterialBreadcrumbItem> _crumbs = [];
     private WorkloadFormModel _form = new();
 
     private string _formBaseline = string.Empty;
@@ -575,19 +609,30 @@
         Realtime.WorkloadStatusChanged += OnStatusChanged;
         Realtime.WorkloadLogLines += OnLogLines;
         Realtime.Reconnected += OnReconnected;
-        await Realtime.EnsureWorkloadsConnectedAsync();
+
+        // don't hold the first load up on the socket
+        _ = Realtime.EnsureWorkloadsConnectedAsync();
     }
 
-    private void OnReconnected() => _ = InvokeAsync(LoadAsync);
+    private void OnReconnected() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        if (_tab == "logs")
+        {
+            await LoadLogsAsync();
+        }
+    });
 
     private string? _loadedId;
 
-    // fires on every tab click, reloading here would wipe unsaved config edits
+    // fires on every tab click, only the id changing is worth a reload
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedId != Id)
         {
             _loadedId = Id;
+            _form = new();
+            _formBaseline = _form.Fingerprint();
             await LoadAsync();
         }
 
@@ -648,7 +693,7 @@
     private bool _refreshingBanners;
 
     /// the status push doesn't clear the pending/drift banners, so re-read them while one's up
-    /// not LoadAsync, that rebuilds _form and loses unsaved edits
+    /// not LoadAsync, that's every call on the page
     private async Task RefreshBannersAsync()
     {
         if (_refreshingBanners)
@@ -705,21 +750,19 @@
                 _tls = (await TlsApi.GetAsync()).Hosts.ToDictionary(h => h.Hostname, StringComparer.Ordinal);
             }
 
-            _crumbs =
-            [
-                new() { Label = "Applications", Href = "/workloads" },
-                new() { Label = _workload.GroupName ?? "Root" },
-                new() { Label = _workload.Name },
-            ];
-
             _tabs = TabsFor(_workload.Kind, CanConfigure, _workload.ManagedDirectory, _isAdmin);
             if (_tabs.TrueForAll(t => t.Value != _tabValue))
             {
                 _tabValue = "overview";
             }
 
-            _form = WorkloadFormModel.From(_workload);
-            _formBaseline = _form.Fingerprint();
+            // reconnects and actions land here too, unsaved edits stay
+            if (!ConfigDirty)
+            {
+                _form = WorkloadFormModel.From(_workload);
+                _formBaseline = _form.Fingerprint();
+            }
+
             _scaleTo = _workload.Replicas;
             _revisions = await WorkloadsApi.GetRevisionsAsync(Id);
             _status = await WorkloadsApi.GetStatusAsync(Id);
@@ -736,6 +779,12 @@
                 Snackbar.Show(ex.Message);
             }
         }
+    }
+
+    private async Task ReloadOverEditsAsync()
+    {
+        _formBaseline = _form.Fingerprint();
+        await LoadAsync();
     }
 
     private async Task RoutesChangedAsync()
@@ -784,7 +833,7 @@
     {
         await WorkloadsApi.UpdateAsync(Id, _form.ToUpdateRequest());
         Snackbar.Show("Saved.");
-        await LoadAsync();
+        await ReloadOverEditsAsync();
     });
 
     private Task DeployAsync() => RunAsync(async () =>
@@ -823,7 +872,15 @@
     private Task ScaleAsync() => RunAsync(async () =>
     {
         await WorkloadsApi.ScaleAsync(Id, _scaleTo);
+        _scaleOpen = false;
         Snackbar.Show($"Scaled to {_scaleTo}.");
+
+        // saving pending edits later would otherwise scale it back
+        if (ConfigDirty)
+        {
+            _form.Replicas = _scaleTo;
+        }
+
         await LoadAsync();
     });
 
@@ -843,7 +900,7 @@
 
         await WorkloadsApi.RevertAsync(Id, number.Value);
         _revertNumber = null;
-        await LoadAsync();
+        await ReloadOverEditsAsync();
         _tab = "config";
         Snackbar.Show($"Loaded revision {number} into the editor — Redeploy to apply.");
     });
@@ -877,7 +934,7 @@
         var to = MoveTargetLabel(_moveToAgentId);
         var result = await WorkloadsApi.MoveAsync(Id, _moveToAgentId);
         _moveOpen = false;
-        await LoadAsync();
+        await ReloadOverEditsAsync();
 
         Snackbar.Show((result.PreviousAgentOffline, result.TargetAgentOffline) switch
         {

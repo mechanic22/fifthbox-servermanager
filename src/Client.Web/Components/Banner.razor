@@ -1,0 +1,16 @@
+<MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 flex items-center gap-3 flex-wrap" style="@Style">
+    @ChildContent
+</MaterialCard>
+
+@code {
+    [Parameter] public StatusTone Tone { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Style => Tone switch
+    {
+        StatusTone.Bad => "background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container)",
+        StatusTone.Warn => "background: var(--app-warn-container); color: var(--app-on-warn-container)",
+        StatusTone.Good => "background: var(--app-good-container); color: var(--app-on-good-container)",
+        _ => "background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container)",
+    };
+}

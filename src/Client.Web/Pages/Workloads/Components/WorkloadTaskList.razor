@@ -17,10 +17,10 @@
                 <td data-label="Replica">@t.Slot</td>
                 <td data-label="Node" class="text-sm">@NodeText(t)</td>
                 <td data-label="State">
-                    <MaterialChip Text="@t.State.ToString()" Color="@StateColor(t)" Size="MaterialChipSize.Small" />
+                    <StatusChip Text="@t.State.ToString()" Tone="@StatusTones.For(t)" />
                     @if (t.DesiredState == WorkloadTaskState.Running)
                     {
-                        <MaterialChip Text="current" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
+                        <MaterialChip Text="current" Size="MaterialChipSize.Small" />
                     }
                 </td>
                 <td data-label="When" class="text-xs opacity-70">@WhenText(t)</td>
@@ -80,11 +80,4 @@
         t.Since is { } since ? since.LocalDateTime.ToString("g") : "—";
 
     // desired Running but not running is the failure, finished tasks are just history
-    private static MaterialChipColor StateColor(WorkloadTask t) => t.State switch
-    {
-        WorkloadTaskState.Running => MaterialChipColor.Primary,
-        _ when t.DesiredState != WorkloadTaskState.Running => MaterialChipColor.Default,
-        WorkloadTaskState.Failed or WorkloadTaskState.Rejected or WorkloadTaskState.Orphaned => MaterialChipColor.Error,
-        _ => MaterialChipColor.Tertiary,
-    };
 }

@@ -4,7 +4,7 @@
         <span class="text-xs font-medium uppercase tracking-wide opacity-60">@Label</span>
         @if (Chip is not null)
         {
-            <MaterialChip Text="@Chip" Color="@ChipColor" Size="MaterialChipSize.Small" />
+            <StatusChip Text="@Chip" Tone="@ChipTone" />
         }
     </div>
 
@@ -41,7 +41,7 @@
     [Parameter] public string? Warning { get; set; }
 
     [Parameter] public string? Chip { get; set; }
-    [Parameter] public MaterialChipColor ChipColor { get; set; } = MaterialChipColor.Default;
+    [Parameter] public StatusTone ChipTone { get; set; }
     [Parameter] public bool Loading { get; set; }
     [Parameter] public bool Failed { get; set; }
 }

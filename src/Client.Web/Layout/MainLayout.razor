@@ -34,9 +34,16 @@
                 @if (_disconnected)
                 {
                     <div class="shrink-0 px-4 py-2 text-sm flex items-center gap-2"
-                         style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
-                        <MaterialProgressIndicator Indeterminate="true" Size="MaterialProgressSize.Small" />
-                        <span>Reconnecting — live status may be out of date.</span>
+                         style="background: var(--app-warn-container); color: var(--app-on-warn-container)">
+                        @if (_reconnecting)
+                        {
+                            <MaterialProgressIndicator Indeterminate="true" Size="MaterialProgressSize.Small" />
+                            <span>Reconnecting — live status may be out of date.</span>
+                        }
+                        else
+                        {
+                            <span>Live updates are off, so status may be out of date. Reload the page to reconnect.</span>
+                        }
                     </div>
                 }
 
@@ -69,6 +76,7 @@
 @code {
     private bool _drawerOpen;
     private bool _disconnected;
+    private bool _reconnecting;
 
     protected override void OnInitialized()
     {
@@ -110,6 +118,7 @@
     private void OnConnectionStateChanged() => InvokeAsync((Action)(() =>
     {
         _disconnected = Realtime.Disconnected;
+        _reconnecting = Realtime.Reconnecting;
         StateHasChanged();
     }));
 

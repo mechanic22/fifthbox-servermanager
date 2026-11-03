@@ -14,7 +14,7 @@
             <h1 class="text-2xl font-medium">Routes</h1>
             @if (_proxy?.Status is { } status)
             {
-                <MaterialChip Text="@ProxyText(status)" Color="ProxyColor(status.State)" />
+                <StatusChip Text="@ProxyText(status)" Tone="StatusTones.For(status.State)" />
             }
         </div>
         <div class="flex items-center gap-2">
@@ -90,7 +90,7 @@
                             }
                             @if (r.BasicAuthEnabled)
                             {
-                                <MaterialChip Text="Auth" Size="MaterialChipSize.Small" Color="MaterialChipColor.Tertiary" />
+                                <MaterialChip Text="Auth" Size="MaterialChipSize.Small" />
                             }
                         </td>
                         <td data-label="Live">
@@ -325,10 +325,4 @@
     private static string ProxyText(WorkloadRuntimeStatus s) =>
         s.State == WorkloadState.NotDeployed ? "nginx: not deployed" : $"nginx: {s.State} {s.RunningReplicas}/{s.DesiredReplicas}";
 
-    private static MaterialChipColor ProxyColor(WorkloadState state) => state switch
-    {
-        WorkloadState.Running => MaterialChipColor.Primary,
-        WorkloadState.Partial => MaterialChipColor.Tertiary,
-        _ => MaterialChipColor.Default,
-    };
 }

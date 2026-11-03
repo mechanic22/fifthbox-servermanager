@@ -26,8 +26,7 @@
     <ProjectReference Include="$(FifthBoxIdentityRepo)/src/Identity.Blazor/Identity.Blazor.csproj" />
   </ItemGroup>
 
-  <!-- FifthBox.MaterialComponents.Blazor: package by default, local project in dev (default local
-       for now — see Directory.Build.props: consumes the not-yet-published IMaterialThemeService). -->
+  <!-- FifthBox.MaterialComponents.Blazor: package by default, local project with UseLocalMaterial. -->
   <ItemGroup Condition="'$(UseLocalMaterial)' != 'true'">
     <PackageReference Include="FifthBox.MaterialComponents.Blazor" Version="$(FifthBoxMaterialVersion)" />
   </ItemGroup>

@@ -18,22 +18,24 @@
 
     @if (_edgeHttpPort != 80)
     {
-        <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-4 text-sm"
-                      style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container)">
-            The edge is published on port <strong>@_edgeHttpPort</strong>, not 80. Let's Encrypt always fetches the
-            challenge on port 80 and can't be told otherwise, so issuance only works if something external
-            forwards port 80 here.
-        </MaterialCard>
+        <Banner Tone="StatusTone.Bad">
+            <span class="text-sm">
+                The edge is published on port <strong>@_edgeHttpPort</strong>, not 80. Let's Encrypt always fetches the
+                challenge on port 80 and can't be told otherwise, so issuance only works if something external
+                forwards port 80 here.
+            </span>
+        </Banner>
     }
 
     @if (_overview?.StagingCa == true)
     {
-        <MaterialCard Variant="MaterialCardVariant.Filled" class="p-3 mb-6 text-sm"
-                      style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container)">
-            Using the Let's Encrypt <strong>staging</strong> CA — certificates issued here are real but browsers
-            don't trust them. Set <span class="font-mono text-xs">Acme:Directory</span> to "production" when the
-            flow works end to end.
-        </MaterialCard>
+        <Banner Tone="StatusTone.Warn">
+            <span class="text-sm">
+                Using the Let's Encrypt <strong>staging</strong> CA — certificates issued here are real but browsers
+                don't trust them. Set <span class="font-mono text-xs">Acme:Directory</span> to "production" when the
+                flow works end to end.
+            </span>
+        </Banner>
     }
 
     <MaterialTable Loading="_loading">
@@ -61,14 +63,14 @@
                                                     Label="www" Disabled="_busy || host.RouteCount == 0" />
                                     @if (host.WwwRedirect && host.Status == CertificateStatus.Valid && !host.CertificateIncludesWww)
                                     {
-                                        <MaterialChip Text="www not on cert yet" Color="MaterialChipColor.Tertiary" Size="MaterialChipSize.Small" />
+                                        <StatusChip Text="www not on cert yet" Tone="StatusTone.Warn" />
                                     }
                                 </div>
                             }
                         </td>
                         <td data-label="Routes" class="text-sm opacity-70">@host.RouteCount</td>
                         <td data-label="Status">
-                            <MaterialChip Text="@StatusText(host)" Color="StatusColor(host.Status)" Size="MaterialChipSize.Small" />
+                            <StatusChip Text="@StatusText(host)" Tone="StatusTones.For(host.Status)" />
                             @if (!string.IsNullOrWhiteSpace(host.LastError))
                             {
                                 <div class="text-xs mt-1" style="color: var(--md-sys-color-error)">@host.LastError</div>
@@ -240,14 +242,6 @@
         CertificateStatus.Valid => "HTTPS",
         CertificateStatus.Pending => "Requesting…",
         _ => "Failed",
-    };
-
-    private static MaterialChipColor StatusColor(CertificateStatus? status) => status switch
-    {
-        CertificateStatus.Valid => MaterialChipColor.Primary,
-        CertificateStatus.Pending => MaterialChipColor.Tertiary,
-        CertificateStatus.Failed => MaterialChipColor.Error,
-        _ => MaterialChipColor.Default,
     };
 
     private static string ExpiryText(TlsHostResponse host)
