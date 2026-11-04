@@ -38,6 +38,10 @@ function fit(el, host, page) {
 }
 
 export function attach(el, dotNet) {
+    if (!el) {
+        return;
+    }
+
     const host = scroller(el);
     const page = pageOf(el, host);
     const state = { atBottom: true, frame: 0 };
@@ -75,8 +79,11 @@ export function attach(el, dotNet) {
     views.set(el, state);
 }
 
+// null when the viewer went away while this call was on its way
 export function scrollToBottom(el) {
-    el.scrollTop = el.scrollHeight;
+    if (el) {
+        el.scrollTop = el.scrollHeight;
+    }
 }
 
 export function detach(el) {
