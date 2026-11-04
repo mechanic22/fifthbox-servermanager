@@ -1,0 +1,90 @@
+@using FifthBox.ServerManager.Client.Web.Services
+@implements IDisposable
+@inject INodesClient NodesApi
+@inject RealtimeService Realtime
+
+@if (_history is { Count: > 0 })
+{
+    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 mt-3">
+        <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Machine usage</h2>
+            <MaterialSegmentedButton Value="_range" ValueChanged="@((StatsHistoryRange r) => SetRangeAsync(r))" AriaLabel="Time range">
+                <MaterialSegment Value="StatsHistoryRange.ThirtyMinutes" Label="30 min" />
+                <MaterialSegment Value="StatsHistoryRange.Day" Label="24 hours" />
+            </MaterialSegmentedButton>
+        </div>
+        <div class="flex flex-col gap-6">
+            @foreach (var machine in _history)
+            {
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-baseline justify-between gap-3 flex-wrap">
+                        <span class="text-sm font-medium">@Label(machine)</span>
+                        @if (machine.DiskFreeBytes is { } free && IsCurrent(machine))
+                        {
+                            <span class="text-sm"><strong class="tabular-nums">@UsageText.Bytes(free)</strong> <span class="opacity-70">disk free</span></span>
+                        }
+                    </div>
+                    <UsageChartPair Points="machine.Points" From="_from" To="_to" ShowDate="@(_range == StatsHistoryRange.Day)"
+                                    MaxGapSeconds="UsageChartRange.MaxGapSeconds(_range)"
+                                    CpuMax="100" CpuCores="machine.CpuCores" MemoryMax="@(machine.MemoryTotalBytes > 0 ? machine.MemoryTotalBytes : null)" />
+                </div>
+            }
+        </div>
+    </MaterialCard>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
+
+    private IReadOnlyList<MachineStatsHistory>? _history;
+    private StatsHistoryRange _range = StatsHistoryRange.ThirtyMinutes;
+    private long _from;
+    private long _to;
+    private DateTimeOffset _loadedAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.MachineStatsChanged += OnStatsChanged;
+        await LoadAsync();
+    }
+
+    private void OnStatsChanged(MachineStats stats)
+    {
+        if (DateTimeOffset.UtcNow - _loadedAt >= UsageChartRange.RefreshEvery(_range))
+        {
+            _ = InvokeAsync(LoadAsync);
+        }
+    }
+
+    private async Task SetRangeAsync(StatsHistoryRange range)
+    {
+        _range = range;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            _history = await NodesApi.GetMachineHistoryAsync(_range);
+            _to = _loadedAt.ToUnixTimeSeconds();
+            _from = (_loadedAt - UsageChartRange.Window(_range)).ToUnixTimeSeconds();
+        }
+        catch (ApiException)
+        {
+            // the live numbers above still work, the next push tries again
+        }
+
+        StateHasChanged();
+    }
+
+    // a node that went quiet keeps its lines but shouldn't keep claiming a disk figure
+    private bool IsCurrent(MachineStatsHistory machine) =>
+        machine.Points.Count > 0 && _to - machine.Points[^1].At <= 60;
+
+    private string Label(MachineStatsHistory machine) =>
+        Nodes?.FirstOrDefault(n => n.Id == machine.NodeId)?.Hostname ?? machine.NodeId[..Math.Min(12, machine.NodeId.Length)];
+
+    public void Dispose() => Realtime.MachineStatsChanged -= OnStatsChanged;
+}

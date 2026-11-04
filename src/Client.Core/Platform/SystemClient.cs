@@ -7,6 +7,9 @@ public interface ISystemClient
 {
     Task<IReadOnlyList<PlatformServiceResponse>> ListServicesAsync(CancellationToken ct = default);
     Task RestartServiceAsync(string name, CancellationToken ct = default);
+    Task<ContainerStatsServiceResponse> GetContainerStatsAsync(CancellationToken ct = default);
+    Task<ContainerStatsServiceResponse> DeployContainerStatsAsync(CancellationToken ct = default);
+    Task RemoveContainerStatsAsync(CancellationToken ct = default);
     Task<HostDeploymentInfo> GetDeploymentAsync(CancellationToken ct = default);
     Task<PlatformSettingsResponse> GetSettingsAsync(CancellationToken ct = default);
     Task<PlatformSettingsResponse> UpdateSettingsAsync(UpdatePlatformSettingsRequest request, CancellationToken ct = default);
@@ -34,6 +37,37 @@ public sealed class SystemClient(HttpClient http) : ISystemClient
     public async Task RestartServiceAsync(string name, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/system/services/{name}/restart", null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+    }
+
+    public async Task<ContainerStatsServiceResponse> GetContainerStatsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/system/container-stats", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<ContainerStatsServiceResponse>(ct))!;
+    }
+
+    public async Task<ContainerStatsServiceResponse> DeployContainerStatsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/system/container-stats", null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<ContainerStatsServiceResponse>(ct))!;
+    }
+
+    public async Task RemoveContainerStatsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync("api/system/container-stats", ct);
         if (!response.IsSuccessStatusCode)
         {
             throw await HttpProblem.ToExceptionAsync(response, ct);

@@ -50,14 +50,15 @@ public sealed class AgentBackend(IAgentCommandChannel channel) : IWorkloadBacken
         return AgentStatusMapper.ToRuntimeStatus(deployment.Name, status);
     }
 
-    public async Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(WorkloadDeployment deployment, int tail, CancellationToken ct = default)
+    public async Task<WorkloadLogsResponse> GetLogsAsync(WorkloadDeployment deployment, int tail, WorkloadLogRuns runs, CancellationToken ct = default)
     {
-        if (deployment.AgentId is null || !channel.IsConnected(deployment.AgentId))
+        // the agent's buffer has every run in it and marks the old ones, there's nothing separate to fetch
+        if (runs == WorkloadLogRuns.Previous || deployment.AgentId is null || !channel.IsConnected(deployment.AgentId))
         {
-            return [];
+            return new WorkloadLogsResponse();
         }
 
-        return await channel.GetLogsAsync(deployment.AgentId, deployment.Name, tail, ct);
+        return new WorkloadLogsResponse { Lines = await channel.GetLogsAsync(deployment.AgentId, deployment.Name, tail, ct) };
     }
 
     public async Task SendConsoleAsync(WorkloadDeployment deployment, string text, CancellationToken ct = default)

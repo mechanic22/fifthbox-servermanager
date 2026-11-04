@@ -35,6 +35,7 @@ public class EndpointAuthorizationTests
         ["/api/auth/native/refresh"] = "the refresh token is the credential",
         ["/api/auth/native/revoke"] = "the refresh token is the credential",
 
+        ["/api/internal/container-stats"] = "fbsm-stats has no account; each report's signature is the credential",
         ["/api/agents/enroll"] = "the enrollment key is the credential; the agent has no account yet",
         // AgentHub has no [Authorize], agents aren't Identity users and it checks agentId:secret in OnConnectedAsync
         ["/hubs/agents"] = "agents authenticate with their own credential inside the hub",

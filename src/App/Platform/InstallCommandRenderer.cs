@@ -1,3 +1,5 @@
+using FifthBox.ServerManager.App.Workloads;
+
 namespace FifthBox.ServerManager.App.Platform;
 
 public static class InstallCommandRenderer
@@ -29,6 +31,9 @@ public static class InstallCommandRenderer
             $"      --network {options.OverlayNetwork} \\",
             "      --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \\",
             $"      --mount type=volume,src={options.DataVolume},dst={options.DataPath} \\",
+            $"      --log-driver {ContainerLogLimits.Driver} \\",
+            $"      --log-opt max-size={ContainerLogLimits.MaxSize} \\",
+            $"      --log-opt max-file={ContainerLogLimits.MaxFile} \\",
             $"      --label {PlatformLabels.RoleKey}={PlatformLabels.PlatformRole} \\",
             // swarm templates this at launch, its presence marks a managed install
             "      --env FBSM_SERVICE_NAME='{{.Service.Name}}' \\",

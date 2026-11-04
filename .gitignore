@@ -57,4 +57,5 @@ src/Agent/workloads/
 src/Agent/appsettings.Development.json
 publish-agent/
 publish-client/
+publish-stats/
 *.zip

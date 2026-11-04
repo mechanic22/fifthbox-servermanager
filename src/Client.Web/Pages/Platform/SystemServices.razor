@@ -1,5 +1,6 @@
 @page "/system"
 @attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
+@using FifthBox.ServerManager.Client.Web.Pages.Platform.Components
 @using FifthBox.ServerManager.Shared.Platform
 @inject ISystemClient SystemApi
 @inject IMaterialSnackbarService Snackbar
@@ -52,6 +53,8 @@
             }
         </MaterialCard>
     }
+
+    <ContainerStatsCard />
 
     <MaterialTable Loading="_loading">
         <thead>

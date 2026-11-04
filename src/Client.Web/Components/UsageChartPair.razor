@@ -1,0 +1,38 @@
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+    <LineChart Title="@UsageText.CpuTitle(CpuCores)" Points="_cpu" Format="CpuText" From="From" To="To" YMax="_cpuMax"
+               MaxGapSeconds="MaxGapSeconds" ShowDate="ShowDate" />
+    <LineChart Title="Memory" Points="_memory" Format="MemoryText" From="From" To="To" YMax="_memoryMax"
+               MaxGapSeconds="MaxGapSeconds" ShowDate="ShowDate" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required IReadOnlyList<StatsPoint> Points { get; set; }
+    [Parameter] public long From { get; set; }
+    [Parameter] public long To { get; set; }
+    [Parameter] public long MaxGapSeconds { get; set; }
+    [Parameter] public bool ShowDate { get; set; }
+
+    /// null fits the axis to the data, a limit or total makes it read as how close it got
+    [Parameter] public double? CpuMax { get; set; }
+    [Parameter] public double? MemoryMax { get; set; }
+
+    /// names what the cpu percent is a share of
+    [Parameter] public double? CpuCores { get; set; }
+
+    private List<ChartPoint> _cpu = [];
+    private List<ChartPoint> _memory = [];
+    private double _cpuMax = 1;
+    private double _memoryMax = 1;
+
+    protected override void OnParametersSet()
+    {
+        _cpu = Points.Select(p => new ChartPoint(p.At, p.Cpu)).ToList();
+        _memory = Points.Select(p => new ChartPoint(p.At, p.Memory)).ToList();
+        _cpuMax = CpuMax ?? LineChartGeometry.NiceMax(_cpu.Count == 0 ? 0 : _cpu.Max(p => p.Value));
+        _memoryMax = MemoryMax ?? LineChartGeometry.NiceMax(_memory.Count == 0 ? 0 : _memory.Max(p => p.Value));
+    }
+
+    private static string MemoryText(double value) => UsageText.Bytes((long)value);
+
+    private static string CpuText(double value) => $"{value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%";
+}

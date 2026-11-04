@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const output = join(root, 'publish');
 const clientOutput = join(root, 'publish-client');
+const statsOutput = join(root, 'publish-stats');
 
 // Never the sibling working trees: a release must not bake in whatever is uncommitted next door.
 const packageRefs = [
@@ -30,6 +31,13 @@ function run(command, args) {
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
+}
+
+rmSync(statsOutput, { recursive: true, force: true });
+run('dotnet', ['publish', 'src/Stats', '-c', 'Release', '-o', statsOutput, ...packageRefs]);
+
+if (process.argv[2] === 'stats') {
+  process.exit(0);
 }
 
 rmSync(output, { recursive: true, force: true });

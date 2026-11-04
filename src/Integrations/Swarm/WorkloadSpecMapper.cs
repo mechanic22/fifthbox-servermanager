@@ -26,6 +26,8 @@ public static class WorkloadSpecMapper
         {
             Image = d.Image,
             Env = d.Env.Select(e => $"{e.Key}={e.Value}").ToList(),
+            ReadOnly = d.ReadOnlyRootFilesystem,
+            CapabilityDrop = d.DropAllCapabilities ? ["ALL"] : null,
         };
 
         if (!string.IsNullOrWhiteSpace(d.HealthCommand))
@@ -77,6 +79,15 @@ public static class WorkloadSpecMapper
         {
             ContainerSpec = containerSpec,
             Networks = networkId is null ? [] : [new NetworkAttachmentConfig { Target = networkId }],
+            LogDriver = new SwarmDriver
+            {
+                Name = ContainerLogLimits.Driver,
+                Options = new Dictionary<string, string>
+                {
+                    ["max-size"] = ContainerLogLimits.MaxSize,
+                    ["max-file"] = ContainerLogLimits.MaxFile,
+                },
+            },
         };
 
         var hasLimit = d.MemoryLimitMb is > 0 || d.CpuLimit is > 0;

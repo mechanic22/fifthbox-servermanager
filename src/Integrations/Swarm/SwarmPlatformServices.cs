@@ -20,11 +20,11 @@ public sealed class SwarmPlatformServices(IDockerClient client) : IPlatformServi
         foreach (var s in services)
         {
             var name = s.Spec?.Name ?? s.ID;
-            var desired = (int)(s.Spec?.Mode?.Replicated?.Replicas ?? 0);
             var tasks = await client.Tasks.ListAsync(new TasksListParameters
             {
                 Filters = new Dictionary<string, IDictionary<string, bool>> { ["service"] = new Dictionary<string, bool> { [s.ID] = true } },
             }, ct);
+            var desired = WorkloadSpecMapper.DesiredCount(s.Spec, tasks);
             var running = tasks.Count(t => t.Status?.State == TaskState.Running);
 
             result.Add(new PlatformServiceResponse

@@ -12,8 +12,14 @@ namespace FifthBox.ServerManager.Integrations.Swarm;
 public sealed class SwarmBackend(
     IDockerClient client,
     IRegistryAuthResolver registryAuth,
+    ISwarmTaskLogs taskLogs,
     ILogger<SwarmBackend> logger) : IWorkloadBackend
 {
+    private const int MaxPreviousRuns = 5;
+
+    // under the 10s the whole fetch gets, so a slow task doesn't take the others down with it
+    private static readonly TimeSpan TaskLogTimeout = TimeSpan.FromSeconds(8);
+
     public WorkloadKind SupportedKind => WorkloadKind.Container;
 
     public async Task DeployAsync(WorkloadDeployment deployment, CancellationToken ct = default)
@@ -150,6 +156,8 @@ public sealed class SwarmBackend(
         {
             await client.Swarm.RemoveServiceAsync(existing.ID, ct);
         }
+
+        await PruneStaleSecretsAsync(deployment, [], ct);
     }
 
     public async Task<WorkloadRuntimeStatus> GetStatusAsync(WorkloadDeployment deployment, CancellationToken ct = default)
@@ -192,52 +200,59 @@ public sealed class SwarmBackend(
     public Task SendConsoleAsync(WorkloadDeployment deployment, string text, CancellationToken ct = default)
         => throw new ConflictException("Console input is only available for workloads that run on an agent.");
 
-    public async Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(WorkloadDeployment deployment, int tail, CancellationToken ct = default)
+    public async Task<WorkloadLogsResponse> GetLogsAsync(WorkloadDeployment deployment, int tail, WorkloadLogRuns runs, CancellationToken ct = default)
     {
         var service = await FindServiceAsync(deployment.Name, ct);
         if (service is null)
         {
-            return [];
+            return new WorkloadLogsResponse();
         }
 
-        var parameters = new ServiceLogsParameters
-        {
-            ShowStdout = true,
-            ShowStderr = true,
-            Timestamps = true,
-            Details = true,
-            Tail = tail.ToString(),
-        };
-
-        // ask about TTY, guessing the framing wrong throws "unknown stream type"
-        var tty = service.Spec?.TaskTemplate?.ContainerSpec?.TTY ?? false;
-
-        var running = await client.Tasks.ListAsync(new TasksListParameters
+        var tasks = await client.Tasks.ListAsync(new TasksListParameters
         {
             Filters = new Dictionary<string, IDictionary<string, bool>>
             {
                 ["service"] = new Dictionary<string, bool> { [service.ID] = true },
-                ["desired-state"] = new Dictionary<string, bool> { ["running"] = true },
             },
         }, ct);
-        var current = running.Select(t => t.ID).ToHashSet(StringComparer.Ordinal);
 
-        string stdout, stderr;
+        var wanted = runs == WorkloadLogRuns.Current
+            ? tasks.Where(t => t.DesiredState == TaskState.Running)
+            : tasks.Where(t => t.DesiredState != TaskState.Running).OrderByDescending(t => t.Status?.Timestamp).Take(MaxPreviousRuns);
+
+        // ask about TTY, guessing the framing wrong garbles the output
+        var tty = service.Spec?.TaskTemplate?.ContainerSpec?.TTY ?? false;
+        var results = await Task.WhenAll(wanted.Select(t => ReadTaskLogsAsync(t.ID, tty, tail, runs == WorkloadLogRuns.Previous, ct)));
+
+        return new WorkloadLogsResponse
+        {
+            Lines = [.. results.SelectMany(r => r.Lines).OrderBy(l => l.Timestamp ?? DateTimeOffset.MinValue)],
+            Incomplete = results.Any(r => r.Failed),
+        };
+    }
+
+    /// one slow old task costs just that task
+    private async Task<(IReadOnlyList<WorkloadLogLine> Lines, bool Failed)> ReadTaskLogsAsync(
+        string taskId, bool tty, int tail, bool previous, CancellationToken ct)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(TaskLogTimeout);
+
         try
         {
-            using var stream = await client.Swarm.GetServiceLogsAsync(service.ID, tty, parameters, ct);
-            (stdout, stderr) = await stream.ReadOutputToEndAsync(ct);
-        }
-        catch (Exception ex) when (ex is IOException or DockerApiException)
-        {
-            // no running task just means no logs yet, don't fail the Logs tab
-            logger.LogDebug(ex, "No readable logs for service '{Service}'", deployment.Name);
-            return [];
-        }
+            var (stdout, stderr) = await taskLogs.ReadAsync(taskId, tty, tail, limit.Token);
+            var lines = SwarmLogParser.Parse(stdout, LogStream.Stdout)
+                .Concat(SwarmLogParser.Parse(stderr, LogStream.Stderr))
+                .Select(l => l with { Previous = previous })
+                .ToList();
 
-        return [.. SwarmLogParser.Parse(stdout, LogStream.Stdout, current)
-            .Concat(SwarmLogParser.Parse(stderr, LogStream.Stderr, current))
-            .OrderBy(l => l.Timestamp ?? DateTimeOffset.MinValue)];
+            return (lines, false);
+        }
+        catch (Exception ex) when (ex is IOException or HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            logger.LogDebug(ex, "No readable logs for task '{Task}'", taskId);
+            return ([], true);
+        }
     }
 
     private async Task<string> LocalNodeIdAsync(CancellationToken ct)

@@ -171,10 +171,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                     @if (_status is { Tasks.Count: > 0 })
                     {
-                        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4">
+                        <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 md:col-span-2">
                             <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide mb-3">Replicas</h2>
-                            <WorkloadTaskList Tasks="_status.Tasks" Nodes="_nodes" />
+                            <WorkloadTaskList Tasks="_status.Tasks" Nodes="_nodes" StatsFor="StatsFor" CpuLimit="_workload.CpuLimit" />
                         </MaterialCard>
+                    }
+
+                    @if (_workload.Kind == WorkloadKind.Container)
+                    {
+                        <WorkloadUsageHistory WorkloadId="@Id" Nodes="_nodes" CpuLimit="_workload.CpuLimit" MemoryLimitMb="_workload.MemoryLimitMb" />
                     }
 
                     <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4">
@@ -277,17 +282,45 @@
             }
             else if (_tab == "logs")
             {
-                <div class="flex items-center justify-between mb-3">
-                    <span class="text-sm opacity-70">@(_logs?.Count ?? 0) line(s)</span>
+                <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                    <span class="text-sm opacity-70 flex-1">@_logView.Lines.Count line(s)</span>
+                    @if (_logView.CanLoadEarlier)
+                    {
+                        <MaterialButton Text="Load earlier" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="LoadEarlierLogsAsync" Disabled="_logsLoading" />
+                    }
                     <MaterialButton Text="Refresh" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
                                     OnClick="LoadLogsAsync" Disabled="_logsLoading" />
                 </div>
 
-                @if (_logs is { Count: > 0 })
+                @if (_previousLogsLoading)
                 {
-                    <WorkloadLogViewer Lines="_logs" />
+                    <p class="text-xs opacity-70 mb-2">Loading previous runs…</p>
                 }
-                else if (!_logsLoading)
+                else if (_previousLogsFailed)
+                {
+                    <div class="flex items-center gap-2 mb-2 text-xs opacity-70">
+                        <span>Couldn't read previous runs in time.</span>
+                        <MaterialButton Text="Try again" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                        OnClick="LoadPreviousLogsAsync" />
+                    </div>
+                }
+
+                @if (_logsError is not null)
+                {
+                    <LoadFailure Message="@_logsError" OnRetry="LoadLogsAsync" Busy="_logsLoading" Inset="false" />
+                }
+
+                @* lines already on screen stay through a failed refresh *@
+                @if (_logView.Lines.Count > 0)
+                {
+                    <WorkloadLogViewer Lines="_logView.Lines" />
+                }
+                else if (_logsLoading)
+                {
+                    <MaterialSkeleton Type="MaterialSkeletonType.Article" AriaLabel="Loading logs" />
+                }
+                else if (!_previousLogsLoading && _logsError is null)
                 {
                     <p class="text-sm opacity-60">Nothing captured.</p>
                 }
@@ -463,8 +496,11 @@
     private int _scaleTo = 1;
 
     private string _tabValue = "overview";
-    private IReadOnlyList<WorkloadLogLine>? _logs;
+    private readonly WorkloadLogsView _logView = new();
     private bool _logsLoading;
+    private string? _logsError;
+    private bool _previousLogsLoading;
+    private bool _previousLogsFailed;
 
     // logs load when the tab's first opened, not on every page load
     private string _tab
@@ -609,10 +645,38 @@
 
         Realtime.WorkloadStatusChanged += OnStatusChanged;
         Realtime.WorkloadLogLines += OnLogLines;
+        Realtime.WorkloadStatsChanged += OnStatsChanged;
+        _statsExpiry = new Timer(_ => _ = InvokeAsync(StateHasChanged), null, RecentStatsCheck, RecentStatsCheck);
         Realtime.Reconnected += OnReconnected;
 
         // don't hold the first load up on the socket
         _ = Realtime.EnsureWorkloadsConnectedAsync();
+    }
+
+    private static readonly TimeSpan RecentStatsCheck = TimeSpan.FromSeconds(15);
+    private readonly RecentValues<ContainerStatsEntry> _stats = new();
+    private Timer? _statsExpiry;
+
+    private ContainerStatsEntry? StatsFor(string taskId) => _stats.Get(taskId, DateTimeOffset.UtcNow);
+
+    private void OnStatsChanged(string workloadId, IReadOnlyList<ContainerStatsEntry> entries)
+    {
+        if (workloadId == Id)
+        {
+            _ = InvokeAsync(() =>
+            {
+                ApplyStats(entries);
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void ApplyStats(IReadOnlyList<ContainerStatsEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            _stats.Set(entry.TaskId, entry, DateTimeOffset.UtcNow);
+        }
     }
 
     private void OnReconnected() => _ = InvokeAsync(async () =>
@@ -724,6 +788,8 @@
     {
         Realtime.WorkloadStatusChanged -= OnStatusChanged;
         Realtime.WorkloadLogLines -= OnLogLines;
+        Realtime.WorkloadStatsChanged -= OnStatsChanged;
+        _statsExpiry?.Dispose();
         Realtime.Reconnected -= OnReconnected;
         _ = Realtime.UnfollowLogsAsync(Id);
     }
@@ -767,6 +833,7 @@
             _scaleTo = _workload.Replicas;
             _revisions = await WorkloadsApi.GetRevisionsAsync(Id);
             _status = await WorkloadsApi.GetStatusAsync(Id);
+            ApplyStats(await WorkloadsApi.GetStatsAsync(Id));
         }
         catch (ApiException ex)
         {
@@ -1005,7 +1072,7 @@
 
     private async Task OpenLogsAsync()
     {
-        if (_logs is null)
+        if (!_logView.Loaded)
         {
             await LoadLogsAsync();
         }
@@ -1027,25 +1094,68 @@
             return;
         }
 
-        // capped like the agent's ring buffer
-        _logs = [.. (_logs ?? []).Concat(lines).TakeLast(500)];
+        _logView.Append(lines);
         InvokeAsync(StateHasChanged);
     }
 
-    private async Task LoadLogsAsync()
+    private Task LoadLogsAsync() => FetchLogsAsync(_logView.Tail);
+
+    private Task LoadEarlierLogsAsync() => FetchLogsAsync(_logView.NextTail);
+
+    private async Task FetchLogsAsync(int tail)
     {
         _logsLoading = true;
+        _logsError = null;
+
+        // not awaited, the current run shouldn't wait on old ones. the agent's buffer already has every run
+        if (_workload?.Kind == WorkloadKind.Container && tail == _logView.Tail)
+        {
+            _ = LoadPreviousLogsAsync();
+        }
+
         try
         {
-            _logs = await WorkloadsApi.GetLogsAsync(Id);
+            var logs = await WorkloadsApi.GetLogsAsync(Id, tail, WorkloadLogRuns.Current);
+            if (!logs.Incomplete || logs.Lines.Count > 0)
+            {
+                _logView.SetCurrent(logs.Lines, tail);
+            }
+
+            _logsError = logs.Incomplete ? "Couldn't read this run's logs in time." : null;
         }
         catch (ApiException ex)
         {
-            Snackbar.Show(ex.Message);
+            _logsError = ex.Message;
         }
         finally
         {
             _logsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // per run and up to 5 runs, old output shouldn't outweigh what's happening now
+    private const int PreviousRunTail = 200;
+
+    private async Task LoadPreviousLogsAsync()
+    {
+        _previousLogsLoading = true;
+        _previousLogsFailed = false;
+        StateHasChanged();
+
+        try
+        {
+            var logs = await WorkloadsApi.GetLogsAsync(Id, PreviousRunTail, WorkloadLogRuns.Previous);
+            _logView.SetPrevious(logs.Lines);
+            _previousLogsFailed = logs.Incomplete;
+        }
+        catch (ApiException)
+        {
+            _previousLogsFailed = true;
+        }
+        finally
+        {
+            _previousLogsLoading = false;
             StateHasChanged();
         }
     }

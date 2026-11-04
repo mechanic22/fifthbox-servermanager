@@ -1,0 +1,98 @@
+@using FifthBox.ServerManager.Client.Web.Services
+@implements IDisposable
+@inject IWorkloadsClient WorkloadsApi
+@inject RealtimeService Realtime
+
+@if (_history is null || _history.Count > 0)
+{
+    <MaterialCard Variant="MaterialCardVariant.Outlined" class="p-4 md:col-span-2">
+        <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <h2 class="text-xs font-medium opacity-60 uppercase tracking-wide">Usage</h2>
+            <MaterialSegmentedButton Value="_range" ValueChanged="@((StatsHistoryRange r) => SetRangeAsync(r))" AriaLabel="Time range">
+                <MaterialSegment Value="StatsHistoryRange.ThirtyMinutes" Label="30 min" />
+                <MaterialSegment Value="StatsHistoryRange.Day" Label="24 hours" />
+            </MaterialSegmentedButton>
+        </div>
+        @if (_history is null)
+        {
+            <MaterialSkeleton Type="MaterialSkeletonType.Article" AriaLabel="Loading usage" />
+        }
+        else
+        {
+            <div class="flex flex-col gap-6">
+                @foreach (var replica in _history)
+                {
+                    <div class="flex flex-col gap-2">
+                        @if (_history.Count > 1)
+                        {
+                            <div class="text-sm font-medium">@Label(replica)</div>
+                        }
+                        <UsageChartPair Points="replica.Points" From="_from" To="_to" ShowDate="@(_range == StatsHistoryRange.Day)"
+                                        MaxGapSeconds="UsageChartRange.MaxGapSeconds(_range)"
+                                        CpuMax="@(CpuLimit * 100)" CpuCores="CpuLimit" MemoryMax="@(MemoryLimitMb * 1024d * 1024d)" />
+                    </div>
+                }
+            </div>
+        }
+    </MaterialCard>
+}
+
+@code {
+    [Parameter, EditorRequired] public required string WorkloadId { get; set; }
+
+    /// null for non-admins, the short id is enough to tell replicas apart
+    [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
+    [Parameter] public double? CpuLimit { get; set; }
+    [Parameter] public int? MemoryLimitMb { get; set; }
+
+    private IReadOnlyList<ReplicaStatsHistory>? _history;
+    private StatsHistoryRange _range = StatsHistoryRange.ThirtyMinutes;
+    private long _from;
+    private long _to;
+    private DateTimeOffset _loadedAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.WorkloadStatsChanged += OnStatsChanged;
+        await LoadAsync();
+    }
+
+    private void OnStatsChanged(string workloadId, IReadOnlyList<ContainerStatsEntry> entries)
+    {
+        if (workloadId == WorkloadId && DateTimeOffset.UtcNow - _loadedAt >= UsageChartRange.RefreshEvery(_range))
+        {
+            _ = InvokeAsync(LoadAsync);
+        }
+    }
+
+    private async Task SetRangeAsync(StatsHistoryRange range)
+    {
+        _range = range;
+        _history = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            _history = await WorkloadsApi.GetStatsHistoryAsync(WorkloadId, _range);
+            _to = _loadedAt.ToUnixTimeSeconds();
+            _from = (_loadedAt - UsageChartRange.Window(_range)).ToUnixTimeSeconds();
+        }
+        catch (ApiException)
+        {
+            // the live numbers above still work, the next push tries again
+            _history ??= [];
+        }
+
+        StateHasChanged();
+    }
+
+    private string Label(ReplicaStatsHistory replica) => replica.Slot > 0
+        ? $"Replica {replica.Slot}"
+        : Nodes?.FirstOrDefault(n => n.Id == replica.NodeId)?.Hostname ?? replica.NodeId?[..Math.Min(12, replica.NodeId.Length)] ?? replica.Key;
+
+    public void Dispose() => Realtime.WorkloadStatsChanged -= OnStatsChanged;
+}

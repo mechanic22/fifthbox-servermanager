@@ -26,6 +26,9 @@ public record WorkloadDeployment
     public IReadOnlyList<SecretMount> Secrets { get; init; } = [];
     public bool PinToControlNode { get; init; }
 
+    public bool ReadOnlyRootFilesystem { get; init; }
+    public bool DropAllCapabilities { get; init; }
+
     /// e.g. fbsm.role=platform for our own infra services
     public IReadOnlyDictionary<string, string>? Labels { get; init; }
 

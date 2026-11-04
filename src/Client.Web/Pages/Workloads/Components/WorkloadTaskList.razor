@@ -6,6 +6,7 @@
             <th>Replica</th>
             <th>Node</th>
             <th>State</th>
+            <th>Usage</th>
             <th>When</th>
             <th>Detail</th>
         </tr>
@@ -23,6 +24,7 @@
                         <MaterialChip Text="current" Size="MaterialChipSize.Small" />
                     }
                 </td>
+                <td data-label="Usage" class="text-sm whitespace-nowrap">@UsageFor(t)</td>
                 <td data-label="When" class="text-xs opacity-70">@WhenText(t)</td>
                 <td data-label="Detail" class="text-xs @(t.Error is null ? "opacity-60" : "")"
                     style="@(t.Error is null ? "" : "color: var(--md-sys-color-error)")">
@@ -44,6 +46,12 @@
 
     /// null for non-admins, the short id is enough to tell replicas apart
     [Parameter] public IReadOnlyList<NodeResponse>? Nodes { get; set; }
+
+    /// null means fbsm-stats has nothing recent for that task
+    [Parameter] public Func<string, ContainerStatsEntry?>? StatsFor { get; set; }
+
+    /// cores
+    [Parameter] public double? CpuLimit { get; set; }
 
     private bool _showEarlier;
     private IReadOnlyList<WorkloadTask> _live = [];
@@ -75,6 +83,9 @@
 
         return Nodes?.FirstOrDefault(n => n.Id == t.NodeId)?.Hostname ?? t.NodeId[..Math.Min(12, t.NodeId.Length)];
     }
+
+    private string UsageFor(WorkloadTask t) =>
+        t.State == WorkloadTaskState.Running && StatsFor?.Invoke(t.Id) is { } stats ? UsageText.Replica(stats, CpuLimit) : "—";
 
     private static string WhenText(WorkloadTask t) =>
         t.Since is { } since ? since.LocalDateTime.ToString("g") : "—";

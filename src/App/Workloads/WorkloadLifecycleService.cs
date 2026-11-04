@@ -248,7 +248,7 @@ public sealed class WorkloadLifecycleService(
 
         return statuses;
     }
-    public async Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(Caller caller, string id, int tail, CancellationToken ct = default)
+    public async Task<WorkloadLogsResponse> GetLogsAsync(Caller caller, string id, int tail, WorkloadLogRuns runs, CancellationToken ct = default)
     {
         var (workload, _) = await loader.LoadAsync(caller, id, AccessLevel.View, ct);
 
@@ -257,7 +257,7 @@ public sealed class WorkloadLifecycleService(
         try
         {
             return await backends.Resolve(workload.Kind)
-                .GetLogsAsync(deployments.ToDeployment(workload), Math.Clamp(tail, 1, 2000), fetch.Token)
+                .GetLogsAsync(deployments.ToDeployment(workload), Math.Clamp(tail, 1, 2000), runs, fetch.Token)
                 .WaitAsync(LogFetchTimeout, clock, ct);
         }
         catch (TimeoutException)

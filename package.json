@@ -1,6 +1,6 @@
 {
   "name": "fifth-box-server-manager",
-  "version": "0.4.1",
+  "version": "0.4.5",
   "private": true,
   "description": "FifthBox.ServerManager \u2014 a self-hosted PaaS for managing a Docker Swarm, nginx, and letsencrypt, with heterogeneous nodes (swarm members + custom agents).",
   "scripts": {
@@ -12,6 +12,7 @@
     "demo:image": "docker build -t fbsm/demo-app:latest demo-app",
     "demo:image:push": "docker buildx build --platform linux/amd64,linux/arm64 --push -t docker.5thbox.com/fbsm/demo-app:latest demo-app",
     "image:push": "npm run publish && node scripts/image.mjs push",
+    "image:push:stats": "node scripts/publish.mjs stats && node scripts/image.mjs push-stats",
     "image:local": "npm run publish && node scripts/image.mjs local",
     "publish": "node scripts/publish.mjs",
     "deploy": "node scripts/deploy.mjs",

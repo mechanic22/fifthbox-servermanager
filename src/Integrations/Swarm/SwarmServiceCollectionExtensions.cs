@@ -15,6 +15,7 @@ public static class SwarmServiceCollectionExtensions
     {
         services.AddSingleton<IDockerClient>(_ =>
             new DockerClientConfiguration(new Uri(dockerEndpoint)).CreateClient());
+        services.AddSingleton<ISwarmTaskLogs>(_ => new SwarmTaskLogs(new Uri(dockerEndpoint)));
         services.AddSingleton<ISwarmEvents, SwarmEventSource>();
         services.AddSingleton<IWorkloadLogStream, SwarmLogStream>();
         services.AddSingleton<IWorkloadStatusSource, SwarmStatusSource>();

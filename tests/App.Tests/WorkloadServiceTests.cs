@@ -330,12 +330,12 @@ public class WorkloadServiceTests
 
         var backend = new Mock<IWorkloadBackend>();
         var fetchToken = CancellationToken.None;
-        backend.Setup(b => b.GetLogsAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .Callback<WorkloadDeployment, int, CancellationToken>((_, _, t) => fetchToken = t)
-            .Returns(new TaskCompletionSource<IReadOnlyList<WorkloadLogLine>>().Task);
+        backend.Setup(b => b.GetLogsAsync(It.IsAny<WorkloadDeployment>(), It.IsAny<int>(), It.IsAny<WorkloadLogRuns>(), It.IsAny<CancellationToken>()))
+            .Callback<WorkloadDeployment, int, WorkloadLogRuns, CancellationToken>((_, _, _, t) => fetchToken = t)
+            .Returns(new TaskCompletionSource<WorkloadLogsResponse>().Task);
 
         var clock = new ManualClock();
-        var pending = Build(repo, backend, clock: clock).GetLogsAsync(Admin, "w1", 200);
+        var pending = Build(repo, backend, clock: clock).GetLogsAsync(Admin, "w1", 200, WorkloadLogRuns.Current);
         Assert.IsFalse(pending.IsCompleted);
 
         clock.Advance(WorkloadLifecycleService.LogFetchTimeout);

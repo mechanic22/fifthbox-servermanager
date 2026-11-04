@@ -13,7 +13,11 @@ public sealed class RealtimeService(NavigationManager nav, ILogger<RealtimeServi
 
     public event Action<IReadOnlyList<NodeResponse>>? NodesChanged;
 
+    public event Action<MachineStats>? MachineStatsChanged;
+
     public event Action<string, WorkloadRuntimeStatus>? WorkloadStatusChanged;
+
+    public event Action<string, IReadOnlyList<ContainerStatsEntry>>? WorkloadStatsChanged;
 
     /// only fires between FollowLogsAsync and UnfollowLogsAsync
     public event Action<string, IReadOnlyList<WorkloadLogLine>>? WorkloadLogLines;
@@ -30,12 +34,16 @@ public sealed class RealtimeService(NavigationManager nav, ILogger<RealtimeServi
 
     public Task EnsureNodesConnectedAsync() =>
         EnsureConnectedAsync("/hubs/nodes", c =>
-            c.On<IReadOnlyList<NodeResponse>>("NodeStateChanged", nodes => NodesChanged?.Invoke(nodes)));
+        {
+            c.On<IReadOnlyList<NodeResponse>>("NodeStateChanged", nodes => NodesChanged?.Invoke(nodes));
+            c.On<MachineStats>("MachineStatsChanged", stats => MachineStatsChanged?.Invoke(stats));
+        });
 
     public Task EnsureWorkloadsConnectedAsync() =>
         EnsureConnectedAsync("/hubs/workloads", c =>
         {
             c.On<string, WorkloadRuntimeStatus>("WorkloadStatusChanged", (id, status) => WorkloadStatusChanged?.Invoke(id, status));
+            c.On<string, IReadOnlyList<ContainerStatsEntry>>("WorkloadStatsChanged", (id, stats) => WorkloadStatsChanged?.Invoke(id, stats));
             c.On<string, IReadOnlyList<WorkloadLogLine>>("WorkloadLogLines", (id, lines) => WorkloadLogLines?.Invoke(id, lines));
             c.Reconnected += _ => RefollowLogsAsync(c);
         });

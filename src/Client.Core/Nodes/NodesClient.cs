@@ -1,11 +1,13 @@
 using System.Net.Http.Json;
 using FifthBox.ServerManager.Shared.Nodes;
+using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Client.Core;
 
 public interface INodesClient
 {
     Task<IReadOnlyList<NodeResponse>> ListAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<MachineStatsHistory>> GetMachineHistoryAsync(StatsHistoryRange range, CancellationToken ct = default);
 
     Task<NodeResponse> SetAvailabilityAsync(string id, NodeAvailability availability, CancellationToken ct = default);
 
@@ -16,6 +18,17 @@ public interface INodesClient
 
 public sealed class NodesClient(HttpClient http) : INodesClient
 {
+    public async Task<IReadOnlyList<MachineStatsHistory>> GetMachineHistoryAsync(StatsHistoryRange range, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/nodes/machine-stats/history?range={range}", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MachineStatsHistory>>(ct) ?? [];
+    }
+
     public async Task<IReadOnlyList<NodeResponse>> ListAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/nodes", ct);

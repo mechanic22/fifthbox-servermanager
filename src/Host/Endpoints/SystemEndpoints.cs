@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.ContainerStats;
 using FifthBox.ServerManager.App.Platform;
 using FifthBox.ServerManager.Host.Infrastructure;
 using FifthBox.ServerManager.Shared.Auth;
@@ -17,6 +18,18 @@ public static class SystemEndpoints
         group.MapPost("/services/{name}/restart", async (string name, IPlatformServices svc, CancellationToken ct) =>
         {
             await svc.RestartAsync(name, ct);
+            return TypedResults.NoContent();
+        });
+
+        group.MapGet("/container-stats", async (IContainerStatsService svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.GetAsync(ct)));
+
+        group.MapPost("/container-stats", async (IContainerStatsService svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.DeployAsync(ct)));
+
+        group.MapDelete("/container-stats", async (IContainerStatsService svc, CancellationToken ct) =>
+        {
+            await svc.RemoveAsync(ct);
             return TypedResults.NoContent();
         });
 

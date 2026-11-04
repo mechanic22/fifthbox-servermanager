@@ -37,6 +37,40 @@ public class WorkloadSpecMapperTests
     }
 
     [TestMethod]
+    public void ToServiceSpec_caps_container_logs()
+    {
+        var spec = WorkloadSpecMapper.ToServiceSpec(new WorkloadDeployment { Name = "web", Image = "nginx:1.27" }, networkId: null);
+
+        Assert.AreEqual("json-file", spec.TaskTemplate.LogDriver.Name);
+        Assert.AreEqual("50m", spec.TaskTemplate.LogDriver.Options["max-size"]);
+        Assert.AreEqual("3", spec.TaskTemplate.LogDriver.Options["max-file"]);
+    }
+
+    [TestMethod]
+    public void Hardening_reaches_the_container_spec()
+    {
+        var spec = WorkloadSpecMapper.ToServiceSpec(new WorkloadDeployment
+        {
+            Name = "stats",
+            Image = "stats:1",
+            ReadOnlyRootFilesystem = true,
+            DropAllCapabilities = true,
+        }, networkId: null);
+
+        Assert.IsTrue(spec.TaskTemplate.ContainerSpec.ReadOnly);
+        CollectionAssert.AreEqual(new[] { "ALL" }, spec.TaskTemplate.ContainerSpec.CapabilityDrop.ToArray());
+    }
+
+    [TestMethod]
+    public void A_normal_workload_is_not_hardened_by_accident()
+    {
+        var spec = WorkloadSpecMapper.ToServiceSpec(new WorkloadDeployment { Name = "web", Image = "nginx:1.27" }, networkId: null);
+
+        Assert.IsFalse(spec.TaskTemplate.ContainerSpec.ReadOnly);
+        Assert.IsNull(spec.TaskTemplate.ContainerSpec.CapabilityDrop);
+    }
+
+    [TestMethod]
     public void ForceUpdate_is_bumped_when_the_published_ports_change()
     {
         // ports live outside the task template, without the bump the container keeps its old port

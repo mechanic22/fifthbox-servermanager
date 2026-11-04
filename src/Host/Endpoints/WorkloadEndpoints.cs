@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.ContainerStats;
 using System.Security.Claims;
 using FifthBox.ServerManager.App.Workloads;
 using FifthBox.ServerManager.Host.Infrastructure;
@@ -34,11 +35,17 @@ public static class WorkloadEndpoints
         group.MapGet("/statuses", async (ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetStatusesAsync(user.ToCaller(), ct)));
 
+        group.MapGet("/{id}/stats/history", async (string id, StatsHistoryRange? range, ClaimsPrincipal user, IWorkloadStatsReader svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.HistoryAsync(user.ToCaller(), id, range ?? StatsHistoryRange.ThirtyMinutes, ct)));
+
+        group.MapGet("/{id}/stats", async (string id, ClaimsPrincipal user, IWorkloadStatsReader svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.ListAsync(user.ToCaller(), id, ct)));
+
         group.MapGet("/{id}/status", async (string id, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetStatusAsync(user.ToCaller(), id, ct)));
 
-        group.MapGet("/{id}/logs", async (string id, int? tail, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
-            TypedResults.Ok(await svc.GetLogsAsync(user.ToCaller(), id, tail ?? 200, ct)));
+        group.MapGet("/{id}/logs", async (string id, int? tail, WorkloadLogRuns? runs, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
+            TypedResults.Ok(await svc.GetLogsAsync(user.ToCaller(), id, tail ?? 500, runs ?? WorkloadLogRuns.Current, ct)));
 
         group.MapGet("/{id}/routes", async (string id, ClaimsPrincipal user, IWorkloadService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetRoutesAsync(user.ToCaller(), id, ct)));

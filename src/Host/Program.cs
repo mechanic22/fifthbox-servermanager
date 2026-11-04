@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using FifthBox.ServerManager.App.ContainerStats;
 using FifthBox.ServerManager.App;
 using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Certificates;
@@ -84,11 +85,16 @@ builder.Services.AddAesEncryption(
 builder.Services.AddScoped<ISecretProtector, AesSecretProtector>();
 builder.Services.AddSingleton<ISecretProtectorFactory, SecretProtectorFactory>();
 builder.Services.Configure<EncryptionOptions>(o => o.Ephemeral = ephemeralEncryptionKey);
+builder.Services.Configure<ContainerStatsOptions>(builder.Configuration.GetSection("ContainerStats"));
+builder.Services.Configure<ContainerStatsOptions>(o =>
+    o.SigningKey = ephemeralEncryptionKey ? null : ContainerStatsSignature.DeriveKey(builder.Configuration["Platform:Encryption:Key"]!));
 builder.Services.AddEventing();
 
 builder.Services.AddSignalR(options => options.AddFilter<CanonicalExceptionHubFilter>());
 builder.Services.AddSingleton<CanonicalExceptionHubFilter>();
 builder.Services.AddScoped<IEventHandler<NodeStateChanged>, NodeStateBroadcaster>();
+builder.Services.AddScoped<IEventHandler<ContainerStatsReceived>, ContainerStatsBroadcaster>();
+builder.Services.AddSingleton<IContainerStatsNotifier, ContainerStatsNotifier>();
 builder.Services.AddSingleton<IClusterStateWriter, ClusterStateWriter>();
 builder.Services.AddScoped<IScheduledJob, ClusterReconcileJob>();
 builder.Services.AddHostedService<SwarmEventListener>();
@@ -162,6 +168,7 @@ app.MapRouteEndpoints();
 app.MapSystemEndpoints();
 app.MapRegistryEndpoints();
 app.MapAgentEndpoints();
+app.MapContainerStatsEndpoints();
 app.MapHub<NodeHub>("/hubs/nodes");
 app.MapHub<AgentHub>("/hubs/agents");
 app.MapHub<WorkloadHub>("/hubs/workloads");

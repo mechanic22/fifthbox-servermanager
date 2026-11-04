@@ -1,6 +1,8 @@
+using FifthBox.ServerManager.App.ContainerStats;
 using FifthBox.ServerManager.App.Nodes;
 using FifthBox.ServerManager.Shared.Auth;
 using FifthBox.ServerManager.Shared.Nodes;
+using FifthBox.ServerManager.Shared.Workloads;
 
 namespace FifthBox.ServerManager.Host.Endpoints;
 
@@ -12,6 +14,10 @@ public static class NodeEndpoints
 
         group.MapGet("/", async (INodeService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.ListAsync(ct)));
+
+        // literal route wins over /{id}
+        group.MapGet("/machine-stats/history", (StatsHistoryRange? range, IStatsHistoryStore history) =>
+            TypedResults.Ok(history.Machines(range ?? StatsHistoryRange.ThirtyMinutes)));
 
         group.MapGet("/{id}", async (string id, INodeService svc, CancellationToken ct) =>
             TypedResults.Ok(await svc.GetAsync(id, ct)));

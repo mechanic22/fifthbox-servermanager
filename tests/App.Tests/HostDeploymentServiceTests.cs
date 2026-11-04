@@ -115,6 +115,16 @@ public class InstallCommandRendererTests
     }
 
     [TestMethod]
+    public void Caps_the_hosts_own_logs()
+    {
+        var command = InstallCommandRenderer.Render(Defaults, "node1");
+
+        StringAssert.Contains(command, "--log-driver json-file");
+        StringAssert.Contains(command, "--log-opt max-size=50m");
+        StringAssert.Contains(command, "--log-opt max-file=3");
+    }
+
+    [TestMethod]
     public void Pins_to_the_resolved_node_so_the_volume_is_reachable()
     {
         StringAssert.Contains(InstallCommandRenderer.Render(Defaults, "abc123"), "node.id==abc123");

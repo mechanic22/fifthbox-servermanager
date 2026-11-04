@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace FifthBox.ServerManager.Host.Tests;
 
-public sealed class AppFactory : WebApplicationFactory<Program>
+public sealed class AppFactory(string? encryptionKey = null) : WebApplicationFactory<Program>
 {
     public const string AdminUserName = "admin@test.local";
     public const string AdminPassword = "test-admin-password";
@@ -19,6 +19,11 @@ public sealed class AppFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
 
         builder.UseSetting("ConnectionStrings:AppDb", $"Data Source={_dbPath}");
+        if (encryptionKey is not null)
+        {
+            builder.UseSetting("Platform:Encryption:Key", encryptionKey);
+        }
+
         builder.UseSetting("Identity:DemoSeedAdmin:UserName", AdminUserName);
         builder.UseSetting("Identity:DemoSeedAdmin:Password", AdminPassword);
         // cookie is Secure by default and the test client talks http

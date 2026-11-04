@@ -1,0 +1,116 @@
+@using FifthBox.ServerManager.Shared.Platform
+@inject ISystemClient SystemApi
+@inject IMaterialSnackbarService Snackbar
+
+<MaterialCard Variant="MaterialCardVariant.Outlined" class="mb-6 p-4 flex flex-col gap-3">
+    @if (_error is not null)
+    {
+        <LoadFailure Title="Couldn't load container stats" Message="@_error" OnRetry="LoadAsync" Inset="false" />
+    }
+    else if (_status is null)
+    {
+        <MaterialSkeleton Type="MaterialSkeletonType.TableRow" AriaLabel="Loading container stats" />
+    }
+    else
+    {
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="font-medium flex-1 min-w-56">Container stats</span>
+            @if (_status.Deployed)
+            {
+                <StatusChip Text="@($"{_status.State} {_status.RunningReplicas}/{_status.DesiredReplicas}")" Tone="StatusTones.For(_status.State)" />
+                @if (_status.Version is { } version)
+                {
+                    <span class="text-sm font-mono">@version</span>
+                }
+                @if (_status.BehindHost)
+                {
+                    <StatusChip Text="@($"Host is on {_status.HostVersion}")" Tone="StatusTone.Warn" />
+                }
+                <MaterialButton Text="Update" Style="MaterialButtonStyle.Outlined" Size="MaterialSize.Small"
+                                OnClick="DeployAsync" Disabled="_busy || !_status.CanDeploy" />
+                <MaterialButton Text="Turn off" Style="MaterialButtonStyle.Text" Size="MaterialSize.Small"
+                                OnClick="@(() => _removeOpen = true)" Disabled="_busy" />
+            }
+            else
+            {
+                <StatusChip Text="Off" />
+                <MaterialButton Text="Turn on" Style="MaterialButtonStyle.Filled" Size="MaterialSize.Small"
+                                OnClick="@(() => _deployOpen = true)" Disabled="_busy || !_status.CanDeploy" />
+            }
+        </div>
+        @if (!_status.CanDeploy)
+        {
+            <span class="text-sm" style="color: var(--md-sys-color-error)">Needs Platform:Encryption:Key configured.</span>
+        }
+    }
+</MaterialCard>
+
+<MaterialConfirmDialog @bind-IsOpen="_deployOpen" Title="Turn on container stats?"
+                       Message="This runs fbsm-stats on every node with access to that node's Docker socket, which is effectively root on the machine. It only reads CPU and memory, but a compromised copy could do anything on its node."
+                       ConfirmText="Turn on" Busy="_busy" OnConfirm="DeployAsync" />
+
+<MaterialConfirmDialog @bind-IsOpen="_removeOpen" Title="Turn off container stats?"
+                       Message="fbsm-stats is removed from every node. CPU and memory stop showing for containers."
+                       ConfirmText="Turn off" Busy="_busy" OnConfirm="RemoveAsync" />
+
+@code {
+    private ContainerStatsServiceResponse? _status;
+    private string? _error;
+    private bool _busy;
+    private bool _deployOpen;
+    private bool _removeOpen;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            _status = await SystemApi.GetContainerStatsAsync();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeployAsync()
+    {
+        _deployOpen = false;
+        _busy = true;
+        try
+        {
+            _status = await SystemApi.DeployContainerStatsAsync();
+            Snackbar.Show("fbsm-stats deployed.");
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        _removeOpen = false;
+        _busy = true;
+        try
+        {
+            await SystemApi.RemoveContainerStatsAsync();
+            Snackbar.Show("fbsm-stats removed.");
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            Snackbar.Show(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,3 +1,4 @@
+using FifthBox.ServerManager.App.ContainerStats;
 using FifthBox.ServerManager.App.Access;
 using FifthBox.ServerManager.App.Agents;
 using FifthBox.ServerManager.App.Certificates;
@@ -19,6 +20,11 @@ public static class AppServiceCollectionExtensions
     public static IServiceCollection AddApp(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IContainerStatsStore, ContainerStatsStore>();
+        services.AddSingleton<IStatsHistoryStore, StatsHistoryStore>();
+        services.AddSingleton<IContainerStatsIngest, ContainerStatsIngest>();
+        services.AddScoped<IContainerStatsService, ContainerStatsService>();
+        services.AddScoped<IWorkloadStatsReader, WorkloadStatsReader>();
         services.AddSingleton<IClusterState, ClusterState>();
         services.AddScoped<INodeService, NodeService>();
         services.AddScoped<IImageCleanupService, ImageCleanupService>();

@@ -16,7 +16,9 @@ public interface IWorkloadsClient
 
     Task<WorkloadRuntimeStatus> GetStatusAsync(string id, CancellationToken ct = default);
     Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(string id, int tail = 200, CancellationToken ct = default);
+    Task<WorkloadLogsResponse> GetLogsAsync(string id, int tail, WorkloadLogRuns runs, CancellationToken ct = default);
+    Task<IReadOnlyList<ContainerStatsEntry>> GetStatsAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<ReplicaStatsHistory>> GetStatsHistoryAsync(string id, StatsHistoryRange range, CancellationToken ct = default);
 
     /// just this workload's routes, works for a granted non-admin
     Task<IReadOnlyList<RouteResponse>> GetRoutesAsync(string id, CancellationToken ct = default);
@@ -86,6 +88,28 @@ public sealed class WorkloadsClient(HttpClient http) : IWorkloadsClient
         }
 
         return (await response.Content.ReadFromJsonAsync<WorkloadDeleteResponse>(ct))!;
+    }
+
+    public async Task<IReadOnlyList<ReplicaStatsHistory>> GetStatsHistoryAsync(string id, StatsHistoryRange range, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/workloads/{id}/stats/history?range={range}", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<ReplicaStatsHistory>>(ct) ?? [];
+    }
+
+    public async Task<IReadOnlyList<ContainerStatsEntry>> GetStatsAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/workloads/{id}/stats", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await HttpProblem.ToExceptionAsync(response, ct);
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<ContainerStatsEntry>>(ct) ?? [];
     }
 
     public Task<WorkloadRuntimeStatus> GetStatusAsync(string id, CancellationToken ct = default)
@@ -193,15 +217,15 @@ public sealed class WorkloadsClient(HttpClient http) : IWorkloadsClient
         return (await response.Content.ReadFromJsonAsync<MoveWorkloadResponse>(ct))!;
     }
 
-    public async Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(string id, int tail = 200, CancellationToken ct = default)
+    public async Task<WorkloadLogsResponse> GetLogsAsync(string id, int tail, WorkloadLogRuns runs, CancellationToken ct = default)
     {
-        using var response = await http.GetAsync($"api/workloads/{id}/logs?tail={tail}", ct);
+        using var response = await http.GetAsync($"api/workloads/{id}/logs?tail={tail}&runs={runs}", ct);
         if (!response.IsSuccessStatusCode)
         {
             throw await HttpProblem.ToExceptionAsync(response, ct);
         }
 
-        return (await response.Content.ReadFromJsonAsync<IReadOnlyList<WorkloadLogLine>>(ct))!;
+        return (await response.Content.ReadFromJsonAsync<WorkloadLogsResponse>(ct))!;
     }
 
     public async Task<IReadOnlyList<RouteResponse>> GetRoutesAsync(string id, CancellationToken ct = default)

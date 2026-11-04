@@ -1,0 +1,112 @@
+@* TODO: promote to FifthBox.MaterialComponents.Blazor *@
+<figure class="m-0 flex flex-col gap-1 min-w-0">
+    <figcaption class="flex items-baseline justify-between gap-3 text-sm">
+        <span class="opacity-70">@Title</span>
+        @if (Readout is { } shown)
+        {
+            <span>
+                <strong class="tabular-nums">@Format(shown.Value)</strong>
+                <span class="text-xs opacity-70 ml-1">@ReadoutTime(shown)</span>
+            </span>
+        }
+    </figcaption>
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2">
+        <svg viewBox="0 0 @LineChartGeometry.Width @LineChartGeometry.Height" preserveAspectRatio="none" class="block w-full h-28 touch-none"
+             role="img" tabindex="0" aria-label="@Summary" @onkeydown="OnKeyDown" @onpointerleave="@(() => _hover = -1)" @onblur="@(() => _hover = -1)">
+            @foreach (var y in new[] { 0.0, 60.0, 119.5 })
+            {
+                <line x1="0" x2="@LineChartGeometry.Width" y1="@Text(y)" y2="@Text(y)" vector-effect="non-scaling-stroke"
+                      stroke="var(--md-sys-color-outline-variant)" stroke-width="1" />
+            }
+            @foreach (var segment in LineChartGeometry.Segments(Points, MaxGapSeconds))
+            {
+                <path d="@LineChartGeometry.AreaPath(segment, From, To, YMax)" fill="var(--md-sys-color-primary)" fill-opacity="0.1" />
+                <path d="@LineChartGeometry.LinePath(segment, From, To, YMax)" fill="none" stroke="var(--md-sys-color-primary)"
+                      stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+            }
+            @if (Readout is { } hovered && _hover >= 0)
+            {
+                var x = Text(LineChartGeometry.X(hovered.At, From, To));
+                <line x1="@x" x2="@x" y1="0" y2="@LineChartGeometry.Height" vector-effect="non-scaling-stroke"
+                      stroke="var(--md-sys-color-on-surface)" stroke-width="1" />
+            }
+            @* columns, the svg stretches so a pointer position can't be turned back into a time *@
+            @for (var i = 0; i < HitColumns; i++)
+            {
+                var column = i;
+                <rect x="@Text(column * ColumnWidth)" y="0" width="@Text(ColumnWidth)" height="@LineChartGeometry.Height" fill="transparent"
+                      @onpointerenter="@(() => HoverColumn(column))" @onpointermove="@(() => HoverColumn(column))" />
+            }
+        </svg>
+        <div class="flex flex-col justify-between text-xs opacity-70 tabular-nums text-right h-28">
+            <span>@Format(YMax)</span>
+            <span>0</span>
+        </div>
+        <div class="flex justify-between text-xs opacity-70 tabular-nums mt-1">
+            <span>@TimeText(From)</span>
+            <span>@TimeText(To)</span>
+        </div>
+    </div>
+</figure>
+
+@code {
+    private const int HitColumns = 120;
+    private const double ColumnWidth = LineChartGeometry.Width / (double)HitColumns;
+
+    [Parameter, EditorRequired] public required string Title { get; set; }
+    [Parameter, EditorRequired] public required IReadOnlyList<ChartPoint> Points { get; set; }
+    [Parameter, EditorRequired] public required Func<double, string> Format { get; set; }
+    [Parameter] public long From { get; set; }
+    [Parameter] public long To { get; set; }
+
+    /// top of the axis, usually a limit or a machine's total
+    [Parameter] public double YMax { get; set; } = 1;
+
+    /// wider than the gap between samples, anything longer breaks the line
+    [Parameter] public long MaxGapSeconds { get; set; } = 60;
+
+    /// the 24 hour view needs the date to make sense
+    [Parameter] public bool ShowDate { get; set; }
+
+    private int _hover = -1;
+
+    private ChartPoint? Readout => _hover >= 0 && _hover < Points.Count
+        ? Points[_hover]
+        : Points.Count > 0 ? Points[^1] : null;
+
+    private string Summary => Points.Count == 0
+        ? $"{Title}, no data"
+        : $"{Title}, latest {Format(Points[^1].Value)}, peak {Format(Points.Max(p => p.Value))}";
+
+    private void HoverColumn(int column)
+    {
+        var at = From + (long)((column + 0.5) / HitColumns * (To - From));
+        _hover = LineChartGeometry.NearestIndex(Points, at);
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (Points.Count == 0)
+        {
+            return;
+        }
+
+        var current = _hover < 0 ? Points.Count - 1 : _hover;
+        _hover = e.Key switch
+        {
+            "ArrowLeft" => Math.Max(0, current - 1),
+            "ArrowRight" => Math.Min(Points.Count - 1, current + 1),
+            _ => _hover,
+        };
+    }
+
+    private string ReadoutTime(ChartPoint point) => _hover >= 0 ? TimeText(point.At) : "latest";
+
+    private string TimeText(long at)
+    {
+        var local = DateTimeOffset.FromUnixTimeSeconds(at).LocalDateTime;
+        return ShowDate ? local.ToString("MMM d HH:mm") : local.ToString("HH:mm");
+    }
+
+    private static string Text(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

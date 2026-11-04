@@ -36,6 +36,22 @@ public class WorkloadAccessApiTests
     }
 
     [TestMethod]
+    public async Task Usage_numbers_follow_the_same_rule_as_the_workload()
+    {
+        var workload = await CreateWorkloadAsync("stats-not-shared");
+        var outsider = await CreateUserAndSignInAsync("stats-outsider");
+
+        foreach (var path in new[] { "stats", "stats/history", "stats/history?range=Day" })
+        {
+            using var refused = await outsider.GetAsync($"/api/workloads/{workload.Id}/{path}");
+            using var allowed = await _admin.GetAsync($"/api/workloads/{workload.Id}/{path}");
+
+            Assert.AreEqual(HttpStatusCode.NotFound, refused.StatusCode, path);
+            Assert.AreEqual(HttpStatusCode.OK, allowed.StatusCode, path);
+        }
+    }
+
+    [TestMethod]
     public async Task View_can_read_it_but_an_operate_action_is_a_403_with_a_readable_message()
     {
         var workload = await CreateWorkloadAsync("view-only");

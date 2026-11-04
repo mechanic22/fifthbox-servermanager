@@ -1,3 +1,4 @@
 # The image packages one thing: the output of `npm run publish`.
 *
 !publish/
+!publish-stats/

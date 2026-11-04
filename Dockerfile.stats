@@ -1,0 +1,10 @@
+# chiseled, so there's no shell or package manager next to the docker socket
+FROM mcr.microsoft.com/dotnet/runtime:10.0-noble-chiseled
+
+# the socket is root:docker, and docker's group id differs per node. capabilities get dropped by the service spec
+USER 0:0
+
+WORKDIR /app
+COPY publish-stats/ ./
+
+ENTRYPOINT ["dotnet", "fbsm-stats.dll"]

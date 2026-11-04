@@ -55,7 +55,7 @@ public interface IWorkloadService
     /// cached state first, only hits the backend for ones we haven't seen
     Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(Caller caller, CancellationToken ct = default);
 
-    Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(Caller caller, string id, int tail, CancellationToken ct = default);
+    Task<WorkloadLogsResponse> GetLogsAsync(Caller caller, string id, int tail, WorkloadLogRuns runs, CancellationToken ct = default);
 
     /// just this workload's routes, so non-admins can see its address
     Task<IReadOnlyList<RouteResponse>> GetRoutesAsync(Caller caller, string id, CancellationToken ct = default);
@@ -778,8 +778,8 @@ public sealed class WorkloadService(
     public Task<IReadOnlyDictionary<string, WorkloadRuntimeStatus>> GetStatusesAsync(Caller caller, CancellationToken ct = default)
         => lifecycle.GetStatusesAsync(caller, ct);
 
-    public Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(Caller caller, string id, int tail, CancellationToken ct = default)
-        => lifecycle.GetLogsAsync(caller, id, tail, ct);
+    public Task<WorkloadLogsResponse> GetLogsAsync(Caller caller, string id, int tail, WorkloadLogRuns runs, CancellationToken ct = default)
+        => lifecycle.GetLogsAsync(caller, id, tail, runs, ct);
 
     public Task<bool> SettleRevisionAsync(string workloadId, WorkloadRuntimeStatus status, CancellationToken ct = default)
         => lifecycle.SettleRevisionAsync(workloadId, status, ct);

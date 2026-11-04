@@ -22,7 +22,7 @@ public interface IWorkloadBackend
     Task<WorkloadRuntimeStatus> GetStatusAsync(WorkloadDeployment deployment, CancellationToken ct = default);
 
     /// oldest first, empty (not a throw) when there's nothing to read
-    Task<IReadOnlyList<WorkloadLogLine>> GetLogsAsync(WorkloadDeployment deployment, int tail, CancellationToken ct = default);
+    Task<WorkloadLogsResponse> GetLogsAsync(WorkloadDeployment deployment, int tail, WorkloadLogRuns runs, CancellationToken ct = default);
 
     /// only backends with an attached process can, the rest refuse
     Task SendConsoleAsync(WorkloadDeployment deployment, string text, CancellationToken ct = default);
