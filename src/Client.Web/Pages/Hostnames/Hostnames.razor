@@ -55,7 +55,16 @@
                 {
                     <tr>
                         <td data-label="Hostname">
-                            <div>@host.Hostname</div>
+                            <div>
+                                @if (host.RouteCount > 0)
+                                {
+                                    <RouteLink Hostname="@host.Hostname" Tls="host.Status" EdgeHttpPort="_edgeHttpPort" EdgeHttpsPort="_edgeHttpsPort" />
+                                }
+                                else
+                                {
+                                    @host.Hostname
+                                }
+                            </div>
                             @if (!host.Hostname.StartsWith("www."))
                             {
                                 <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -115,6 +124,7 @@
 @code {
     private TlsOverviewResponse? _overview;
     private int _edgeHttpPort = 80;
+    private int _edgeHttpsPort = 443;
     private bool _loading = true;
     private bool _busy;
     private string? _error;
@@ -152,7 +162,10 @@
         try
         {
             _overview = await TlsApi.GetAsync();
-            _edgeHttpPort = (await SystemApi.GetSettingsAsync()).EdgeHttpPort;
+
+            var settings = await SystemApi.GetSettingsAsync();
+            _edgeHttpPort = settings.EdgeHttpPort;
+            _edgeHttpsPort = settings.EdgeHttpsPort;
         }
         catch (ApiException ex)
         {

@@ -211,7 +211,8 @@
                 <ProxyDriftBanner State="_proxy" OnApplied="ReloadProxyStateAsync" />
 
                 <RoutesEditor WorkloadId="@Id" OnChanged="RoutesChangedAsync" ReadOnly="!_isAdmin"
-                              SuggestedHostname="@SuggestedHostname()" SuggestedPort="@SuggestedPort()" />
+                              SuggestedHostname="@SuggestedHostname()" SuggestedPort="@SuggestedPort()"
+                              EdgeHttpPort="_edgeHttpPort" EdgeHttpsPort="_edgeHttpsPort" />
                 @if (_isAdmin)
                 {
                     <div class="mt-4">

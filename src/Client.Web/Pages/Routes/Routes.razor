@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AuthPolicies.AdminOnly)]
 @inject IRoutesClient RoutesApi
 @inject ITlsClient TlsApi
+@inject ISystemClient SystemApi
 @inject IMaterialSnackbarService Snackbar
 @inject NavigationManager Nav
 @using FifthBox.ServerManager.Client.Web.Components
@@ -59,7 +60,10 @@
                 @foreach (var r in _routes)
                 {
                     <tr class="@(r.Enabled ? "" : "opacity-50")">
-                        <td data-label="Hostname" class="@(r.Enabled ? "" : "line-through")">@r.Hostname</td>
+                        <td data-label="Hostname">
+                            <RouteLink Hostname="@r.Hostname" Path="@r.Path" Enabled="r.Enabled" Tls="Tls(r.Hostname)?.Status"
+                                       EdgeHttpPort="_edgeHttpPort" EdgeHttpsPort="_edgeHttpsPort" />
+                        </td>
                         <td data-label="TLS">
                             <TlsChip Status="Tls(r.Hostname)?.Status" NotAfter="Tls(r.Hostname)?.NotAfter" />
                         </td>
@@ -133,6 +137,8 @@
 @code {
     private IReadOnlyList<RouteResponse>? _routes;
     private Dictionary<string, TlsHostResponse> _tls = [];
+    private int _edgeHttpPort = 80;
+    private int _edgeHttpsPort = 443;
     private ProxyStateResponse? _proxy;
 
     private TlsHostResponse? Tls(string hostname) => _tls.GetValueOrDefault(hostname);
@@ -174,6 +180,10 @@
         {
             _routes = await RoutesApi.ListAsync();
             _tls = (await TlsApi.GetAsync()).Hosts.ToDictionary(h => h.Hostname, StringComparer.Ordinal);
+
+            var settings = await SystemApi.GetSettingsAsync();
+            _edgeHttpPort = settings.EdgeHttpPort;
+            _edgeHttpsPort = settings.EdgeHttpsPort;
         }
         catch (ApiException ex)
         {

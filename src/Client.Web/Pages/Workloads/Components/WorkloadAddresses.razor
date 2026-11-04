@@ -69,27 +69,16 @@ else
 
     private TlsHostResponse? TlsFor(string hostname) => Tls?.GetValueOrDefault(hostname);
 
-    private string PortSuffix(bool https)
-    {
-        var port = https ? EdgeHttpsPort : EdgeHttpPort;
-        return port == (https ? 443 : 80) ? string.Empty : $":{port}";
-    }
-
     private List<Link> BuildLinks()
     {
         var links = (Routes ?? [])
             .OrderBy(r => r.Hostname, StringComparer.Ordinal).ThenBy(r => r.Path, StringComparer.Ordinal)
-            .Select(r =>
-            {
-                // no valid cert still gets a link, just over http
-                var https = TlsFor(r.Hostname)?.Status == CertificateStatus.Valid;
-                return new Link(
-                    $"{(https ? "https" : "http")}://{r.Hostname}{PortSuffix(https)}{r.Path}",
-                    r.Enabled,
-                    r.Hostname,
-                    r.BasicAuthEnabled,
-                    DirectLabel: null);
-            })
+            .Select(r => new Link(
+                RouteUrl.For(r.Hostname, r.Path, TlsFor(r.Hostname)?.Status, EdgeHttpPort, EdgeHttpsPort),
+                r.Enabled,
+                r.Hostname,
+                r.BasicAuthEnabled,
+                DirectLabel: null))
             .ToList();
 
         // host-published ports bind where the task landed, so every running node is an entry point

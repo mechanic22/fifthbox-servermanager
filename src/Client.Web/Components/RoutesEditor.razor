@@ -28,7 +28,10 @@
             @foreach (var r in _routes)
             {
                 <tr>
-                    <td data-label="Hostname">@r.Hostname</td>
+                    <td data-label="Hostname">
+                        <RouteLink Hostname="@r.Hostname" Path="@r.Path" Enabled="r.Enabled" Tls="Tls(r.Hostname)?.Status"
+                                   EdgeHttpPort="EdgeHttpPort" EdgeHttpsPort="EdgeHttpsPort" />
+                    </td>
                     <td data-label="TLS">
                         @if (!ReadOnly)
                         {
@@ -91,6 +94,8 @@
     /// prefills a new route with the default address
     [Parameter] public string? SuggestedHostname { get; set; }
     [Parameter] public int? SuggestedPort { get; set; }
+    [Parameter] public int EdgeHttpPort { get; set; } = 80;
+    [Parameter] public int EdgeHttpsPort { get; set; } = 443;
 
     private IReadOnlyList<RouteResponse>? _routes;
     private Dictionary<string, TlsHostResponse> _tls = [];

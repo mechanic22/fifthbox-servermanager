@@ -1,0 +1,18 @@
+@if (Enabled)
+{
+    <a href="@RouteUrl.For(Hostname, Path, Tls, EdgeHttpPort, EdgeHttpsPort)" target="_blank" rel="noopener noreferrer"
+       class="underline">@Hostname</a>
+}
+else
+{
+    <span class="line-through">@Hostname</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public required string Hostname { get; set; }
+    [Parameter] public string Path { get; set; } = "/";
+    [Parameter] public bool Enabled { get; set; } = true;
+    [Parameter] public CertificateStatus? Tls { get; set; }
+    [Parameter] public int EdgeHttpPort { get; set; } = 80;
+    [Parameter] public int EdgeHttpsPort { get; set; } = 443;
+}
